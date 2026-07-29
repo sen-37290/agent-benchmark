@@ -151,6 +151,8 @@ def resolve(
         if provider_route:
             provider_config["only"] = [provider_route]
         if request.byok:
+            # NOTE: OpenRouter ignores a Friendli key sent with inference requests and uses the
+            # Friendli BYOK key already registered in the OpenRouter dashboard.
             provider_config["allow_fallbacks"] = False
 
     return ResolvedSpec(
