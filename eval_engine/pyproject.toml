@@ -5,6 +5,7 @@ description = "Deterministic, extensible benchmark evaluation engine"
 requires-python = ">=3.13"
 dependencies = [
   "pydantic>=2.10,<3",
+  "python-dotenv>=1.1,<2",
   "PyYAML>=6.0,<7",
   "typer>=0.15,<1",
 ]

@@ -11,6 +11,7 @@ from typing import Annotated
 
 import typer
 import yaml
+from dotenv import load_dotenv
 
 from agent_benchmark.errors import AgentBenchError
 from agent_benchmark.models import UserRequest
@@ -33,6 +34,7 @@ app.add_typer(remote_app, name="remote")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_ROOT = PROJECT_ROOT / "runs"
+load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 
 def _request(

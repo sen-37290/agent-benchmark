@@ -3,6 +3,24 @@
 The deterministic execution layer of `agent-benchmark`. It does not contain an LLM or an agent
 loop. Humans—and later `eval_agent`—invoke the same CLI.
 
+## First use
+
+The execution VM must be provisioned once by an administrator. See
+[PROVISIONING.md](PROVISIONING.md). After that, a user with SSH access only needs to clone the
+repository and configure the engine:
+
+```bash
+cd eval_engine
+cp .env.example .env
+# Fill in the SSH target and API keys in .env.
+uv sync --extra swebench
+uv run agent-bench remote doctor
+```
+
+The CLI loads `eval_engine/.env` automatically. Existing process environment variables take
+precedence, so CI or a secret manager can inject the same settings without a file. SSH credentials
+remain outside the repository in `~/.ssh` or an SSH agent.
+
 ## Commands
 
 ```bash
@@ -29,8 +47,9 @@ uv run agent-bench profiles list
 uv run agent-bench remote doctor --target fixed-vm
 ```
 
-Set `AGENT_BENCH_SSH_HOST` to an SSH host or alias. API keys are read from the environment named by
-the selected model profile and are never written into request or resolved specs.
+Set `AGENT_BENCH_SSH_HOST` to an SSH host, `user@host`, or alias. API keys are read from the
+environment named by the selected model profile and are never written into request or resolved
+specs.
 
 Sampling is optional. Omitting both `--sampling` and `--size` creates a run-specific pool containing
 the full benchmark (500 tasks for SWE-bench Verified). SWE-bench accepts `random` and `domain`.
