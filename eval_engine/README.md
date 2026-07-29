@@ -5,9 +5,11 @@ loop. Humans—and later `eval_agent`—invoke the same CLI.
 
 ## First use
 
-The execution VM must be provisioned once by an administrator. See
-[PROVISIONING.md](PROVISIONING.md). After that, a user with SSH access only needs to clone the
-repository and configure the engine:
+Start with [GETTING_STARTED.md](GETTING_STARTED.md) for the complete path from access request to a
+one-task smoke run. VM administrators should use [PROVISIONING.md](PROVISIONING.md).
+
+After the VM is provisioned and SSH access is granted, a user only needs to clone the repository
+and configure the engine:
 
 ```bash
 cd eval_engine

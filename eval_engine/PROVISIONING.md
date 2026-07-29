@@ -15,6 +15,12 @@ modify the VM operating system during an experiment.
 The Docker group grants control of the Docker daemon and is effectively root-level access. Add
 only a trusted benchmark execution account.
 
+Prefer one dedicated Linux execution account, such as `agentbench`, for a shared fixed VM. Grant
+approved users SSH access to that account with their individual public keys. This keeps the
+runtime user, filesystem ownership, Docker permissions, and caches consistent across operators.
+If operators instead use separate Linux accounts, each account needs Docker access and separate
+run/cache ownership must be handled by the administrator.
+
 ## Debian 12 setup
 
 Run these commands once on the VM as the benchmark SSH user:
@@ -46,23 +52,12 @@ docker info
 docker run --rm hello-world
 ```
 
-## User setup after cloning
+## Granting user access
 
-Every user still needs SSH authorization for the VM. Keep private keys in `~/.ssh`, an SSH agent,
-or an organization-managed credential system; do not store them in `.env` or this repository.
+Provisioning the VM does not grant users SSH access. Add each approved user's public key to the
+dedicated execution account using the organization's normal SSH, OS Login, or access-management
+process. Never share private keys or store them in this repository.
 
-```bash
-cd eval_engine
-cp .env.example .env
-```
-
-Fill in `.env`, then run the non-mutating preflight:
-
-```bash
-uv sync --extra swebench
-uv run agent-bench remote doctor
-```
-
-Once the preflight passes, future runs automatically upload the source and run bundle, synchronize
-the locked Python environment, execute Harbor, retrieve and verify artifacts, and retain shared VM
-caches for later experiments.
+The administrator should give the user the SSH target (`user@host` or an approved SSH alias) and
+confirm that `ssh <target>` works. The remaining user workflow is documented in
+[GETTING_STARTED.md](GETTING_STARTED.md).
