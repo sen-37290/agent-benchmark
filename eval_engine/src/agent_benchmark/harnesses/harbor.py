@@ -3,20 +3,20 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent_benchmark.agents import agent_adapter
+from agent_benchmark.agents.base import AgentInvocation
 from agent_benchmark.benchmarks.paths import benchmark_dataset_dir
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.run.process import run_logged
-from agent_benchmark.subject_agents import subject_agent_adapter
-from agent_benchmark.subject_agents.base import SubjectAgentInvocation
 
 
 def harbor_job_dir(spec: ResolvedSpec, run_dir: Path) -> Path:
     return run_dir / "artifacts" / "harbor_jobs" / spec.run_id
 
 
-def _agent_arguments(invocation: SubjectAgentInvocation) -> list[str]:
+def _agent_arguments(invocation: AgentInvocation) -> list[str]:
     arguments: list[str] = []
     for key, value in invocation.kwargs.items():
         encoded = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
@@ -31,14 +31,14 @@ def build_command(
     run_dir: Path,
     cache_root: Path,
     api_key: str,
-    invocation: SubjectAgentInvocation | None = None,
+    invocation: AgentInvocation | None = None,
 ) -> list[str]:
     output_dir = run_dir / "artifacts" / "harbor_jobs"
     job_dir = harbor_job_dir(spec, run_dir)
     if (job_dir / "config.json").is_file():
         return ["uv", "run", "harbor", "job", "resume", "-p", str(job_dir)]
 
-    invocation = invocation or subject_agent_adapter(spec.model.subject_agent).invocation(
+    invocation = invocation or agent_adapter(spec.model.subject_agent).invocation(
         spec, run_dir, api_key
     )
     command = ["uv", "run", "harbor", "run"]
@@ -92,9 +92,7 @@ class HarborHarness(HarnessAdapter):
 
         output_dir = run_dir / "artifacts" / "harbor_jobs"
         output_dir.mkdir(parents=True, exist_ok=True)
-        invocation = subject_agent_adapter(spec.model.subject_agent).invocation(
-            spec, run_dir, api_key
-        )
+        invocation = agent_adapter(spec.model.subject_agent).invocation(spec, run_dir, api_key)
 
         metadata = {
             "run_id": spec.run_id,

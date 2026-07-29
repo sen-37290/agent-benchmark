@@ -4,7 +4,7 @@ The deterministic execution layer of `agent-benchmark`. It contains no LLM or ag
 Humans—and later `eval_agent`—invoke the same CLI.
 
 Subject-agent integration is independent from benchmarks and harnesses. Agent profiles live under
-`config/agents/`, while their invocation adapters live under `subject_agents/`. A benchmark may
+`config/agents/`, while their invocation adapters live under `agents/`. A benchmark may
 select a default agent profile without owning that agent's configuration or execution logic.
 
 The execution VM is fixed and long-lived. An administrator provisions it once; operators run the

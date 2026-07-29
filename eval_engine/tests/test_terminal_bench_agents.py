@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
+from agent_benchmark.agents import agent_adapter
 from agent_benchmark.benchmarks.terminal_bench.pool import create_pool
 from agent_benchmark.config.loader import list_profiles, resolve
 from agent_benchmark.config.schema import UserRequest
 from agent_benchmark.exceptions import ConfigurationError
-from agent_benchmark.subject_agents import subject_agent_adapter
 
 ROOT = Path(__file__).parents[1]
 
@@ -53,7 +53,7 @@ def test_benchmark_resolves_independent_agent_profiles(tmp_path: Path) -> None:
 
 
 def test_agent_adapters_are_loaded_from_separate_modules() -> None:
-    assert subject_agent_adapter("mini-swe-agent").__class__.__module__.endswith(".mini_swe_agent")
-    assert subject_agent_adapter("terminus-2").__class__.__module__.endswith(".terminus_2")
+    assert agent_adapter("mini-swe-agent").__class__.__module__.endswith(".mini_swe_agent")
+    assert agent_adapter("terminus-2").__class__.__module__.endswith(".terminus_2")
     with pytest.raises(ConfigurationError, match="not available"):
-        subject_agent_adapter("unknown-agent")
+        agent_adapter("unknown-agent")

@@ -5,12 +5,12 @@ from pathlib import Path
 
 import yaml
 
+from agent_benchmark.agents.base import AgentAdapter, AgentInvocation
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
-from agent_benchmark.subject_agents.base import SubjectAgentAdapter, SubjectAgentInvocation
 
 
-class MiniSweAgentAdapter(SubjectAgentAdapter):
+class MiniSweAgentAdapter(AgentAdapter):
     name = "mini-swe-agent"
 
     def invocation(
@@ -18,7 +18,7 @@ class MiniSweAgentAdapter(SubjectAgentAdapter):
         spec: ResolvedSpec,
         run_dir: Path,
         api_key: str,
-    ) -> SubjectAgentInvocation:
+    ) -> AgentInvocation:
         try:
             actual_version = version("mini-swe-agent")
         except PackageNotFoundError as error:
@@ -40,7 +40,7 @@ class MiniSweAgentAdapter(SubjectAgentAdapter):
         if spec.model.api == "openrouter":
             environment["MSWEA_API_KEY"] = api_key
             process_environment["MSWEA_API_KEY"] = api_key
-        return SubjectAgentInvocation(
+        return AgentInvocation(
             model_name=spec.model.model_id,
             kwargs={
                 "config_file": str(config_path),
