@@ -16,6 +16,42 @@ def harbor_job_dir(spec: ResolvedSpec, run_dir: Path) -> Path:
     return run_dir / "artifacts" / "harbor_jobs" / spec.run_id
 
 
+def _agent_model_name(spec: ResolvedSpec) -> str:
+    if spec.model.subject_agent == "terminus-2" and spec.model.api == "openrouter":
+        return f"openrouter/{spec.model.model_id}"
+    return spec.model.model_id
+
+
+def _agent_arguments(spec: ResolvedSpec, config_path: Path) -> list[str]:
+    if spec.model.subject_agent == "mini-swe-agent":
+        return [
+            "--ak",
+            f"config_file={config_path}",
+            "--ak",
+            f"version={spec.model.subject_agent_version}",
+            "--ak",
+            f"cost_limit={spec.budget.per_task_usd}",
+        ]
+    if spec.model.subject_agent == "terminus-2":
+        arguments = [
+            "--ak",
+            f"reasoning_effort={spec.model.reasoning_effort}",
+            "--ak",
+            "temperature=1",
+        ]
+        provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
+        if spec.model.api == "openrouter" and isinstance(provider, dict):
+            call_kwargs = {"extra_body": {"provider": provider}}
+            arguments.extend(
+                [
+                    "--ak",
+                    f"llm_call_kwargs={json.dumps(call_kwargs, separators=(',', ':'))}",
+                ]
+            )
+        return arguments
+    return []
+
+
 def build_command(
     spec: ResolvedSpec,
     run_dir: Path,
@@ -45,13 +81,8 @@ def build_command(
             "-a",
             spec.model.subject_agent,
             "-m",
-            spec.model.model_id,
-            "--ak",
-            f"config_file={config_path}",
-            "--ak",
-            f"version={spec.model.subject_agent_version}",
-            "--ak",
-            f"cost_limit={spec.budget.per_task_usd}",
+            _agent_model_name(spec),
+            *_agent_arguments(spec, config_path),
             "--ae",
             f"{spec.model.api_key_env}={api_key}",
             "-e",

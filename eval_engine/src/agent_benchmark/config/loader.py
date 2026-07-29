@@ -172,8 +172,14 @@ def resolve(
         model=ModelSpec(
             profile=request.model,
             model_id=model["model_id"],
-            subject_agent=model["subject_agent"],
-            subject_agent_version=str(model["subject_agent_version"]),
+            subject_agent=benchmark.get("settings", {}).get(
+                "subject_agent", model["subject_agent"]
+            ),
+            subject_agent_version=str(
+                benchmark.get("settings", {}).get(
+                    "subject_agent_version", model["subject_agent_version"]
+                )
+            ),
             model_class=model["model_class"],
             provider=request.provider,
             api=model["api"],

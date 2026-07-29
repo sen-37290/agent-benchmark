@@ -216,6 +216,12 @@ the verifier. Rewards are binary for the pinned 2.1 dataset and reports include 
 reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed
 trials.
 
+Terminal-Bench 2.1 uses Harbor's built-in Terminus 2 (`terminus-2`, version 2.0.0) as its default
+subject agent. SWE-bench Verified continues to use mini-swe-agent. Terminus 2 receives the resolved
+reasoning effort and OpenRouter provider routing directly through Harbor. The engine-wide measured
+cost watchdog still applies, but Terminus 2 does not expose mini-swe-agent's per-task cost-limit
+argument.
+
 ## Execution VM provisioning
 
 Provision each long-lived VM once. The engine deploys its source and creates its locked Python

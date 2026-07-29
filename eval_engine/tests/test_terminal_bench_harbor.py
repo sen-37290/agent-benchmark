@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from agent_benchmark.benchmarks.terminal_bench.pool import create_pool
@@ -22,7 +23,8 @@ def terminal_spec(tmp_path: Path):
         size=2,
         model="glm-5.2",
         reasoning_effort="xhigh",
-        provider="openrouter",
+        provider="friendli",
+        byok=True,
         workers=2,
         budget_usd=10,
     )
@@ -40,11 +42,21 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
 
     assert command[:4] == ["uv", "run", "harbor", "run"]
     assert command[command.index("-d") + 1] == spec.benchmark.dataset_id
+    assert command[command.index("-a") + 1] == "terminus-2"
+    assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
     assert command.count("--include-task-name") == 2
     assert all(f"terminal-bench/{task_id}" in command for task_id in pool["instance_ids"])
     assert not any(task_id in command for task_id in pool["instance_ids"])
     assert command[command.index("-k") + 1] == "1"
     assert command[command.index("--job-name") + 1] == spec.run_id
+    assert "reasoning_effort=xhigh" in command
+    assert "temperature=1" in command
+    assert not any("config_file=" in argument for argument in command)
+    assert not any("cost_limit=" in argument for argument in command)
+    call_kwargs = next(argument for argument in command if argument.startswith("llm_call_kwargs="))
+    assert json.loads(call_kwargs.removeprefix("llm_call_kwargs=")) == {
+        "extra_body": {"provider": {"only": ["friendli"], "allow_fallbacks": False}}
+    }
 
 
 def test_resumes_existing_native_job(tmp_path: Path) -> None:
@@ -62,6 +74,44 @@ def test_resumes_existing_native_job(tmp_path: Path) -> None:
         "-p",
         str(job_dir),
     ]
+
+
+@pytest.mark.parametrize(
+    ("model", "effort", "provider", "expected_model"),
+    [
+        ("kimi-k3", "max", "openrouter", "openrouter/moonshotai/kimi-k3"),
+        ("opus-5", "max", "anthropic", "anthropic/claude-opus-5"),
+    ],
+)
+def test_terminus_model_transport(
+    tmp_path: Path,
+    model: str,
+    effort: str,
+    provider: str,
+    expected_model: str,
+) -> None:
+    pool = tmp_path / "pool.json"
+    create_pool(pool, "random", 1)
+    request = UserRequest(
+        benchmark="terminal-bench-2.1",
+        sampling="random",
+        size=1,
+        model=model,
+        reasoning_effort=effort,
+        provider=provider,
+        workers=1,
+        budget_usd=10,
+    )
+    spec = resolve(request, f"test-terminus-{model}", ROOT, pool)
+    run_dir = tmp_path / "run"
+    (run_dir / "inputs").mkdir(parents=True)
+    (run_dir / spec.benchmark.pool_path).write_text(pool.read_text())
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("-a") + 1] == "terminus-2"
+    assert command[command.index("-m") + 1] == expected_model
+    assert f"reasoning_effort={effort}" in command
 
 
 def test_swebench_keeps_local_dataset_command(tmp_path: Path) -> None:
@@ -113,6 +163,8 @@ def test_cli_plan_resolves_terminal_bench_without_vm_or_model() -> None:
     assert "plugin: terminal_bench" in result.output
     assert "grading: harbor-inline-verifier" in result.output
     assert "sample_size: 2" in result.output
+    assert "subject_agent: terminus-2" in result.output
+    assert "subject_agent_version: 2.0.0" in result.output
 
 
 def test_remote_deploy_selects_terminalbench_extra(tmp_path: Path, monkeypatch) -> None:

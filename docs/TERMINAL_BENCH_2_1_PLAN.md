@@ -18,7 +18,7 @@ Each task provides:
 - an oracle solution used by benchmark maintainers for validation;
 - metadata such as category and difficulty.
 
-The subject agent, for example mini-swe-agent, operates inside the task environment. The eval
+The default subject agent, Terminus 2, operates against the task environment. The eval
 engine does not implement the subject's agent loop.
 
 ## Official end-to-end execution
@@ -28,7 +28,7 @@ The official native invocation is conceptually:
 ```bash
 harbor run \
   -d terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a \
-  -a mini-swe-agent \
+  -a terminus-2 \
   -m <provider/model> \
   -n <concurrency> \
   -k 1
@@ -107,7 +107,7 @@ Its Terminal-Bench interpretation will be:
 - `report`: report accuracy, mean reward, errors/missing trials, token usage, and measured cost.
 
 This preserves the distinction between benchmark pipeline orchestration and the evaluated
-mini-swe-agent loop while following Harbor's native inline grading model.
+Terminus 2 loop while following Harbor's native inline grading model.
 
 ## Confirmed dataset and compatibility facts
 
@@ -177,7 +177,8 @@ do not create a new registry abstraction.
 
 ### Dependencies and documentation
 
-- Add a `terminalbench` optional dependency extra using Harbor 0.20.0 and mini-swe-agent 2.4.5.
+- Add a `terminalbench` optional dependency extra using Harbor 0.20.0. Terminus 2 is built into
+  Harbor; mini-swe-agent 2.4.5 remains installed as a supported alternative subject agent.
 - Let remote deployment select the benchmark profile's dependency extra; keep the existing
   SWE-bench extra and grader versions unchanged.
 - Document Harbor Hub and Docker-registry network access, Docker/Compose requirements, persistent
