@@ -77,7 +77,7 @@ def _cost_and_tokens(
     else:
         contexts.extend(
             step["agent_result"]
-            for step in result.get("step_results", [])
+            for step in (result.get("step_results") or [])
             if step.get("agent_result")
         )
     cost: float | None = None

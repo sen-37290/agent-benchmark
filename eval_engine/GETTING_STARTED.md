@@ -109,8 +109,8 @@ A successful result ends with:
 remote preflight passed
 ```
 
-This checks SSH connectivity and the remote availability of `python3`, `uv`, `docker`, and
-`rsync`. It does not call a model or start a benchmark.
+This checks SSH connectivity and the remote availability of `python3`, `uv`, `docker`, Docker
+Compose, and `rsync`. It does not call a model or start a benchmark.
 
 ## 7. Validate an experiment plan
 

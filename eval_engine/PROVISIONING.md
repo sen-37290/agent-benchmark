@@ -7,7 +7,8 @@ modify the VM operating system during an experiment.
 ## Requirements
 
 - Linux VM reachable through standard SSH
-- `python3`, `uv`, `docker`, and `rsync` available in non-interactive SSH sessions
+- `python3`, `uv`, `docker`, Docker Compose v2, and `rsync` available in non-interactive SSH
+  sessions
 - Docker daemon enabled and running
 - Benchmark SSH user allowed to access Docker without `sudo`
 - Enough disk for benchmark repositories, datasets, and Docker images
@@ -40,6 +41,18 @@ rm /tmp/agent-benchmark-uv-install.sh
 # Non-interactive SSH does not necessarily load ~/.profile.
 sudo ln -sfn "$HOME/.local/bin/uv" /usr/local/bin/uv
 sudo ln -sfn "$HOME/.local/bin/uvx" /usr/local/bin/uvx
+
+# Harbor invokes `docker compose`. Install the Compose CLI plugin system-wide.
+curl -fL \
+  https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-x86_64 \
+  -o /tmp/docker-compose-linux-x86_64
+curl -fL \
+  https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-x86_64.sha256 \
+  -o /tmp/docker-compose-linux-x86_64.sha256
+(cd /tmp && sha256sum -c docker-compose-linux-x86_64.sha256)
+sudo install -D -m 0755 /tmp/docker-compose-linux-x86_64 \
+  /usr/local/lib/docker/cli-plugins/docker-compose
+rm /tmp/docker-compose-linux-x86_64 /tmp/docker-compose-linux-x86_64.sha256
 ```
 
 Disconnect and reconnect after changing Docker group membership. Then verify:
@@ -49,6 +62,7 @@ python3 --version
 uv --version
 rsync --version
 docker info
+docker compose version
 docker run --rm hello-world
 ```
 

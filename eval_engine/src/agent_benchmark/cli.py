@@ -233,7 +233,10 @@ def remote_doctor(
     host = os.environ.get("AGENT_BENCH_SSH_HOST", "").strip()
     if not host:
         raise typer.BadParameter("set AGENT_BENCH_SSH_HOST")
-    checks = "command -v python3 && command -v uv && command -v docker && command -v rsync"
+    checks = (
+        "command -v python3 && command -v uv && command -v docker && command -v rsync "
+        "&& docker compose version >/dev/null"
+    )
     result = subprocess.run(["ssh", host, checks], check=False)
     if result.returncode:
         raise typer.Exit(result.returncode)

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from agent_benchmark.errors import ConfigurationError
+from agent_benchmark.errors import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.models import ResolvedSpec
 from agent_benchmark.paths import benchmark_dataset_dir
@@ -85,3 +85,20 @@ class HarborHarness(HarnessAdapter):
             budget_job_dir=output_dir,
             budget_usd=spec.budget.total_usd,
         )
+
+        trial_results = sorted(output_dir.glob("*/*/result.json"))
+        if len(trial_results) != spec.benchmark.sample_size:
+            raise StageError(
+                "Harbor produced "
+                f"{len(trial_results)} trial results for {spec.benchmark.sample_size} tasks"
+            )
+        exceptions = []
+        for result_path in trial_results:
+            result = json.loads(result_path.read_text())
+            if result.get("exception_info"):
+                exceptions.append(result_path.parent.name)
+        if exceptions:
+            raise StageError(
+                f"Harbor reported task exceptions for {len(exceptions)}/{len(trial_results)} "
+                f"trials; inspect logs/execute.log (examples: {', '.join(exceptions[:3])})"
+            )

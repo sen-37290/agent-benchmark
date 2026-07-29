@@ -54,7 +54,10 @@ class SSHBackend:
         return result
 
     def doctor(self) -> None:
-        checks = "command -v python3 && command -v uv && command -v docker && command -v rsync"
+        checks = (
+            "command -v python3 && command -v uv && command -v docker && command -v rsync "
+            "&& docker compose version >/dev/null"
+        )
         self._ssh(["sh", "-c", checks])
 
     def deploy(self, local_run: Path) -> None:
@@ -80,8 +83,14 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
         excludes = [
             "--exclude=.venv",
             "--exclude=.git",
+            "--exclude=.env",
             "--exclude=runs",
+            "--exclude=pools",
+            "--exclude=tests",
+            "--exclude=dist",
             "--exclude=.pytest_cache",
+            "--exclude=.ruff_cache",
+            "--exclude=__pycache__",
         ]
         result = subprocess.run(
             [
