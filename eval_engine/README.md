@@ -1,64 +1,176 @@
 # eval_engine
 
-The deterministic execution layer of `agent-benchmark`. It does not contain an LLM or an agent
-loop. Humans—and later `eval_agent`—invoke the same CLI.
+The deterministic execution layer of `agent-benchmark`. It contains no LLM or agent loop.
+Humans—and later `eval_agent`—invoke the same CLI.
 
-## First use
+The execution VM is fixed and long-lived. An administrator provisions it once; operators run the
+CLI locally and keep experiment inputs and retrieved results on their own machine.
 
-Start with [GETTING_STARTED.md](GETTING_STARTED.md) for the complete path from access request to a
-one-task smoke run. VM administrators should use [PROVISIONING.md](PROVISIONING.md).
+## Getting started
 
-After the VM is provisioned and SSH access is granted, a user only needs to clone the repository
-and configure the engine:
+### 1. Request access
+
+Obtain:
+
+- Read access to this repository
+- SSH access to the provisioned execution VM
+- The VM target as `user@host`, or an approved SSH alias
+- An OpenRouter API key for GLM-5.2 or Kimi-K3
+- An Anthropic API key for Opus 5
+- For Friendli BYOK, a Friendli key registered in the OpenRouter workspace dashboard
+
+SSH private keys belong in `~/.ssh`, an SSH agent, or an organization-managed credential system—not
+in `.env`.
+
+### 2. Install local prerequisites
+
+The operator machine needs Git, OpenSSH, `rsync`, and `uv`. It does not need Docker.
 
 ```bash
-cd eval_engine
-cp .env.example .env
-# Fill in the SSH target and API keys in .env.
+git --version
+ssh -V
+rsync --version
+uv --version
+```
+
+### 3. Verify SSH access
+
+Use the direct target supplied by the administrator:
+
+```bash
+ssh agentbench@VM_HOST
+```
+
+Or create a local SSH alias:
+
+```sshconfig
+Host agent-benchmark-vm
+    HostName VM_HOST
+    User agentbench
+    IdentityFile ~/.ssh/ORGANIZATION_KEY
+    IdentitiesOnly yes
+```
+
+Then verify it:
+
+```bash
+ssh agent-benchmark-vm
+```
+
+Resolve SSH and host-key errors before running the engine. `agent-bench` uses the same local `ssh`
+and `rsync` configuration.
+
+### 4. Clone and install
+
+```bash
+git clone https://github.com/sen-37290/agent-benchmark.git
+cd agent-benchmark/eval_engine
 uv sync --extra swebench
-uv run agent-bench remote doctor
+```
+
+`uv` creates the environment from `uv.lock` and installs the required Python version when needed.
+
+### 5. Configure `.env`
+
+```bash
+cp .env.example .env
+```
+
+Fill in the SSH target and only the API keys required by the intended models:
+
+```dotenv
+AGENT_BENCH_SSH_HOST=agent-benchmark-vm
+OPENROUTER_API_KEY=
+ANTHROPIC_API_KEY=
 ```
 
 The CLI loads `eval_engine/.env` automatically. Existing process environment variables take
-precedence, so CI or a secret manager can inject the same settings without a file. SSH credentials
-remain outside the repository in `~/.ssh` or an SSH agent.
+precedence, allowing CI or a secret manager to inject credentials. `.env` is ignored by Git.
 
-## Commands
+Do not add `FRIENDLI_API_KEY`. OpenRouter ignores a Friendli key sent with an inference request;
+Friendli BYOK uses the key registered in the OpenRouter workspace dashboard.
+
+### 6. Run the preflight
 
 ```bash
-uv sync --extra swebench
+uv run agent-bench remote doctor
+```
 
-# Validate and show the fully resolved request without creating a run.
+A successful preflight ends with `remote preflight passed`. It checks SSH and the remote
+availability of `python3`, `uv`, `docker`, Docker Compose, and `rsync`, without calling a model or
+starting a benchmark.
+
+### 7. Validate a plan
+
+```bash
 uv run agent-bench plan \
   --benchmark swebench-verified \
   --model glm-5.2 \
   --reasoning-effort xhigh \
   --provider friendli \
-  --workers 2 \
-  --budget-usd 10 \
+  --byok \
+  --workers 1 \
+  --budget-usd 5 \
   --sampling random \
-  --size 2
-
-# Execute the complete remote pipeline.
-uv run agent-bench run <same arguments>
-
-uv run agent-bench status <run-id>
-uv run agent-bench resume <run-id>
-uv run agent-bench report <run-id>
-uv run agent-bench profiles list
-uv run agent-bench remote doctor --target fixed-vm
+  --size 1
 ```
 
-Set `AGENT_BENCH_SSH_HOST` to an SSH host, `user@host`, or alias. API keys are read from the
-environment named by the selected model profile and are never written into request or resolved
-specs.
+`plan` validates and prints the resolved spec without using the VM or calling the model. For
+Friendli BYOK, verify `api: openrouter`, `provider.only: [friendli]`, and
+`allow_fallbacks: false`.
 
-Sampling is optional. Omitting both `--sampling` and `--size` creates a run-specific pool containing
-the full benchmark (500 tasks for SWE-bench Verified). SWE-bench accepts `random` and `domain`.
-Generated files live under `pools/` locally, are ignored by Git, and are copied into the permanent
-run bundle as `inputs/pool.json`.
+### 8. Run a one-task smoke experiment
 
-Provider arguments are user-facing routes:
+This command makes a real model request and may incur cost:
+
+```bash
+uv run agent-bench run \
+  --benchmark swebench-verified \
+  --model glm-5.2 \
+  --reasoning-effort xhigh \
+  --provider friendli \
+  --byok \
+  --workers 1 \
+  --budget-usd 5 \
+  --per-task-cost-limit-usd 5 \
+  --sampling random \
+  --size 1
+```
+
+Always use an explicit one-task sample for the first run. Omitting `--sampling` and `--size` runs
+all 500 SWE-bench Verified tasks.
+
+| Model profile | Effort example | Provider | Required key |
+|---|---|---|---|
+| `glm-5.2` | `xhigh` | `friendli --byok` | `OPENROUTER_API_KEY` |
+| `kimi-k3` | `max` | `openrouter` | `OPENROUTER_API_KEY` |
+| `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY` |
+
+Run one experiment at a time. The engine holds a VM-wide lease until completion or cancellation.
+
+## Run management
+
+Every run prints an ID and stores its local bundle under `runs/<run-id>/`.
+
+```bash
+uv run agent-bench status RUN_ID
+uv run agent-bench cancel RUN_ID
+uv run agent-bench resume RUN_ID
+uv run agent-bench report RUN_ID
+```
+
+The bundle contains the request, immutable resolved spec, stage state, event log, copied pool, raw
+artifacts, normalized results, and report. `resume` continues from the first incomplete stage.
+
+`cancel` stops processes and Docker resources belonging to the exact run, removes its remote
+workspace, releases its lease, and records cancellation locally. A cancelled run cannot resume;
+start a new run instead.
+
+## Sampling and providers
+
+Sampling is optional. Omitting both `--sampling` and `--size` creates a full run-specific pool.
+SWE-bench Verified accepts `random` and `domain`. Generated pools are ignored by Git and copied
+into the permanent run bundle as `inputs/pool.json`.
 
 | `--provider` | Internal transport | Routing |
 |---|---|---|
@@ -67,11 +179,93 @@ Provider arguments are user-facing routes:
 | `anthropic` | Anthropic via litellm | Anthropic first-party API |
 
 Add `--byok` to the Friendli form to disable OpenRouter fallback. The selected provider, internal
-API transport, and route are all recorded separately in `resolved.yaml`.
+transport, and route are recorded separately in `resolved.yaml`.
 
 ## Run lifecycle
 
-Every run is stored locally under `runs/<run-id>/`. The original CLI request, immutable resolved
-spec, event journal, raw artifacts, normalized task results, and report stay together. The remote
-workspace is deleted only after artifact checksums have been verified locally. Shared Docker,
-dataset, and dependency caches are retained.
+```text
+deploy → prepare → execute → grade → collect → normalize → report → cleanup
+```
+
+The remote workspace is deleted only after artifact checksums have been verified locally. Shared
+Docker, dataset, and dependency caches remain on the VM for later experiments.
+
+## Execution VM provisioning
+
+Provision each long-lived VM once. The engine deploys its source and creates its locked Python
+environment automatically, but deliberately does not modify the VM operating system during an
+experiment.
+
+### VM requirements
+
+- Linux reachable through standard SSH
+- `python3`, `uv`, `docker`, Docker Compose v2, and `rsync` in non-interactive SSH sessions
+- Docker daemon enabled and running
+- Benchmark SSH account allowed to access Docker without `sudo`
+- Enough disk for repositories, datasets, and Docker images
+
+The Docker group grants control of the Docker daemon and is effectively root-level access. Add
+only a trusted benchmark execution account.
+
+Prefer one dedicated Linux account, such as `agentbench`, for a shared VM. Give approved users SSH
+access to that account with their individual public keys. This keeps filesystem ownership, Docker
+permissions, and caches consistent. If operators use separate Linux accounts, each needs Docker
+access and separate run/cache ownership management.
+
+### Debian 12 setup
+
+Run once on the VM as the benchmark SSH account:
+
+```bash
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  ca-certificates curl docker.io rsync
+
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+
+curl -LsSf https://astral.sh/uv/install.sh -o /tmp/agent-benchmark-uv-install.sh
+sh /tmp/agent-benchmark-uv-install.sh
+rm /tmp/agent-benchmark-uv-install.sh
+
+# Non-interactive SSH does not necessarily load ~/.profile.
+sudo ln -sfn "$HOME/.local/bin/uv" /usr/local/bin/uv
+sudo ln -sfn "$HOME/.local/bin/uvx" /usr/local/bin/uvx
+
+# Harbor invokes `docker compose`; install the Compose CLI plugin system-wide.
+curl -fL \
+  https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-x86_64 \
+  -o /tmp/docker-compose-linux-x86_64
+curl -fL \
+  https://github.com/docker/compose/releases/download/v5.1.4/docker-compose-linux-x86_64.sha256 \
+  -o /tmp/docker-compose-linux-x86_64.sha256
+(cd /tmp && sha256sum -c docker-compose-linux-x86_64.sha256)
+sudo install -D -m 0755 /tmp/docker-compose-linux-x86_64 \
+  /usr/local/lib/docker/cli-plugins/docker-compose
+rm /tmp/docker-compose-linux-x86_64 /tmp/docker-compose-linux-x86_64.sha256
+```
+
+Disconnect and reconnect after changing Docker group membership, then verify:
+
+```bash
+python3 --version
+uv --version
+rsync --version
+docker info
+docker compose version
+docker run --rm hello-world
+```
+
+Provisioning does not grant SSH access. Add each approved user's public key to the dedicated
+execution account through the organization's SSH, OS Login, or access-management process. Never
+share private keys or store them in this repository.
+
+## Common failures
+
+- `Permission denied (publickey)`: SSH access or the selected key is not configured.
+- `Host key verification failed`: verify the host and fix local `known_hosts` or SSH alias config.
+- `set AGENT_BENCH_SSH_HOST`: `.env` is missing, misplaced, or incomplete.
+- `docker: permission denied`: the remote execution account lacks Docker daemon access.
+- `VM is leased by run`: another run is active or a failed run still owns the lease. Inspect,
+  resume, or cancel that run before starting another.
+- Missing API-key error: fill in the key required by the selected model profile.
