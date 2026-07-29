@@ -12,6 +12,65 @@ from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.run.process import run_logged
 
 
+def harbor_job_dir(spec: ResolvedSpec, run_dir: Path) -> Path:
+    return run_dir / "artifacts" / "harbor_jobs" / spec.run_id
+
+
+def build_command(
+    spec: ResolvedSpec,
+    run_dir: Path,
+    cache_root: Path,
+    api_key: str,
+) -> list[str]:
+    output_dir = run_dir / "artifacts" / "harbor_jobs"
+    job_dir = harbor_job_dir(spec, run_dir)
+    if (job_dir / "config.json").is_file():
+        return ["uv", "run", "harbor", "job", "resume", "-p", str(job_dir)]
+
+    config_path = run_dir / "subject-config.yaml"
+    command = ["uv", "run", "harbor", "run"]
+    dataset_source = spec.benchmark.settings.get("dataset_source", "local")
+    if dataset_source == "package":
+        pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())
+        command.extend(["-d", spec.benchmark.dataset_id])
+        for task_id in pool["instance_ids"]:
+            command.extend(["--include-task-name", str(task_id)])
+    elif dataset_source == "local":
+        command.extend(["-p", str(benchmark_dataset_dir(spec, cache_root))])
+    else:
+        raise ConfigurationError(f"unsupported Harbor dataset source: {dataset_source!r}")
+    command.extend(
+        [
+            "-a",
+            spec.model.subject_agent,
+            "-m",
+            spec.model.model_id,
+            "--ak",
+            f"config_file={config_path}",
+            "--ak",
+            f"version={spec.model.subject_agent_version}",
+            "--ak",
+            f"cost_limit={spec.budget.per_task_usd}",
+            "--ae",
+            f"{spec.model.api_key_env}={api_key}",
+            "-e",
+            spec.execution.environment,
+            "-n",
+            str(spec.execution.workers),
+            "-k",
+            str(spec.benchmark.settings.get("attempts", 1)),
+            "-o",
+            str(output_dir),
+            "--job-name",
+            spec.run_id,
+            "--yes",
+        ]
+    )
+    if spec.model.api == "openrouter":
+        command.extend(["--ae", f"MSWEA_API_KEY={api_key}"])
+    return command
+
+
 class HarborHarness(HarnessAdapter):
     name = "harbor"
 
@@ -26,7 +85,6 @@ class HarborHarness(HarnessAdapter):
         if not api_key:
             raise ConfigurationError(f"required secret {spec.model.api_key_env!r} was not supplied")
 
-        dataset_dir = benchmark_dataset_dir(spec, cache_root)
         output_dir = run_dir / "artifacts" / "harbor_jobs"
         output_dir.mkdir(parents=True, exist_ok=True)
         config_path = run_dir / "subject-config.yaml"
@@ -45,42 +103,21 @@ class HarborHarness(HarnessAdapter):
         }
         (run_dir / "artifacts" / "run_meta.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
-        command = [
-            "uv",
-            "run",
-            "harbor",
-            "run",
-            "-p",
-            str(dataset_dir),
-            "-a",
-            spec.model.subject_agent,
-            "-m",
-            spec.model.model_id,
-            "--ak",
-            f"config_file={config_path}",
-            "--ak",
-            f"version={spec.model.subject_agent_version}",
-            "--ak",
-            f"cost_limit={spec.budget.per_task_usd}",
-            "--ae",
-            f"{spec.model.api_key_env}={api_key}",
-            "-e",
-            spec.execution.environment,
-            "-n",
-            str(spec.execution.workers),
-            "-o",
-            str(output_dir),
-            "--yes",
-        ]
+        command = build_command(spec, run_dir, cache_root, api_key)
+
+        command_env = {
+            "MSWEA_GLOBAL_COST_LIMIT": str(spec.budget.per_task_usd),
+            spec.model.api_key_env: api_key,
+        }
         if spec.model.api == "openrouter":
-            # Required by Harbor for unprefixed native OpenRouter model identifiers.
-            command.extend(["--ae", f"MSWEA_API_KEY={api_key}"])
+            # Harbor persists this as ${MSWEA_API_KEY}, allowing native resume safely.
+            command_env["MSWEA_API_KEY"] = api_key
 
         run_logged(
             command,
             cwd=run_dir,
             log_path=run_dir / "logs" / "execute.log",
-            env={"MSWEA_GLOBAL_COST_LIMIT": str(spec.budget.per_task_usd)},
+            env=command_env,
             redact_values=[api_key],
             budget_job_dir=output_dir,
             budget_usd=spec.budget.total_usd,
@@ -97,7 +134,7 @@ class HarborHarness(HarnessAdapter):
             result = json.loads(result_path.read_text())
             if result.get("exception_info"):
                 exceptions.append(result_path.parent.name)
-        if exceptions:
+        if exceptions and spec.benchmark.settings.get("fail_on_trial_exception", True):
             raise StageError(
                 f"Harbor reported task exceptions for {len(exceptions)}/{len(trial_results)} "
                 f"trials; inspect logs/execute.log (examples: {', '.join(exceptions[:3])})"

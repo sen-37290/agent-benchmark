@@ -133,7 +133,13 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             f"umask 077; cat > {shlex.quote(str(self.remote_run / 'secrets.json'))}",
             input_text=secrets,
         )
-        self._ssh(f"cd {shlex.quote(str(self.remote_source))} && uv sync --frozen --extra swebench")
+        dependency_extra = str(self.spec.benchmark.settings.get("dependency_extra", "swebench"))
+        if not re.fullmatch(r"[a-zA-Z0-9_-]+", dependency_extra):
+            raise ConfigurationError(f"unsafe dependency extra: {dependency_extra!r}")
+        self._ssh(
+            f"cd {shlex.quote(str(self.remote_source))} && "
+            f"uv sync --frozen --extra {shlex.quote(dependency_extra)}"
+        )
 
     def run_worker(self, stage: str) -> None:
         command = (

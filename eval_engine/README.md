@@ -68,6 +68,9 @@ cd agent-benchmark/eval_engine
 uv sync --extra swebench
 ```
 
+For Terminal-Bench-only development, use `uv sync --extra terminalbench`. Remote deployment
+automatically selects the extra required by the resolved benchmark profile.
+
 `uv` creates the environment from `uv.lock` and installs the required Python version when needed.
 
 ### 5. Configure `.env`
@@ -118,6 +121,21 @@ uv run agent-bench plan \
 `plan` validates and prints the resolved spec without using the VM or calling the model. For
 Friendli BYOK, verify `api: openrouter`, `provider.only: [friendli]`, and
 `allow_fallbacks: false`.
+
+Terminal-Bench 2.1 can be planned by changing the benchmark and sampling strategy:
+
+```bash
+uv run agent-bench plan \
+  --benchmark terminal-bench-2.1 \
+  --model glm-5.2 \
+  --reasoning-effort xhigh \
+  --provider friendli \
+  --byok \
+  --workers 1 \
+  --budget-usd 5 \
+  --sampling category \
+  --size 1
+```
 
 ### 8. Run a one-task smoke experiment
 
@@ -171,6 +189,8 @@ start a new run instead.
 Sampling is optional. Omitting both `--sampling` and `--size` creates a full run-specific pool.
 SWE-bench Verified accepts `random` and `domain`. Generated pools are ignored by Git and copied
 into the permanent run bundle as `inputs/pool.json`.
+Terminal-Bench 2.1 accepts `random` and category-balanced `category`; omitting sampling selects
+all 89 pinned tasks.
 
 | `--provider` | Internal transport | Routing |
 |---|---|---|
@@ -190,6 +210,12 @@ deploy → prepare → execute → grade → collect → normalize → report �
 The remote workspace is deleted only after artifact checksums have been verified locally. Shared
 Docker, dataset, and dependency caches remain on the VM for later experiments.
 
+For Terminal-Bench, `execute` invokes Harbor once; Harbor runs the subject agent and the task's
+hidden verifier inline. `grade` only validates Harbor's existing reward artifacts and never reruns
+the verifier. Rewards are binary for the pinned 2.1 dataset and reports include accuracy and mean
+reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed
+trials.
+
 ## Execution VM provisioning
 
 Provision each long-lived VM once. The engine deploys its source and creates its locked Python
@@ -203,6 +229,11 @@ experiment.
 - Docker daemon enabled and running
 - Benchmark SSH account allowed to access Docker without `sudo`
 - Enough disk for repositories, datasets, and Docker images
+- Outbound access to Harbor Hub and the container registries used by Terminal-Bench tasks
+
+The pinned Terminal-Bench 2.1 tasks request up to 4 CPUs, 8 GiB RAM, and 10 GiB task storage; allow
+additional disk for Harbor caches and container images. A full run can take many hours and incur
+substantial model cost, so validate with `plan` and obtain approval before a paid smoke run.
 
 The Docker group grants control of the Docker daemon and is effectively root-level access. Add
 only a trusted benchmark execution account.

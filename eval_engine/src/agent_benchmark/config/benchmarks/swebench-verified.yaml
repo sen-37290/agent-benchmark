@@ -3,6 +3,10 @@ harness: harbor
 dataset_id: princeton-nlp/SWE-bench_Verified
 grading: official-hermetic
 settings:
+  dependency_extra: swebench
+  dataset_source: local
+  attempts: 1
+  fail_on_trial_exception: true
   harbor_adapter_ref: v0.20.0
   adapter_swebench_version: 4.1.0
   official_grader_version: 4.0.3

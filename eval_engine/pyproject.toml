@@ -16,6 +16,10 @@ swebench = [
   "mini-swe-agent==2.4.5",
   "swebench==4.0.3",
 ]
+terminalbench = [
+  "harbor==0.20.0",
+  "mini-swe-agent==2.4.5",
+]
 
 [project.scripts]
 agent-bench = "agent_benchmark.cli:main"

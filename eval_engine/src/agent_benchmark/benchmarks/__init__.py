@@ -9,4 +9,8 @@ def benchmark_plugin(name: str) -> BenchmarkPlugin:
         from agent_benchmark.benchmarks.swebench_verified import SwebenchVerified
 
         return SwebenchVerified()
+    if name == "terminal_bench":
+        from agent_benchmark.benchmarks.terminal_bench import TerminalBench
+
+        return TerminalBench()
     raise ConfigurationError(f"benchmark plugin is not registered: {name}")

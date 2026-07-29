@@ -27,6 +27,10 @@ swebench = [
     { name = "mini-swe-agent" },
     { name = "swebench" },
 ]
+terminalbench = [
+    { name = "harbor" },
+    { name = "mini-swe-agent" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -37,14 +41,16 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "harbor", marker = "extra == 'swebench'", specifier = "==0.20.0" },
+    { name = "harbor", marker = "extra == 'terminalbench'", specifier = "==0.20.0" },
     { name = "mini-swe-agent", marker = "extra == 'swebench'", specifier = "==2.4.5" },
+    { name = "mini-swe-agent", marker = "extra == 'terminalbench'", specifier = "==2.4.5" },
     { name = "pydantic", specifier = ">=2.10,<3" },
     { name = "python-dotenv", specifier = ">=1.1,<2" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "swebench", marker = "extra == 'swebench'", specifier = "==4.0.3" },
     { name = "typer", specifier = ">=0.15,<1" },
 ]
-provides-extras = ["swebench"]
+provides-extras = ["swebench", "terminalbench"]
 
 [package.metadata.requires-dev]
 dev = [

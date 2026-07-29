@@ -2,6 +2,9 @@
 .env
 .venv/
 /docs/
+!/docs/
+/docs/*
+!/docs/TERMINAL_BENCH_2_1_PLAN.md
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -12,3 +15,5 @@ eval_engine/dist/
 eval_engine/pools/*.json
 eval_engine/tests/*
 !eval_engine/tests/.gitkeep
+!eval_engine/tests/test_terminal_bench_*.py
+!eval_engine/tests/test_result_reporting.py
