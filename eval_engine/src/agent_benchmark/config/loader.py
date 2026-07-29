@@ -11,8 +11,7 @@ from typing import Any
 import yaml
 
 from agent_benchmark import __version__
-from agent_benchmark.errors import ConfigurationError
-from agent_benchmark.models import (
+from agent_benchmark.config.schema import (
     BenchmarkSpec,
     BudgetSpec,
     ExecutionSpec,
@@ -22,15 +21,16 @@ from agent_benchmark.models import (
     TargetSpec,
     UserRequest,
 )
+from agent_benchmark.exceptions import ConfigurationError
 
-PROFILE_ROOT = files("agent_benchmark").joinpath("profiles")
+CONFIG_ROOT = files("agent_benchmark.config")
 
 
 def _load_yaml(group: str, name: str) -> dict[str, Any]:
-    path = PROFILE_ROOT.joinpath(group, f"{name}.yaml")
+    path = CONFIG_ROOT.joinpath(group, f"{name}.yaml")
     if not path.is_file():
         available = sorted(
-            p.name.removesuffix(".yaml") for p in PROFILE_ROOT.joinpath(group).iterdir()
+            p.name.removesuffix(".yaml") for p in CONFIG_ROOT.joinpath(group).iterdir()
         )
         raise ConfigurationError(
             f"unknown {group.rstrip('s')} profile {name!r}; available: {', '.join(available)}"
@@ -46,7 +46,7 @@ def list_profiles() -> dict[str, list[str]]:
     for group in ("benchmarks", "models", "targets"):
         result[group] = sorted(
             p.name.removesuffix(".yaml")
-            for p in PROFILE_ROOT.joinpath(group).iterdir()
+            for p in CONFIG_ROOT.joinpath(group).iterdir()
             if p.name.endswith(".yaml")
         )
     return result

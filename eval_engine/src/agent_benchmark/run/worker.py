@@ -6,9 +6,10 @@ from pathlib import Path
 
 import yaml
 
-from agent_benchmark.errors import ConfigurationError
-from agent_benchmark.models import ResolvedSpec
-from agent_benchmark.registry import benchmark_plugin, harness_adapter
+from agent_benchmark.benchmarks import benchmark_plugin
+from agent_benchmark.config.schema import ResolvedSpec
+from agent_benchmark.exceptions import ConfigurationError
+from agent_benchmark.harnesses import harness_adapter
 
 
 def load_spec(path: Path) -> ResolvedSpec:

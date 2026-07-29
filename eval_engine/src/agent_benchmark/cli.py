@@ -13,14 +13,14 @@ import typer
 import yaml
 from dotenv import load_dotenv
 
-from agent_benchmark.errors import AgentBenchError
-from agent_benchmark.models import UserRequest
-from agent_benchmark.pipeline import Pipeline
-from agent_benchmark.profiles import benchmark_plugin_name, list_profiles, resolve
-from agent_benchmark.registry import benchmark_plugin
-from agent_benchmark.reporting import read_results, write_report, write_results
-from agent_benchmark.run_store import RunStore
-from agent_benchmark.worker import create_manifest, run_stage
+from agent_benchmark.benchmarks import benchmark_plugin
+from agent_benchmark.config.loader import benchmark_plugin_name, list_profiles, resolve
+from agent_benchmark.config.schema import UserRequest
+from agent_benchmark.exceptions import AgentBenchError
+from agent_benchmark.run.pipeline import Pipeline
+from agent_benchmark.run.result import read_results, write_report, write_results
+from agent_benchmark.run.store import RunStore
+from agent_benchmark.run.worker import create_manifest, run_stage
 
 app = typer.Typer(
     name="agent-bench",

@@ -4,12 +4,12 @@ from collections.abc import Callable
 from pathlib import Path
 from time import monotonic
 
-from agent_benchmark.backends.ssh import SSHBackend
-from agent_benchmark.errors import ConfigurationError
-from agent_benchmark.models import StageName, StageStatus
-from agent_benchmark.registry import benchmark_plugin
-from agent_benchmark.reporting import read_results, write_report, write_results
-from agent_benchmark.run_store import RunStore
+from agent_benchmark.benchmarks import benchmark_plugin
+from agent_benchmark.exceptions import ConfigurationError
+from agent_benchmark.run.remote import SSHBackend
+from agent_benchmark.run.result import read_results, write_report, write_results
+from agent_benchmark.run.state import StageName, StageStatus
+from agent_benchmark.run.store import RunStore
 
 
 class Pipeline:

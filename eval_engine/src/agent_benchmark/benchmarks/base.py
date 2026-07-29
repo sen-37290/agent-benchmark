@@ -3,7 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from agent_benchmark.models import ResolvedSpec, TaskResult
+from agent_benchmark.config.schema import ResolvedSpec
+from agent_benchmark.run.result import TaskResult
 
 
 class BenchmarkPlugin(ABC):

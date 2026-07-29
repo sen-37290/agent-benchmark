@@ -1,33 +1,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import StrEnum
-from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator, model_validator
-
-
-class StageName(StrEnum):
-    DEPLOY = "deploy"
-    PREPARE = "prepare"
-    EXECUTE = "execute"
-    GRADE = "grade"
-    COLLECT = "collect"
-    NORMALIZE = "normalize"
-    REPORT = "report"
-    CLEANUP = "cleanup"
-
-
-PIPELINE_STAGES = tuple(StageName)
-
-
-class StageStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
 
 
 class UserRequest(BaseModel):
@@ -127,45 +103,3 @@ class ResolvedSpec(BaseModel):
     execution: ExecutionSpec
     budget: BudgetSpec
     provenance: ProvenanceSpec
-
-
-class StageRecord(BaseModel):
-    status: StageStatus = StageStatus.PENDING
-    attempts: int = 0
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    error: str | None = None
-
-
-class RunState(BaseModel):
-    run_id: str
-    cancelled_at: datetime | None = None
-    stages: dict[StageName, StageRecord] = Field(
-        default_factory=lambda: {stage: StageRecord() for stage in PIPELINE_STAGES}
-    )
-
-    @property
-    def complete(self) -> bool:
-        return all(record.status == StageStatus.SUCCEEDED for record in self.stages.values())
-
-    @property
-    def cancelled(self) -> bool:
-        return self.cancelled_at is not None
-
-
-class TaskResult(BaseModel):
-    run_id: str
-    task_id: str
-    status: Literal["completed", "error", "missing"]
-    metrics: dict[str, float | int | bool | None] = Field(default_factory=dict)
-    cost_usd: float | None = None
-    input_tokens: int | None = None
-    output_tokens: int | None = None
-    cached_tokens: int | None = None
-    duration_seconds: float | None = None
-    error_type: str | None = None
-    raw_artifacts: list[str] = Field(default_factory=list)
-
-
-def default_runs_root() -> Path:
-    return Path.cwd() / "runs"

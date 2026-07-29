@@ -9,10 +9,22 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 
-from agent_benchmark.errors import ConfigurationError, IntegrityError, StageError
-from agent_benchmark.models import ResolvedSpec
+from agent_benchmark.config.schema import ResolvedSpec
+from agent_benchmark.exceptions import ConfigurationError, IntegrityError, StageError
 
 SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{5,127}$")
+SOURCE_RSYNC_EXCLUDES = (
+    "/.venv/",
+    "/.git/",
+    "/.env",
+    "/runs/",
+    "/pools/",
+    "/tests/",
+    "/dist/",
+    "/.pytest_cache/",
+    "/.ruff_cache/",
+    "__pycache__/",
+)
 
 
 class SSHBackend:
@@ -80,18 +92,10 @@ mkdir -p {shlex.quote(str(self.remote_run / "artifacts"))}
 mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
 """
         self._ssh(lease_script)
-        excludes = [
-            "--exclude=.venv",
-            "--exclude=.git",
-            "--exclude=.env",
-            "--exclude=runs",
-            "--exclude=pools",
-            "--exclude=tests",
-            "--exclude=dist",
-            "--exclude=.pytest_cache",
-            "--exclude=.ruff_cache",
-            "--exclude=__pycache__",
-        ]
+        # Leading slashes anchor project-level exclusions at the transfer root. In particular,
+        # an unanchored ``tests`` pattern also removes the benchmark asset at
+        # ``src/agent_benchmark/benchmarks/swebench_verified/assets/tests``.
+        excludes = [f"--exclude={pattern}" for pattern in SOURCE_RSYNC_EXCLUDES]
         result = subprocess.run(
             [
                 "rsync",

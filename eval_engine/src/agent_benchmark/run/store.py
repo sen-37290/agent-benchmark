@@ -10,14 +10,9 @@ from typing import Any
 
 import yaml
 
-from agent_benchmark.errors import ConfigurationError
-from agent_benchmark.models import (
-    ResolvedSpec,
-    RunState,
-    StageName,
-    StageStatus,
-    UserRequest,
-)
+from agent_benchmark.config.schema import ResolvedSpec, UserRequest
+from agent_benchmark.exceptions import ConfigurationError
+from agent_benchmark.run.state import RunState, StageName, StageStatus
 
 
 class RunStore:

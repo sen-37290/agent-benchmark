@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from agent_benchmark.models import ResolvedSpec
+from agent_benchmark.config.schema import ResolvedSpec
 
 
 class HarnessAdapter(ABC):

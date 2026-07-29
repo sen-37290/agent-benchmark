@@ -10,7 +10,7 @@ import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from agent_benchmark.errors import StageError
+from agent_benchmark.exceptions import StageError
 
 
 def collected_cost(job_dir: Path) -> float:

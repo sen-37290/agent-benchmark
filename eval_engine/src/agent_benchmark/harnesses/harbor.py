@@ -5,11 +5,11 @@ from pathlib import Path
 
 import yaml
 
-from agent_benchmark.errors import ConfigurationError, StageError
+from agent_benchmark.benchmarks.paths import benchmark_dataset_dir
+from agent_benchmark.config.schema import ResolvedSpec
+from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
-from agent_benchmark.models import ResolvedSpec
-from agent_benchmark.paths import benchmark_dataset_dir
-from agent_benchmark.process import run_logged
+from agent_benchmark.run.process import run_logged
 
 
 class HarborHarness(HarnessAdapter):

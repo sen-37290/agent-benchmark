@@ -3,8 +3,25 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+from typing import Literal
 
-from agent_benchmark.models import ResolvedSpec, TaskResult
+from pydantic import BaseModel, Field
+
+from agent_benchmark.config.schema import ResolvedSpec
+
+
+class TaskResult(BaseModel):
+    run_id: str
+    task_id: str
+    status: Literal["completed", "error", "missing"]
+    metrics: dict[str, float | int | bool | None] = Field(default_factory=dict)
+    cost_usd: float | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cached_tokens: int | None = None
+    duration_seconds: float | None = None
+    error_type: str | None = None
+    raw_artifacts: list[str] = Field(default_factory=list)
 
 
 def write_results(run_dir: Path, results: list[TaskResult]) -> None:

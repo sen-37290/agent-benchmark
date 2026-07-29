@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from agent_benchmark.models import ResolvedSpec
+from agent_benchmark.config.schema import ResolvedSpec
 
 
 def benchmark_dataset_dir(spec: ResolvedSpec, cache_root: Path) -> Path:
