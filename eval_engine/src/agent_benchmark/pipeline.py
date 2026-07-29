@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from time import monotonic
 
 from agent_benchmark.backends.ssh import SSHBackend
 from agent_benchmark.models import StageName, StageStatus
@@ -44,11 +45,16 @@ class Pipeline:
     def _stage(self, stage: StageName, action: Callable[[], None], *, force: bool = False) -> None:
         record = self.store.load_state().stages[stage]
         if record.status == StageStatus.SUCCEEDED and not force:
+            print(f"[{stage.value}] skipped (already succeeded)", flush=True)
             return
+        started = monotonic()
+        print(f"[{stage.value}] started", flush=True)
         self.store.start_stage(stage)
         try:
             action()
         except Exception as error:
             self.store.fail_stage(stage, error)
+            print(f"[{stage.value}] failed: {type(error).__name__}: {error}", flush=True)
             raise
         self.store.finish_stage(stage)
+        print(f"[{stage.value}] succeeded ({monotonic() - started:.1f}s)", flush=True)
