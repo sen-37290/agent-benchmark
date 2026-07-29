@@ -198,6 +198,118 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
         )
         self._ssh(release)
 
+    def cancel(self) -> None:
+        """Stop and remove resources belonging to this exact run, then release its lease."""
+        script = f"""
+import json
+import os
+import pathlib
+import shutil
+import signal
+import subprocess
+import time
+
+run_id = {self.spec.run_id!r}
+root = pathlib.Path({str(PurePosixPath(self.spec.target.remote_root))!r}).resolve()
+target = pathlib.Path({str(self.remote_run)!r}).resolve()
+lease = pathlib.Path({str(self.remote_lease)!r}).resolve()
+assert root != pathlib.Path("/") and len(root.parts) >= 3
+assert target.parent == root and target.name == run_id
+
+needle = str(target).encode()
+excluded = {{os.getpid(), os.getppid()}}
+
+def matching_pids():
+    matches = []
+    for entry in pathlib.Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid in excluded:
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if needle in command:
+            matches.append(pid)
+    return matches
+
+for pid in matching_pids():
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline and matching_pids():
+    time.sleep(0.2)
+for pid in matching_pids():
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+container_ids = subprocess.run(
+    ["docker", "ps", "-aq"], check=True, capture_output=True, text=True
+).stdout.split()
+projects = set()
+owned_containers = []
+if container_ids:
+    inspected = json.loads(
+        subprocess.run(
+            ["docker", "inspect", *container_ids], check=True, capture_output=True, text=True
+        ).stdout
+    )
+    for item in inspected:
+        labels = item.get("Config", {{}}).get("Labels") or {{}}
+        mounts = item.get("Mounts") or []
+        values = [str(value) for value in labels.values()]
+        values.extend(str(mount.get("Source", "")) for mount in mounts)
+        if any(str(target) in value for value in values):
+            owned_containers.append(item["Id"])
+            project = labels.get("com.docker.compose.project")
+            if project:
+                projects.add(project)
+if owned_containers:
+    subprocess.run(["docker", "rm", "-f", *owned_containers], check=False)
+
+for resource, remove_command in (
+    ("network", ["docker", "network", "rm"]),
+    ("volume", ["docker", "volume", "rm", "-f"]),
+):
+    ids = subprocess.run(
+        ["docker", resource, "ls", "-q"], check=True, capture_output=True, text=True
+    ).stdout.split()
+    for resource_id in ids:
+        details = json.loads(
+            subprocess.run(
+                ["docker", resource, "inspect", resource_id],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )[0]
+        labels = details.get("Labels") or {{}}
+        if labels.get("com.docker.compose.project") in projects:
+            subprocess.run([*remove_command, resource_id], check=False)
+
+shutil.rmtree(target, ignore_errors=True)
+owner_path = lease / "owner"
+try:
+    owner = owner_path.read_text().strip()
+except OSError:
+    owner = ""
+if owner == run_id:
+    shutil.rmtree(lease, ignore_errors=True)
+
+print(
+    f"cancelled {{run_id}}: processes stopped, "
+    f"containers={{len(owned_containers)}}, compose_projects={{len(projects)}}"
+)
+"""
+        self._ssh("python3 -", input_text=script)
+
     def _rsync_file(self, source: Path, destination: PurePosixPath) -> None:
         result = subprocess.run(
             ["rsync", "-az", str(source), f"{self.host}:{destination}"],

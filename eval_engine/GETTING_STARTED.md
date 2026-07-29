@@ -169,6 +169,7 @@ Each run prints a run ID and stores its complete local bundle under `runs/<run-i
 
 ```bash
 uv run agent-bench status RUN_ID
+uv run agent-bench cancel RUN_ID
 uv run agent-bench resume RUN_ID
 uv run agent-bench report RUN_ID
 ```
@@ -176,6 +177,10 @@ uv run agent-bench report RUN_ID
 The bundle contains the original request, resolved spec, stage state, event log, copied pool,
 retrieved raw artifacts, normalized results, and report. Re-running `resume` continues from the
 first incomplete stage.
+
+`cancel` stops processes and Docker resources belonging to that exact run, removes its remote
+workspace, releases its VM lease, and records the cancellation locally. A cancelled run cannot be
+resumed; start a new run instead.
 
 ## Common failures
 

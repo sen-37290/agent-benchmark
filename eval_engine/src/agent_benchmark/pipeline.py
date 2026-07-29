@@ -5,6 +5,7 @@ from pathlib import Path
 from time import monotonic
 
 from agent_benchmark.backends.ssh import SSHBackend
+from agent_benchmark.errors import ConfigurationError
 from agent_benchmark.models import StageName, StageStatus
 from agent_benchmark.registry import benchmark_plugin
 from agent_benchmark.reporting import read_results, write_report, write_results
@@ -18,6 +19,8 @@ class Pipeline:
         self.backend = SSHBackend(self.spec, project_root)
 
     def run(self) -> None:
+        if self.store.load_state().cancelled:
+            raise ConfigurationError(f"run {self.store.run_id!r} was cancelled; create a new run")
         self._stage(StageName.DEPLOY, lambda: self.backend.deploy(self.store.path))
         self._stage(StageName.PREPARE, lambda: self.backend.run_worker("prepare"))
         self._stage(StageName.EXECUTE, lambda: self.backend.run_worker("execute"))

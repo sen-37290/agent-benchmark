@@ -83,6 +83,20 @@ class RunStore:
         self.save_state(state)
         self.event("stage_failed", {"stage": stage, "error": record.error})
 
+    def cancel(self) -> None:
+        state = self.load_state()
+        if state.cancelled:
+            return
+        cancelled_at = datetime.now(UTC)
+        for record in state.stages.values():
+            if record.status == StageStatus.RUNNING:
+                record.status = StageStatus.CANCELLED
+                record.finished_at = cancelled_at
+                record.error = "cancelled by user"
+        state.cancelled_at = cancelled_at
+        self.save_state(state)
+        self.event("run_cancelled", {"run_id": self.run_id})
+
     def event(self, kind: str, details: dict[str, Any]) -> None:
         payload = {"timestamp": datetime.now(UTC).isoformat(), "event": kind, **details}
         with (self.path / "events.jsonl").open("a") as stream:

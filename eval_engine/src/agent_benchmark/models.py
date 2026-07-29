@@ -27,6 +27,7 @@ class StageStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 class UserRequest(BaseModel):
@@ -138,6 +139,7 @@ class StageRecord(BaseModel):
 
 class RunState(BaseModel):
     run_id: str
+    cancelled_at: datetime | None = None
     stages: dict[StageName, StageRecord] = Field(
         default_factory=lambda: {stage: StageRecord() for stage in PIPELINE_STAGES}
     )
@@ -145,6 +147,10 @@ class RunState(BaseModel):
     @property
     def complete(self) -> bool:
         return all(record.status == StageStatus.SUCCEEDED for record in self.stages.values())
+
+    @property
+    def cancelled(self) -> bool:
+        return self.cancelled_at is not None
 
 
 class TaskResult(BaseModel):

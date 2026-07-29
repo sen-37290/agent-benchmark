@@ -175,6 +175,19 @@ def resume(
 
 
 @app.command()
+def cancel(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Stop a run, remove its remote resources, and release its VM lease."""
+    store = RunStore(runs_root, run_id)
+    pipeline = Pipeline(store, PROJECT_ROOT)
+    pipeline.backend.cancel()
+    store.cancel()
+    typer.echo(f"cancelled: {run_id}")
+
+
+@app.command()
 def status(
     run_id: str,
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
@@ -182,6 +195,8 @@ def status(
     """Show durable stage state for a run."""
     state = RunStore(runs_root, run_id).load_state()
     typer.echo(f"run: {run_id}")
+    if state.cancelled_at:
+        typer.echo(f"cancelled: {state.cancelled_at.isoformat()}")
     for stage, record in state.stages.items():
         suffix = f" — {record.error}" if record.error else ""
         typer.echo(f"{stage.value:10} {record.status.value:10} attempts={record.attempts}{suffix}")
