@@ -1,0 +1,5 @@
+backend: ssh
+host_env: AGENT_BENCH_SSH_HOST
+remote_root: /tmp/agent-benchmark/runs
+cache_root: /tmp/agent-benchmark/cache
+

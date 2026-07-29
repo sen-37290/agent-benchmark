@@ -1,0 +1,17 @@
+model_id: anthropic/claude-opus-5
+subject_agent: mini-swe-agent
+subject_agent_version: 2.4.5
+model_class: litellm
+api: anthropic
+supported_providers: [anthropic]
+api_key_env: ANTHROPIC_API_KEY
+effort_path: model.model_kwargs.reasoning_effort
+supported_efforts: [low, medium, high, xhigh, max]
+config:
+  model:
+    model_name: anthropic/claude-opus-5
+    model_class: litellm
+    model_kwargs:
+      reasoning_effort: max
+      max_tokens: 64000
+      timeout: 1800

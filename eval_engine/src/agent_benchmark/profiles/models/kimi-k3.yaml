@@ -1,0 +1,18 @@
+model_id: moonshotai/kimi-k3
+subject_agent: mini-swe-agent
+subject_agent_version: 2.4.5
+model_class: openrouter
+api: openrouter
+supported_providers: [openrouter]
+api_key_env: OPENROUTER_API_KEY
+effort_path: model.model_kwargs.reasoning.effort
+supported_efforts: [low, high, max]
+config:
+  model:
+    model_name: moonshotai/kimi-k3
+    model_class: openrouter
+    model_kwargs:
+      reasoning:
+        effort: max
+      provider:
+        only: [moonshotai]

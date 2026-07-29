@@ -1,0 +1,16 @@
+model_id: z-ai/glm-5.2
+subject_agent: mini-swe-agent
+subject_agent_version: 2.4.5
+model_class: openrouter
+api: openrouter
+supported_providers: [openrouter, friendli]
+api_key_env: OPENROUTER_API_KEY
+effort_path: model.model_kwargs.reasoning.effort
+supported_efforts: [high, xhigh]
+config:
+  model:
+    model_name: z-ai/glm-5.2
+    model_class: openrouter
+    model_kwargs:
+      reasoning:
+        effort: xhigh

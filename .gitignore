@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+eval_engine/runs/
+eval_engine/.agent-bench/
+eval_engine/dist/
+eval_engine/pools/*.json
+eval_engine/tests/*
+!eval_engine/tests/.gitkeep
