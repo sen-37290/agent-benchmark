@@ -43,7 +43,7 @@ def _load_yaml(group: str, name: str) -> dict[str, Any]:
 
 def list_profiles() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
-    for group in ("benchmarks", "models", "targets"):
+    for group in ("agents", "benchmarks", "models", "targets"):
         result[group] = sorted(
             p.name.removesuffix(".yaml")
             for p in CONFIG_ROOT.joinpath(group).iterdir()
@@ -105,6 +105,10 @@ def resolve(
     benchmark = _load_yaml("benchmarks", request.benchmark)
     model = _load_yaml("models", request.model)
     target = _load_yaml("targets", request.target)
+    agent_profile = benchmark.get("settings", {}).get(
+        "subject_agent_profile", model["subject_agent_profile"]
+    )
+    agent = _load_yaml("agents", agent_profile)
 
     provider_contracts = {
         "openrouter": ("openrouter", None),
@@ -172,14 +176,8 @@ def resolve(
         model=ModelSpec(
             profile=request.model,
             model_id=model["model_id"],
-            subject_agent=benchmark.get("settings", {}).get(
-                "subject_agent", model["subject_agent"]
-            ),
-            subject_agent_version=str(
-                benchmark.get("settings", {}).get(
-                    "subject_agent_version", model["subject_agent_version"]
-                )
-            ),
+            subject_agent=agent["name"],
+            subject_agent_version=str(agent["version"]),
             model_class=model["model_class"],
             provider=request.provider,
             api=model["api"],

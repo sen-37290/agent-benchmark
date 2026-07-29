@@ -47,16 +47,6 @@ class TerminalBench(BenchmarkPlugin):
             raise StageError(
                 f"Harbor version mismatch: expected {expected_harbor}, got {actual_harbor}"
             )
-        if spec.model.subject_agent == "mini-swe-agent":
-            try:
-                actual_agent = version("mini-swe-agent")
-            except PackageNotFoundError as error:
-                raise StageError("Terminal-Bench requires mini-swe-agent") from error
-            if actual_agent != spec.model.subject_agent_version:
-                raise StageError(
-                    "mini-swe-agent version mismatch: "
-                    f"expected {spec.model.subject_agent_version}, got {actual_agent}"
-                )
 
     def grade(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
         del cache_root

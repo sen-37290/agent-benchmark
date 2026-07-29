@@ -143,6 +143,11 @@ Add `config/benchmarks/terminal-bench-2.1.yaml` with the package digest, Harbor-
 runtime dependency extra, grading mode, and trial-error policy. Extend the existing plugin lookup;
 do not create a new registry abstraction.
 
+Subject agents are separately owned by `subject_agents/mini_swe_agent.py` and
+`subject_agents/terminus_2.py`, with declarative profiles under `config/agents/`. Terminal-Bench
+selects Terminus 2 as its default profile, but does not contain agent-specific validation or Harbor
+argument construction.
+
 ### Pool rules
 
 - No sampling options means all 89 tasks.

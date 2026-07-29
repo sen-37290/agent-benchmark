@@ -3,53 +3,27 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import yaml
-
 from agent_benchmark.benchmarks.paths import benchmark_dataset_dir
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.run.process import run_logged
+from agent_benchmark.subject_agents import subject_agent_adapter
+from agent_benchmark.subject_agents.base import SubjectAgentInvocation
 
 
 def harbor_job_dir(spec: ResolvedSpec, run_dir: Path) -> Path:
     return run_dir / "artifacts" / "harbor_jobs" / spec.run_id
 
 
-def _agent_model_name(spec: ResolvedSpec) -> str:
-    if spec.model.subject_agent == "terminus-2" and spec.model.api == "openrouter":
-        return f"openrouter/{spec.model.model_id}"
-    return spec.model.model_id
-
-
-def _agent_arguments(spec: ResolvedSpec, config_path: Path) -> list[str]:
-    if spec.model.subject_agent == "mini-swe-agent":
-        return [
-            "--ak",
-            f"config_file={config_path}",
-            "--ak",
-            f"version={spec.model.subject_agent_version}",
-            "--ak",
-            f"cost_limit={spec.budget.per_task_usd}",
-        ]
-    if spec.model.subject_agent == "terminus-2":
-        arguments = [
-            "--ak",
-            f"reasoning_effort={spec.model.reasoning_effort}",
-            "--ak",
-            "temperature=1",
-        ]
-        provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
-        if spec.model.api == "openrouter" and isinstance(provider, dict):
-            call_kwargs = {"extra_body": {"provider": provider}}
-            arguments.extend(
-                [
-                    "--ak",
-                    f"llm_call_kwargs={json.dumps(call_kwargs, separators=(',', ':'))}",
-                ]
-            )
-        return arguments
-    return []
+def _agent_arguments(invocation: SubjectAgentInvocation) -> list[str]:
+    arguments: list[str] = []
+    for key, value in invocation.kwargs.items():
+        encoded = value if isinstance(value, str) else json.dumps(value, separators=(",", ":"))
+        arguments.extend(["--ak", f"{key}={encoded}"])
+    for key, value in invocation.environment.items():
+        arguments.extend(["--ae", f"{key}={value}"])
+    return arguments
 
 
 def build_command(
@@ -57,13 +31,16 @@ def build_command(
     run_dir: Path,
     cache_root: Path,
     api_key: str,
+    invocation: SubjectAgentInvocation | None = None,
 ) -> list[str]:
     output_dir = run_dir / "artifacts" / "harbor_jobs"
     job_dir = harbor_job_dir(spec, run_dir)
     if (job_dir / "config.json").is_file():
         return ["uv", "run", "harbor", "job", "resume", "-p", str(job_dir)]
 
-    config_path = run_dir / "subject-config.yaml"
+    invocation = invocation or subject_agent_adapter(spec.model.subject_agent).invocation(
+        spec, run_dir, api_key
+    )
     command = ["uv", "run", "harbor", "run"]
     dataset_source = spec.benchmark.settings.get("dataset_source", "local")
     if dataset_source == "package":
@@ -81,10 +58,8 @@ def build_command(
             "-a",
             spec.model.subject_agent,
             "-m",
-            _agent_model_name(spec),
-            *_agent_arguments(spec, config_path),
-            "--ae",
-            f"{spec.model.api_key_env}={api_key}",
+            invocation.model_name,
+            *_agent_arguments(invocation),
             "-e",
             spec.execution.environment,
             "-n",
@@ -98,8 +73,6 @@ def build_command(
             "--yes",
         ]
     )
-    if spec.model.api == "openrouter":
-        command.extend(["--ae", f"MSWEA_API_KEY={api_key}"])
     return command
 
 
@@ -119,8 +92,9 @@ class HarborHarness(HarnessAdapter):
 
         output_dir = run_dir / "artifacts" / "harbor_jobs"
         output_dir.mkdir(parents=True, exist_ok=True)
-        config_path = run_dir / "subject-config.yaml"
-        config_path.write_text(yaml.safe_dump(spec.model.config, sort_keys=False))
+        invocation = subject_agent_adapter(spec.model.subject_agent).invocation(
+            spec, run_dir, api_key
+        )
 
         metadata = {
             "run_id": spec.run_id,
@@ -129,27 +103,21 @@ class HarborHarness(HarnessAdapter):
             "sample_size": spec.benchmark.sample_size,
             "model_profile": spec.model.profile,
             "model_id": spec.model.model_id,
+            "subject_agent": spec.model.subject_agent,
+            "subject_agent_version": spec.model.subject_agent_version,
             "api": spec.model.api,
             "reasoning_effort": spec.model.reasoning_effort,
             "workers": spec.execution.workers,
         }
         (run_dir / "artifacts" / "run_meta.json").write_text(json.dumps(metadata, indent=2) + "\n")
 
-        command = build_command(spec, run_dir, cache_root, api_key)
-
-        command_env = {
-            "MSWEA_GLOBAL_COST_LIMIT": str(spec.budget.per_task_usd),
-            spec.model.api_key_env: api_key,
-        }
-        if spec.model.api == "openrouter":
-            # Harbor persists this as ${MSWEA_API_KEY}, allowing native resume safely.
-            command_env["MSWEA_API_KEY"] = api_key
+        command = build_command(spec, run_dir, cache_root, api_key, invocation)
 
         run_logged(
             command,
             cwd=run_dir,
             log_path=run_dir / "logs" / "execute.log",
-            env=command_env,
+            env=invocation.process_environment,
             redact_values=[api_key],
             budget_job_dir=output_dir,
             budget_usd=spec.budget.total_usd,

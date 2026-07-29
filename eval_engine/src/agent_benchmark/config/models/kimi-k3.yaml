@@ -1,6 +1,5 @@
 model_id: moonshotai/kimi-k3
-subject_agent: mini-swe-agent
-subject_agent_version: 2.4.5
+subject_agent_profile: mini-swe-agent
 model_class: openrouter
 api: openrouter
 supported_providers: [openrouter]
