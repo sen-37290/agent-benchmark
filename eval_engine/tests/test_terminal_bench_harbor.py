@@ -41,7 +41,8 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
     assert command[:4] == ["uv", "run", "harbor", "run"]
     assert command[command.index("-d") + 1] == spec.benchmark.dataset_id
     assert command.count("--include-task-name") == 2
-    assert all(task_id in command for task_id in pool["instance_ids"])
+    assert all(f"terminal-bench/{task_id}" in command for task_id in pool["instance_ids"])
+    assert not any(task_id in command for task_id in pool["instance_ids"])
     assert command[command.index("-k") + 1] == "1"
     assert command[command.index("--job-name") + 1] == spec.run_id
 

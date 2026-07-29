@@ -32,9 +32,10 @@ def build_command(
     dataset_source = spec.benchmark.settings.get("dataset_source", "local")
     if dataset_source == "package":
         pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())
+        task_name_prefix = str(spec.benchmark.settings.get("task_name_prefix", ""))
         command.extend(["-d", spec.benchmark.dataset_id])
         for task_id in pool["instance_ids"]:
-            command.extend(["--include-task-name", str(task_id)])
+            command.extend(["--include-task-name", f"{task_name_prefix}{task_id}"])
     elif dataset_source == "local":
         command.extend(["-p", str(benchmark_dataset_dir(spec, cache_root))])
     else:
