@@ -18,7 +18,7 @@ class UserRequest(BaseModel):
     byok: bool = False
     workers: PositiveInt
     budget_usd: PositiveFloat
-    per_task_cost_limit_usd: PositiveFloat = 5.0
+    per_task_cost_limit_usd: PositiveFloat | None = None
     target: str = "fixed-vm"
 
     @field_validator("benchmark", "model", "provider", "target")

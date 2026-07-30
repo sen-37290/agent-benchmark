@@ -49,12 +49,16 @@ def _incomplete_prepared_tasks(dataset_dir: Path, ids: list[str]) -> list[str]:
 
 class SwebenchVerified(BenchmarkPlugin):
     name = "swebench_verified"
-    compatible_harnesses = frozenset({"harbor"})
+    compatible_harnesses = frozenset({"harbor", "mini-swe-agent-native"})
 
     def create_pool(self, output_path: Path, sampling: str | None, size: int | None) -> None:
         create_pool(output_path, sampling, size)
 
     def prepare(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
+        if spec.benchmark.harness == "mini-swe-agent-native":
+            self._validate_official_agent(spec)
+            return
+
         adapter_ref = str(spec.benchmark.settings["harbor_adapter_ref"])
         adapter_swebench = str(spec.benchmark.settings["adapter_swebench_version"])
         dataset_dir = benchmark_dataset_dir(spec, cache_root)
@@ -141,6 +145,32 @@ class SwebenchVerified(BenchmarkPlugin):
             + "\n"
         )
 
+    @staticmethod
+    def _validate_official_agent(spec: ResolvedSpec) -> None:
+        import yaml
+        from minisweagent.config import builtin_config_dir
+
+        expected_version = str(spec.benchmark.settings["official_agent_version"])
+        actual_version = version("mini-swe-agent")
+        if actual_version != expected_version:
+            raise StageError(
+                f"official mini-swe-agent version mismatch: expected {expected_version}, "
+                f"got {actual_version}"
+            )
+        config = yaml.safe_load(
+            (builtin_config_dir / "benchmarks" / "swebench.yaml").read_text()
+        )
+        expected_step_limit = int(spec.benchmark.settings["official_step_limit"])
+        expected_cost_limit = float(spec.benchmark.settings["official_cost_limit"])
+        if config.get("agent", {}).get("step_limit") != expected_step_limit:
+            raise StageError(
+                f"official swebench.yaml step_limit is not {expected_step_limit}"
+            )
+        if float(config.get("agent", {}).get("cost_limit", -1)) != expected_cost_limit:
+            raise StageError(
+                f"official swebench.yaml cost_limit is not {expected_cost_limit:g}"
+            )
+
     def grade(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
         del cache_root
         expected_grader = str(spec.benchmark.settings["official_grader_version"])
@@ -150,25 +180,34 @@ class SwebenchVerified(BenchmarkPlugin):
                 f"official grader version mismatch: expected {expected_grader}, got {actual_grader}"
             )
         ids = set(pool_ids(spec, run_dir))
-        jobs = run_dir / "artifacts" / "harbor_jobs"
-        predictions: dict[str, dict[str, str]] = {}
-        for result_path in trial_results(jobs):
-            result = json.loads(result_path.read_text())
-            trial_dir = result_path.parent
-            task_id = instance_id(trial_dir, result, ids)
-            if not task_id:
-                continue
-            patch_path = trial_dir / "verifier" / "model_patch.diff"
-            predictions[task_id] = {
-                "instance_id": task_id,
-                "model_name_or_path": spec.model.model_id,
-                "model_patch": patch_path.read_text() if patch_path.exists() else "",
-            }
-        if not predictions:
-            raise StageError("no SWE-bench predictions could be extracted from Harbor output")
-
-        predictions_path = run_dir / "artifacts" / "predictions.json"
-        predictions_path.write_text(json.dumps(predictions, indent=2) + "\n")
+        if spec.benchmark.harness == "mini-swe-agent-native":
+            predictions_path = (
+                run_dir / "artifacts" / "minisweagent_swebench" / "preds.json"
+            )
+            if not predictions_path.is_file():
+                raise StageError("official mini-swe-agent preds.json is missing")
+            predictions = json.loads(predictions_path.read_text())
+            if set(predictions) != ids:
+                raise StageError("official mini-swe-agent predictions do not match the pool")
+        else:
+            jobs = run_dir / "artifacts" / "harbor_jobs"
+            predictions = {}
+            for result_path in trial_results(jobs):
+                result = json.loads(result_path.read_text())
+                trial_dir = result_path.parent
+                task_id = instance_id(trial_dir, result, ids)
+                if not task_id:
+                    continue
+                patch_path = trial_dir / "verifier" / "model_patch.diff"
+                predictions[task_id] = {
+                    "instance_id": task_id,
+                    "model_name_or_path": spec.model.model_id,
+                    "model_patch": patch_path.read_text() if patch_path.exists() else "",
+                }
+            if not predictions:
+                raise StageError("no SWE-bench predictions could be extracted from Harbor output")
+            predictions_path = run_dir / "artifacts" / "predictions.json"
+            predictions_path.write_text(json.dumps(predictions, indent=2) + "\n")
         grade_id = f"agent_bench_{spec.run_id}"
         command = [
             "uv",

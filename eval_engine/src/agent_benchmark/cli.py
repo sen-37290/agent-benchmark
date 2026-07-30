@@ -55,7 +55,7 @@ def _request(
     byok: bool,
     workers: int,
     budget_usd: float,
-    per_task_cost_limit_usd: float,
+    per_task_cost_limit_usd: float | None,
     target: str,
 ) -> UserRequest:
     return UserRequest(
@@ -114,7 +114,10 @@ def plan(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
-    per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
+    per_task_cost_limit_usd: Annotated[
+        float | None,
+        typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
@@ -158,7 +161,10 @@ def run(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
-    per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
+    per_task_cost_limit_usd: Annotated[
+        float | None,
+        typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:

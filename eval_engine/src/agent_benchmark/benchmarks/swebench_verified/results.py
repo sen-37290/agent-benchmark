@@ -73,6 +73,93 @@ def duration(result: dict[str, Any]) -> float | None:
         return None
 
 
+def _native_usage(trajectory: dict[str, Any]) -> tuple[int | None, int | None, int | None]:
+    input_tokens = output_tokens = cached_tokens = None
+    for message in trajectory.get("messages", []):
+        response = message.get("extra", {}).get("response")
+        if not isinstance(response, dict):
+            continue
+        usage = response.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        prompt = usage.get("prompt_tokens", usage.get("input_tokens"))
+        completion = usage.get("completion_tokens", usage.get("output_tokens"))
+        details = usage.get("prompt_tokens_details") or {}
+        cached = details.get("cached_tokens") if isinstance(details, dict) else None
+        if cached is None:
+            cached = usage.get("cache_read_input_tokens")
+        if prompt is not None:
+            input_tokens = (input_tokens or 0) + int(prompt)
+        if completion is not None:
+            output_tokens = (output_tokens or 0) + int(completion)
+        if cached is not None:
+            cached_tokens = (cached_tokens or 0) + int(cached)
+    return input_tokens, output_tokens, cached_tokens
+
+
+def _native_exit_statuses(directory: Path) -> dict[str, str]:
+    import yaml
+
+    reports = sorted(directory.glob("exit_statuses_*.yaml"), key=lambda path: path.stat().st_mtime)
+    if not reports:
+        return {}
+    data = yaml.safe_load(reports[-1].read_text()) or {}
+    by_id: dict[str, str] = {}
+    for status, ids in (data.get("instances_by_exit_status") or {}).items():
+        for task_id in ids or []:
+            by_id[str(task_id)] = str(status)
+    return by_id
+
+
+def _normalize_native(
+    spec: ResolvedSpec, run_dir: Path, ids: list[str], resolved: set[str]
+) -> list[TaskResult]:
+    directory = run_dir / "artifacts" / "minisweagent_swebench"
+    exit_statuses = _native_exit_statuses(directory)
+    results: list[TaskResult] = []
+    for task_id in ids:
+        trajectory_path = directory / task_id / f"{task_id}.traj.json"
+        if not trajectory_path.is_file():
+            exit_status = exit_statuses.get(task_id)
+            results.append(
+                TaskResult(
+                    run_id=spec.run_id,
+                    task_id=task_id,
+                    status="error" if exit_status else "missing",
+                    metrics={"resolved": task_id in resolved},
+                    error_type=exit_status or "MissingTrajectory",
+                    raw_artifacts=[
+                        str((directory / "preds.json").relative_to(run_dir))
+                    ],
+                )
+            )
+            continue
+        trajectory = json.loads(trajectory_path.read_text())
+        info = trajectory.get("info", {})
+        input_tokens, output_tokens, cached_tokens = _native_usage(trajectory)
+        error_type = None
+        if info.get("traceback") or info.get("exception_str"):
+            error_type = str(info.get("exit_status") or "AgentError")
+        cost = info.get("model_stats", {}).get("instance_cost")
+        if spec.model.provider == "friendli" and spec.model.byok:
+            cost = None
+        results.append(
+            TaskResult(
+                run_id=spec.run_id,
+                task_id=task_id,
+                status="error" if error_type else "completed",
+                metrics={"resolved": task_id in resolved},
+                cost_usd=float(cost) if cost is not None else None,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cached_tokens=cached_tokens,
+                error_type=error_type,
+                raw_artifacts=[str(trajectory_path.relative_to(run_dir))],
+            )
+        )
+    return results
+
+
 def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
     ids = pool_ids(spec, run_dir)
     valid_ids = set(ids)
@@ -81,6 +168,9 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
         raise StageError("official_summary.json is missing")
     summary = json.loads(summary_path.read_text())
     resolved = set(summary.get("resolved_ids") or summary.get("resolved_instances_ids") or [])
+
+    if spec.benchmark.harness == "mini-swe-agent-native":
+        return _normalize_native(spec, run_dir, ids, resolved)
 
     by_id: dict[str, TaskResult] = {}
     jobs = run_dir / "artifacts" / "harbor_jobs"

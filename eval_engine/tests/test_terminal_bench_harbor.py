@@ -130,7 +130,7 @@ def test_swebench_runs_terminus_with_local_dataset(tmp_path: Path) -> None:
     pool_file = tmp_path / "swe-pool.json"
     pool_file.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
     request = UserRequest(
-        benchmark="swebench-verified",
+        benchmark="swebench-verified-harbor",
         model="glm-5.2",
         agent="terminus-2",
         reasoning_effort="xhigh",
@@ -157,7 +157,7 @@ def test_swebench_runs_default_mini_swe_agent(tmp_path: Path) -> None:
     pool_file = tmp_path / "swe-pool.json"
     pool_file.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
     request = UserRequest(
-        benchmark="swebench-verified",
+        benchmark="swebench-verified-harbor",
         model="glm-5.2",
         reasoning_effort="xhigh",
         provider="openrouter",

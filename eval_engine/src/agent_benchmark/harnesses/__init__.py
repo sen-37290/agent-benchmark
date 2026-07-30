@@ -13,4 +13,8 @@ def harness_adapter(name: str) -> HarnessAdapter:
         from agent_benchmark.harnesses.aider_native import AiderNativeHarness
 
         return AiderNativeHarness()
+    if name == "mini-swe-agent-native":
+        from agent_benchmark.harnesses.mini_swe_agent_native import MiniSweAgentNativeHarness
+
+        return MiniSweAgentNativeHarness()
     raise ConfigurationError(f"harness adapter is not registered: {name}")

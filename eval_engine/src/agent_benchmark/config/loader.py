@@ -179,6 +179,16 @@ def resolve(
     if len(instance_ids) != len(set(instance_ids)):
         raise ConfigurationError("generated pool contains duplicate instance IDs")
 
+    benchmark_cost_limit = float(benchmark.get("per_task_cost_limit_usd", 5.0))
+    per_task_cost_limit = request.per_task_cost_limit_usd or benchmark_cost_limit
+    if benchmark.get("lock_per_task_cost_limit", False) and (
+        per_task_cost_limit != benchmark_cost_limit
+    ):
+        raise ConfigurationError(
+            f"benchmark {request.benchmark!r} requires "
+            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}"
+        )
+
     config = copy.deepcopy(model["config"])
     if request.reasoning_effort is None:
         _remove_dotted(config, model["effort_path"])
@@ -194,6 +204,11 @@ def resolve(
             # NOTE: OpenRouter ignores a Friendli key sent with inference requests and uses the
             # Friendli BYOK key already registered in the OpenRouter dashboard.
             provider_config["allow_fallbacks"] = False
+    if request.provider == "friendli" and request.byok:
+        # Friendli BYOK responses report zero OpenRouter cost. mini-swe-agent's strict default
+        # rejects those otherwise-valid responses, so retain the run while recording cost as
+        # unavailable. Step limits still apply, but dollar-denominated limits cannot be enforced.
+        config.setdefault("model", {})["cost_tracking"] = "ignore_errors"
 
     return ResolvedSpec(
         run_id=run_id,
@@ -228,7 +243,7 @@ def resolve(
         execution=ExecutionSpec(workers=request.workers),
         budget=BudgetSpec(
             total_usd=request.budget_usd,
-            per_task_usd=request.per_task_cost_limit_usd,
+            per_task_usd=per_task_cost_limit,
         ),
         provenance=_provenance(project_root),
     )
