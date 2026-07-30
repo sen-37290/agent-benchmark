@@ -187,6 +187,7 @@ This command makes a real model request and may incur cost:
 ```bash
 uv run agent-bench run \
   --benchmark swebench-verified \
+  --agent mini-swe-agent \
   --model glm-5.2 \
   --reasoning-effort xhigh \
   --provider friendli \
@@ -292,6 +293,12 @@ Prefer one dedicated Linux account, such as `agentbench`, for a shared VM. Give 
 access to that account with their individual public keys. This keeps filesystem ownership, Docker
 permissions, and caches consistent. If operators use separate Linux accounts, each needs Docker
 access and separate run/cache ownership management.
+
+Then connect to the VM:
+
+```bash
+gcloud compute ssh <VM_NAME> --zone <ZONE>
+```
 
 ### Debian 12 setup
 

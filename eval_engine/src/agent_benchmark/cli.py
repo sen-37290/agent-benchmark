@@ -170,6 +170,7 @@ def run(
     )
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")
+    typer.echo(f"run ID: {store.run_id}")
     Pipeline(store, PROJECT_ROOT).run()
     typer.echo(f"completed: {store.run_id}")
 
