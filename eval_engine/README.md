@@ -51,14 +51,14 @@ Current validation status is narrower than the supported interface: SWE-bench wi
 and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The two overridden-agent
 combinations have resolved-spec and Harbor-command tests; run a small paid smoke test before a full
 evaluation. Aider Polyglot has catalog, pool, command, transport, result, and mocked integration
-coverage plus one-task real-VM smoke results for GLM and Kimi. These samples validate integration,
+coverage plus real-VM smoke results for GLM, Kimi, and Opus. These samples validate integration,
 not benchmark quality or official leaderboard comparability.
 
 | Benchmark | `glm-5.2` | `kimi-k3` | `opus-5` |
 |---|---|---|---|
 | `swebench-verified` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
 | `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
-| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Supported with provider-default effort; VM verification pending |
+| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Supported; provider-default effort VM verified |
 
 Effort values in the first two rows are accepted by the model profile and passed to the selected
 agent. They do not claim that every benchmark-model-effort combination has completed a paid VM
@@ -75,9 +75,10 @@ the former with `extra_body: Extra inputs are not permitted`. Run `opus-5` with 
 without `--reasoning-effort` until the native Aider/LiteLLM pin is upgraded or an officially
 validated translation is added. The generated Aider model setting also disables `temperature` for
 Opus 5 because Anthropic rejects that parameter for this model; GLM and Kimi retain Aider's native
-temperature behavior. This provider-default path has not yet completed a successful paid VM smoke
-test. Model-call errors with error output and zero tokens are classified as `AiderModelCallError`,
-fail validation, and are never reported as ordinary zero-score results.
+temperature behavior. A three-task provider-default smoke run resolved all tasks with pass@1 2/3,
+pass@2 3/3, 48,676 input tokens, 12,639 output tokens, and $0.559355 measured cost. Model-call
+errors with error output and zero tokens are classified as `AiderModelCallError`, fail validation,
+and are never reported as ordinary zero-score results.
 
 For Kimi, `--byok` is not accepted by the current profile because that CLI flag specifically means
 Friendli BYOK with Friendli-only routing. OpenRouter may automatically use a separately registered
