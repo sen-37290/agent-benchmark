@@ -47,9 +47,10 @@ benchmark profile.
 | `terminal-bench-2.1` | Supported | Supported (default) | Not supported |
 | `aider-polyglot` | Not supported | Not supported | Supported (default; officially comparable only for a complete official run) |
 
-The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with every supported
-benchmark-agent combination. Provider constraints still come from the model profile: GLM supports
-OpenRouter or Friendli routing, Kimi supports OpenRouter, and Opus supports Anthropic.
+The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with supported
+benchmark-agent combinations except for the Aider-specific limitation below. Provider constraints
+still come from the model profile: GLM supports OpenRouter or Friendli routing, Kimi supports
+OpenRouter, and Opus supports Anthropic.
 
 The harness is not a user-selectable combination axis and there is no `--harness` option. Each
 benchmark profile selects its execution harness internally. SWE-bench and Terminal-Bench use
@@ -58,8 +59,27 @@ Harbor; Aider Polyglot uses the benchmark-owned `aider-native` harness.
 Current validation status is narrower than the supported interface: SWE-bench with mini-swe-agent
 and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The two overridden-agent
 combinations have resolved-spec and Harbor-command tests; run a small paid smoke test before a full
-evaluation. Aider Polyglot currently has catalog, pool, command, transport, result, and mocked
-integration coverage only; it is not yet marked as real-VM verified.
+evaluation. Aider Polyglot has catalog, pool, command, transport, result, and mocked integration
+coverage plus the following one-task real-VM smoke results. These samples validate integration,
+not benchmark quality or official leaderboard comparability.
+
+| Aider model | Provider path | Effort | BYOK | Real-VM status |
+|---|---|---|---|---|
+| `glm-5.2` | OpenRouter → Friendli only, fallback disabled | `high` received and recorded | Friendli BYOK | Verified; pass@2, 16,830 input / 4,028 output tokens, $0.02849 |
+| `kimi-k3` | OpenRouter → MoonshotAI only | `high` received and recorded | Not verified (`is_byok:false`) | Verified; pass@1, 16,991 input / 7,029 output tokens, $0.15641; recovered from upstream 429/response errors |
+| `opus-5` | Anthropic | Not supported by the pinned native stack | N/A | Blocked; model calls rejected before token usage |
+
+The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its non-OpenRouter effort path sends
+`extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
+the former with `extra_body: Extra inputs are not permitted`. Do not run `opus-5` with
+`aider-polyglot` until the native Aider/LiteLLM pin is upgraded or an officially validated
+translation is added. Model-call errors with error output and zero tokens are classified as
+`AiderModelCallError`, fail validation, and are never reported as ordinary zero-score results.
+
+For Kimi, `--byok` is not accepted by the current profile because that CLI flag specifically means
+Friendli BYOK with Friendli-only routing. OpenRouter may automatically use a separately registered
+MoonshotAI BYOK key, but that requires workspace configuration and must be confirmed from
+OpenRouter response metadata; the recorded smoke test used shared capacity.
 
 An Aider result is directly comparable with the official leaderboard only when all 225 pinned
 tasks complete using the pinned native runner, dataset, Dockerfile, Aider Coder loop, and matching
@@ -245,7 +265,7 @@ all 500 SWE-bench Verified tasks.
 |---|---|---|---|
 | `glm-5.2` | `xhigh` | `friendli --byok` | `OPENROUTER_API_KEY` |
 | `kimi-k3` | `max` | `openrouter` | `OPENROUTER_API_KEY` |
-| `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY` |
+| `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY`; not currently usable with `aider-polyglot` |
 
 Run one experiment at a time. The engine holds a VM-wide lease until completion or cancellation.
 
