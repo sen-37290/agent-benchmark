@@ -108,6 +108,23 @@ def test_omitted_effort_uses_native_provider_default(tmp_path: Path) -> None:
     assert "reasoning_effort" not in invocation.kwargs
     assert "--reasoning-effort" not in command
     assert "accepts_settings" not in settings[0]
+    assert settings[0]["use_temperature"] is False
+
+
+@pytest.mark.parametrize("model", ["glm-5.2", "kimi-k3"])
+def test_non_opus_models_preserve_native_temperature_semantics(
+    tmp_path: Path, model: str
+) -> None:
+    spec, run_dir = aider_spec(
+        tmp_path,
+        model=model,
+        provider="openrouter",
+        byok=False,
+    )
+    invocation = agent_adapter("aider").invocation(spec, run_dir, "secret")
+    settings = yaml.safe_load(Path(invocation.kwargs["model_settings"]).read_text())
+
+    assert "use_temperature" not in settings[0]
 
 
 @pytest.mark.parametrize("agent", ["mini-swe-agent", "terminus-2"])

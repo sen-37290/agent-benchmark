@@ -33,6 +33,8 @@ class AiderAdapter(AgentAdapter):
             "name": model_name,
             "edit_format": str(spec.benchmark.settings["edit_format"]),
         }
+        if spec.model.model_id == "anthropic/claude-opus-5":
+            model_setting["use_temperature"] = False
         if spec.model.reasoning_effort is not None:
             model_setting["accepts_settings"] = ["reasoning_effort"]
         provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")

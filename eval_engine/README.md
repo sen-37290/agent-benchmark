@@ -73,7 +73,9 @@ The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its explicit non-OpenRout
 `extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
 the former with `extra_body: Extra inputs are not permitted`. Run `opus-5` with `aider-polyglot`
 without `--reasoning-effort` until the native Aider/LiteLLM pin is upgraded or an officially
-validated translation is added. This provider-default path has not yet completed a paid VM smoke
+validated translation is added. The generated Aider model setting also disables `temperature` for
+Opus 5 because Anthropic rejects that parameter for this model; GLM and Kimi retain Aider's native
+temperature behavior. This provider-default path has not yet completed a successful paid VM smoke
 test. Model-call errors with error output and zero tokens are classified as `AiderModelCallError`,
 fail validation, and are never reported as ordinary zero-score results.
 
