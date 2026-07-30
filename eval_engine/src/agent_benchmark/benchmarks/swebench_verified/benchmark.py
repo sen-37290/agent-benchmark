@@ -33,6 +33,7 @@ PREPARED_TASK_REQUIRED_FILES = (
     "environment/Dockerfile",
     "tests/test.sh",
 )
+HARBOR_TEMPLATE_VERSION = "2"
 
 
 def _incomplete_prepared_tasks(dataset_dir: Path, ids: list[str]) -> list[str]:
@@ -65,6 +66,7 @@ class SwebenchVerified(BenchmarkPlugin):
                 "pool_sha256": spec.benchmark.pool_sha256,
                 "adapter_ref": adapter_ref,
                 "adapter_swebench_version": adapter_swebench,
+                "harbor_template_version": HARBOR_TEMPLATE_VERSION,
             }
             if all(marker.get(key) == value for key, value in expected.items()) and not (
                 _incomplete_prepared_tasks(dataset_dir, ids)
@@ -131,6 +133,7 @@ class SwebenchVerified(BenchmarkPlugin):
                     "pool_sha256": spec.benchmark.pool_sha256,
                     "adapter_ref": adapter_ref,
                     "adapter_swebench_version": adapter_swebench,
+                    "harbor_template_version": HARBOR_TEMPLATE_VERSION,
                     "task_count": len(generated),
                 },
                 indent=2,
