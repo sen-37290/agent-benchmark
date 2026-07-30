@@ -2,9 +2,9 @@ plugin: terminal_bench
 harness: harbor
 dataset_id: terminal-bench/terminal-bench-2-1@sha256:7d7bdc1cbedad549fc1140404bd4dc45e5fd0ea7c4186773687d177ad3a0699a
 grading: harbor-inline-verifier
+default_agent: terminus-2
 settings:
   dependency_extra: terminalbench
-  subject_agent_profile: terminus-2
   harbor_version: 0.20.0
   dataset_source: package
   task_name_prefix: terminal-bench/

@@ -1,7 +1,9 @@
 import json
+from importlib.resources import files
 from pathlib import Path
 
 import pytest
+import yaml
 from typer.testing import CliRunner
 
 from agent_benchmark.agents import agent_adapter
@@ -54,6 +56,14 @@ def test_benchmark_resolves_independent_agent_profiles(tmp_path: Path) -> None:
         "2.4.5",
     )
     assert list_profiles()["agents"] == ["mini-swe-agent", "terminus-2"]
+
+
+def test_model_profiles_do_not_select_agents() -> None:
+    config_root = files("agent_benchmark.config")
+    for profile in list_profiles()["models"]:
+        model = yaml.safe_load(config_root.joinpath("models", f"{profile}.yaml").read_text())
+        assert "subject_agent_profile" not in model
+        assert "default_agent" not in model
 
 
 def test_cli_agent_overrides_benchmark_and_model_defaults(tmp_path: Path) -> None:

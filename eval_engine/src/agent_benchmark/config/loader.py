@@ -105,9 +105,12 @@ def resolve(
     benchmark = _load_yaml("benchmarks", request.benchmark)
     model = _load_yaml("models", request.model)
     target = _load_yaml("targets", request.target)
-    agent_profile = request.agent or benchmark.get("settings", {}).get(
-        "subject_agent_profile", model["subject_agent_profile"]
-    )
+    agent_profile = request.agent or benchmark.get("default_agent")
+    if not agent_profile:
+        raise ConfigurationError(
+            f"benchmark profile {request.benchmark!r} does not define default_agent; "
+            "select one with --agent"
+        )
     agent = _load_yaml("agents", agent_profile)
 
     provider_contracts = {

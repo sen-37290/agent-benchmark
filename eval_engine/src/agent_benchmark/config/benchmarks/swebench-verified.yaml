@@ -2,6 +2,7 @@ plugin: swebench_verified
 harness: harbor
 dataset_id: princeton-nlp/SWE-bench_Verified
 grading: official-hermetic
+default_agent: mini-swe-agent
 settings:
   dependency_extra: swebench
   dataset_source: local

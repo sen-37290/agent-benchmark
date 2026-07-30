@@ -126,7 +126,7 @@ uv run agent-bench plan \
 `plan` validates and prints the resolved spec without using the VM or calling the model. For
 Friendli BYOK, verify `api: openrouter`, `provider.only: [friendli]`, and
 `allow_fallbacks: false`. `--agent` is optional: an explicit CLI value overrides the benchmark
-default, which in turn overrides the model default.
+default. Model profiles do not select agents.
 
 Terminal-Bench 2.1 can be planned by changing the benchmark and sampling strategy:
 
