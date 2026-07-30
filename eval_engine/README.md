@@ -56,9 +56,14 @@ not benchmark quality or official leaderboard comparability.
 
 | Benchmark | `glm-5.2` | `kimi-k3` | `opus-5` |
 |---|---|---|---|
-| `swebench-verified` | Supported | Supported | Supported |
-| `terminal-bench-2.1` | Supported | Supported | Supported |
-| `aider-polyglot` | Supported | Supported | Not supported |
+| `swebench-verified` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Not supported; pinned effort translation is incompatible |
+
+Effort values in the first two rows are accepted by the model profile and passed to the selected
+agent. They do not claim that every benchmark-model-effort combination has completed a paid VM
+run. The Aider GLM and Kimi smoke results additionally confirm that `high` was recorded by the
+native runner.
 
 The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its non-OpenRouter effort path sends
 `extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
