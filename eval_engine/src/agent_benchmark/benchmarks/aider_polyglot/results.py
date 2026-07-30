@@ -37,6 +37,13 @@ def _integer(value: object) -> int | None:
     return int(value) if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def model_call_failed(raw: dict[str, Any]) -> bool:
+    error_outputs = _integer(raw.get("num_error_outputs")) or 0
+    prompt_tokens = _integer(raw.get("prompt_tokens")) or 0
+    completion_tokens = _integer(raw.get("completion_tokens")) or 0
+    return error_outputs > 0 and prompt_tokens == 0 and completion_tokens == 0
+
+
 def _outcomes(raw: dict[str, Any]) -> tuple[list[bool], bool, bool]:
     values = raw.get("tests_outcomes")
     if isinstance(values, list):
@@ -62,19 +69,21 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
         if identity in by_id:
             raise StageError(f"duplicate Aider Polyglot result for {identity}")
         exception = raw.get("exception")
+        call_failed = model_call_failed(raw)
         outcomes, pass_at_1, pass_at_2 = _outcomes(raw)
         malformed = _integer(raw.get("num_malformed_responses"))
         by_id[identity] = TaskResult(
             run_id=spec.run_id,
             task_id=identity,
-            status="error" if exception else "completed",
+            status="error" if exception or call_failed else "completed",
             metrics={
-                "resolved": pass_at_2 and not exception,
-                "pass_at_1": pass_at_1 and not exception,
-                "pass_at_2": pass_at_2 and not exception,
+                "resolved": pass_at_2 and not exception and not call_failed,
+                "pass_at_1": pass_at_1 and not exception and not call_failed,
+                "pass_at_2": pass_at_2 and not exception and not call_failed,
                 "attempts_executed": len(outcomes),
                 "edit_format_well_formed": malformed == 0 if malformed is not None else None,
                 "malformed_responses": malformed,
+                "model_error_outputs": _integer(raw.get("num_error_outputs")),
                 "test_timeouts": _integer(raw.get("test_timeouts")),
                 "syntax_errors": _integer(raw.get("syntax_errors")),
                 "indentation_errors": _integer(raw.get("indentation_errors")),
@@ -84,7 +93,13 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
             output_tokens=_integer(raw.get("completion_tokens")),
             cached_tokens=None,
             duration_seconds=_number(raw.get("duration")),
-            error_type="AiderTaskException" if exception else None,
+            error_type=(
+                "AiderTaskException"
+                if exception
+                else "AiderModelCallError"
+                if call_failed
+                else None
+            ),
             raw_artifacts=[str(path.relative_to(run_dir))],
         )
     return [
@@ -116,6 +131,10 @@ def validate_and_summarize(spec: ResolvedSpec, run_dir: Path) -> dict[str, objec
             raw = json.loads(path.read_text())
         except json.JSONDecodeError as error:
             raise StageError(f"malformed Aider result: {identity}") from error
+        if model_call_failed(raw):
+            raise StageError(
+                f"Aider model calls failed for {identity}: error outputs with zero tokens"
+            )
         if raw.get("exception"):
             completed += 1
             continue

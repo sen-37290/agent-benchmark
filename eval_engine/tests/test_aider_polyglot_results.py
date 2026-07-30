@@ -45,6 +45,7 @@ def write_result(
     *,
     cost: float | None = 0.25,
     exception: str | None = None,
+    model_error: bool = False,
 ) -> Path:
     language, slug = identity.split("/", 1)
     task = (
@@ -72,6 +73,8 @@ def write_result(
         "prompt_tokens": 100,
         "completion_tokens": 20,
     }
+    if model_error:
+        raw.update(num_error_outputs=2, prompt_tokens=0, completion_tokens=0, cost=0.0)
     if cost is not None:
         raw["cost"] = cost
     if exception:
@@ -129,3 +132,17 @@ def test_exception_is_an_error_result(tmp_path: Path) -> None:
     assert result.status == "error"
     assert result.error_type == "AiderTaskException"
     assert result.metrics["resolved"] is False
+
+
+def test_model_call_failure_is_not_normalized_as_a_zero_score(tmp_path: Path) -> None:
+    spec, run_dir, ids = setup_run(tmp_path)
+    write_result(spec, run_dir, ids[0], [False, False], model_error=True)
+
+    result = normalize(spec, run_dir)[0]
+
+    assert result.status == "error"
+    assert result.error_type == "AiderModelCallError"
+    assert result.metrics["model_error_outputs"] == 2
+    assert result.metrics["resolved"] is False
+    with pytest.raises(StageError, match="model calls failed"):
+        validate_and_summarize(spec, run_dir)

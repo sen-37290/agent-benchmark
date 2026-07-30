@@ -125,15 +125,27 @@ def test_resume_preserves_terminal_results_and_prunes_malformed(tmp_path: Path) 
     valid = root / "practice" / "valid" / ".aider.results.json"
     malformed = root / "practice" / "malformed" / ".aider.results.json"
     incomplete = root / "practice" / "incomplete" / ".aider.results.json"
-    for path in (valid, malformed, incomplete):
+    model_error = root / "practice" / "model-error" / ".aider.results.json"
+    for path in (valid, malformed, incomplete, model_error):
         path.parent.mkdir(parents=True, exist_ok=True)
     valid.write_text(json.dumps({"tests_outcomes": [False, True]}))
     malformed.write_text("{broken")
     incomplete.write_text(json.dumps({"tests_outcomes": []}))
+    model_error.write_text(
+        json.dumps(
+            {
+                "tests_outcomes": [False, False],
+                "num_error_outputs": 2,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+            }
+        )
+    )
 
     removed = prune_nonterminal_results(spec, run_dir)
 
     assert valid.exists()
-    assert set(removed) == {malformed, incomplete}
+    assert set(removed) == {malformed, incomplete, model_error}
     assert not malformed.exists()
     assert not incomplete.exists()
+    assert not model_error.exists()

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agent_benchmark.agents import agent_adapter
 from agent_benchmark.agents.base import AgentInvocation
+from agent_benchmark.benchmarks.aider_polyglot.results import model_call_failed
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
@@ -35,6 +36,8 @@ def is_terminal_result(path: Path) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     if not isinstance(raw, dict):
+        return False
+    if model_call_failed(raw):
         return False
     outcomes = raw.get("tests_outcomes")
     return bool(raw.get("exception")) or (
