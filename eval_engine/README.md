@@ -58,19 +58,24 @@ not benchmark quality or official leaderboard comparability.
 |---|---|---|---|
 | `swebench-verified` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
 | `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
-| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Not supported; pinned effort translation is incompatible |
+| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Supported with provider-default effort; VM verification pending |
 
 Effort values in the first two rows are accepted by the model profile and passed to the selected
 agent. They do not claim that every benchmark-model-effort combination has completed a paid VM
 run. The Aider GLM and Kimi smoke results additionally confirm that `high` was recorded by the
 native runner.
 
-The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its non-OpenRouter effort path sends
+Omitting `--reasoning-effort` leaves the value unset and delegates the choice to the downstream
+agent, LiteLLM, or provider default. The resolved spec records `reasoning_effort: null`; the engine
+does not add an effort value from the model profile.
+
+The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its explicit non-OpenRouter effort path sends
 `extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
-the former with `extra_body: Extra inputs are not permitted`. Do not run `opus-5` with
-`aider-polyglot` until the native Aider/LiteLLM pin is upgraded or an officially validated
-translation is added. Model-call errors with error output and zero tokens are classified as
-`AiderModelCallError`, fail validation, and are never reported as ordinary zero-score results.
+the former with `extra_body: Extra inputs are not permitted`. Run `opus-5` with `aider-polyglot`
+without `--reasoning-effort` until the native Aider/LiteLLM pin is upgraded or an officially
+validated translation is added. This provider-default path has not yet completed a paid VM smoke
+test. Model-call errors with error output and zero tokens are classified as `AiderModelCallError`,
+fail validation, and are never reported as ordinary zero-score results.
 
 For Kimi, `--byok` is not accepted by the current profile because that CLI flag specifically means
 Friendli BYOK with Friendli-only routing. OpenRouter may automatically use a separately registered

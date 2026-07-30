@@ -32,8 +32,9 @@ class AiderAdapter(AgentAdapter):
         model_setting: dict[str, object] = {
             "name": model_name,
             "edit_format": str(spec.benchmark.settings["edit_format"]),
-            "accepts_settings": ["reasoning_effort"],
         }
+        if spec.model.reasoning_effort is not None:
+            model_setting["accepts_settings"] = ["reasoning_effort"]
         provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
         if spec.model.api == "openrouter" and isinstance(provider, dict):
             model_setting["extra_params"] = {"extra_body": {"provider": provider}}
@@ -43,13 +44,15 @@ class AiderAdapter(AgentAdapter):
         settings_path = native_dir / "model-settings.yml"
         settings_path.write_text(yaml.safe_dump([model_setting], sort_keys=False))
         environment = {spec.model.api_key_env: api_key}
+        kwargs: dict[str, object] = {
+            "edit_format": spec.benchmark.settings["edit_format"],
+            "model_settings": str(settings_path),
+        }
+        if spec.model.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = spec.model.reasoning_effort
         return AgentInvocation(
             model_name=model_name,
-            kwargs={
-                "edit_format": spec.benchmark.settings["edit_format"],
-                "reasoning_effort": spec.model.reasoning_effort,
-                "model_settings": str(settings_path),
-            },
+            kwargs=kwargs,
             environment=environment,
             process_environment=environment,
         )

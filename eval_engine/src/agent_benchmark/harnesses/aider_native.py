@@ -87,8 +87,6 @@ def build_command(
         invocation.model_name,
         "--edit-format",
         str(invocation.kwargs["edit_format"]),
-        "--reasoning-effort",
-        str(invocation.kwargs["reasoning_effort"]),
         "--read-model-settings",
         f"/benchmarks/{settings_path.name}",
         "--threads",
@@ -99,6 +97,9 @@ def build_command(
         "polyglot-benchmark",
         "--cont",
     ]
+    reasoning_effort = invocation.kwargs.get("reasoning_effort")
+    if reasoning_effort is not None:
+        command.extend(["--reasoning-effort", str(reasoning_effort)])
     return command
 
 

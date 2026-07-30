@@ -20,6 +20,7 @@ def aider_spec(
     model: str = "glm-5.2",
     provider: str = "friendli",
     byok: bool = True,
+    reasoning_effort: str | None = "xhigh",
 ):
     pool = tmp_path / "pool.json"
     create_pool(pool, "random", 2)
@@ -28,7 +29,7 @@ def aider_spec(
         sampling="random",
         size=2,
         model=model,
-        reasoning_effort="xhigh" if model != "kimi-k3" else "max",
+        reasoning_effort=("max" if model == "kimi-k3" else reasoning_effort),
         provider=provider,
         byok=byok,
         workers=2,
@@ -88,6 +89,25 @@ def test_model_transport(tmp_path: Path, model: str, provider: str, expected: st
     spec, run_dir = aider_spec(tmp_path, model=model, provider=provider, byok=False)
     invocation = agent_adapter("aider").invocation(spec, run_dir, "secret")
     assert invocation.model_name == expected
+
+
+def test_omitted_effort_uses_native_provider_default(tmp_path: Path) -> None:
+    spec, run_dir = aider_spec(
+        tmp_path,
+        model="opus-5",
+        provider="anthropic",
+        byok=False,
+        reasoning_effort=None,
+    )
+    invocation = agent_adapter("aider").invocation(spec, run_dir, "secret")
+    command = build_command(spec, run_dir, invocation)
+    settings = yaml.safe_load(Path(invocation.kwargs["model_settings"]).read_text())
+
+    assert spec.model.reasoning_effort is None
+    assert "reasoning_effort" not in spec.model.config["model"]["model_kwargs"]
+    assert "reasoning_effort" not in invocation.kwargs
+    assert "--reasoning-effort" not in command
+    assert "accepts_settings" not in settings[0]
 
 
 @pytest.mark.parametrize("agent", ["mini-swe-agent", "terminus-2"])

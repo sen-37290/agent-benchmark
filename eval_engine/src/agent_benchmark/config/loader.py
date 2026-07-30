@@ -71,6 +71,24 @@ def _set_dotted(target: dict[str, Any], path: str, value: Any) -> None:
     cursor[parts[-1]] = value
 
 
+def _remove_dotted(target: dict[str, Any], path: str) -> None:
+    parts = path.split(".")
+    cursor = target
+    parents: list[tuple[dict[str, Any], str]] = []
+    for part in parts[:-1]:
+        child = cursor.get(part)
+        if not isinstance(child, dict):
+            return
+        parents.append((cursor, part))
+        cursor = child
+    cursor.pop(parts[-1], None)
+    for parent, part in reversed(parents):
+        if parent.get(part) == {}:
+            parent.pop(part)
+        else:
+            break
+
+
 def _provenance(project_root: Path) -> ProvenanceSpec:
     lock = project_root / "uv.lock"
     lock_hash = hashlib.sha256(lock.read_bytes()).hexdigest() if lock.exists() else None
@@ -143,7 +161,7 @@ def resolve(
             f"provider {request.provider!r}"
         )
     efforts = model.get("supported_efforts", [])
-    if efforts and request.reasoning_effort not in efforts:
+    if request.reasoning_effort is not None and efforts and request.reasoning_effort not in efforts:
         raise ConfigurationError(
             f"effort {request.reasoning_effort!r} is invalid for {request.model!r}; "
             f"available: {', '.join(efforts)}"
@@ -162,7 +180,10 @@ def resolve(
         raise ConfigurationError("generated pool contains duplicate instance IDs")
 
     config = copy.deepcopy(model["config"])
-    _set_dotted(config, model["effort_path"], request.reasoning_effort)
+    if request.reasoning_effort is None:
+        _remove_dotted(config, model["effort_path"])
+    else:
+        _set_dotted(config, model["effort_path"], request.reasoning_effort)
     if provider_route or request.byok:
         provider_config = (
             config.setdefault("model", {}).setdefault("model_kwargs", {}).setdefault("provider", {})

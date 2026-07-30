@@ -129,6 +129,40 @@ def test_cli_plan_overrides_swebench_agent(monkeypatch: pytest.MonkeyPatch) -> N
     assert "subject_agent_version: 2.0.0" in result.output
 
 
+def test_cli_plan_allows_provider_default_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    def create_test_pool(
+        self: SwebenchVerified,
+        output_path: Path,
+        sampling: str | None,
+        size: int | None,
+    ) -> None:
+        del self, sampling, size
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
+
+    monkeypatch.setattr(SwebenchVerified, "create_pool", create_test_pool)
+    result = CliRunner().invoke(
+        app,
+        [
+            "plan",
+            "--benchmark",
+            "swebench-verified",
+            "--model",
+            "opus-5",
+            "--provider",
+            "anthropic",
+            "--workers",
+            "1",
+            "--budget-usd",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "reasoning_effort: null" in result.output
+    assert "reasoning_effort: max" not in result.output
+
+
 def test_agent_adapters_are_loaded_from_separate_modules() -> None:
     assert agent_adapter("mini-swe-agent").__class__.__module__.endswith(".mini_swe_agent")
     assert agent_adapter("terminus-2").__class__.__module__.endswith(".terminus_2")

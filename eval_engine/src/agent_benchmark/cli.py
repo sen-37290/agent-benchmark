@@ -49,7 +49,7 @@ def _request(
     size: int | None,
     model: str,
     agent: str | None,
-    reasoning_effort: str,
+    reasoning_effort: str | None,
     provider: str,
     provider_route: str | None,
     byok: bool,
@@ -101,10 +101,12 @@ def _create_run(request: UserRequest, runs_root: Path, pools_root: Path | None =
 def plan(
     benchmark: Annotated[str, typer.Option()],
     model: Annotated[str, typer.Option()],
-    reasoning_effort: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
     budget_usd: Annotated[float, typer.Option(min=0.01)],
+    reasoning_effort: Annotated[
+        str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
+    ] = None,
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
@@ -143,10 +145,12 @@ def plan(
 def run(
     benchmark: Annotated[str, typer.Option()],
     model: Annotated[str, typer.Option()],
-    reasoning_effort: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
     budget_usd: Annotated[float, typer.Option(min=0.01)],
+    reasoning_effort: Annotated[
+        str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
+    ] = None,
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
