@@ -157,19 +157,13 @@ class SwebenchVerified(BenchmarkPlugin):
                 f"official mini-swe-agent version mismatch: expected {expected_version}, "
                 f"got {actual_version}"
             )
-        config = yaml.safe_load(
-            (builtin_config_dir / "benchmarks" / "swebench.yaml").read_text()
-        )
+        config = yaml.safe_load((builtin_config_dir / "benchmarks" / "swebench.yaml").read_text())
         expected_step_limit = int(spec.benchmark.settings["official_step_limit"])
         expected_cost_limit = float(spec.benchmark.settings["official_cost_limit"])
         if config.get("agent", {}).get("step_limit") != expected_step_limit:
-            raise StageError(
-                f"official swebench.yaml step_limit is not {expected_step_limit}"
-            )
+            raise StageError(f"official swebench.yaml step_limit is not {expected_step_limit}")
         if float(config.get("agent", {}).get("cost_limit", -1)) != expected_cost_limit:
-            raise StageError(
-                f"official swebench.yaml cost_limit is not {expected_cost_limit:g}"
-            )
+            raise StageError(f"official swebench.yaml cost_limit is not {expected_cost_limit:g}")
 
     def grade(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
         del cache_root
@@ -181,9 +175,7 @@ class SwebenchVerified(BenchmarkPlugin):
             )
         ids = set(pool_ids(spec, run_dir))
         if spec.benchmark.harness == "mini-swe-agent-native":
-            predictions_path = (
-                run_dir / "artifacts" / "minisweagent_swebench" / "preds.json"
-            )
+            predictions_path = run_dir / "artifacts" / "minisweagent_swebench" / "preds.json"
             if not predictions_path.is_file():
                 raise StageError("official mini-swe-agent preds.json is missing")
             predictions = json.loads(predictions_path.read_text())

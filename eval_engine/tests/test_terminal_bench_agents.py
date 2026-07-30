@@ -67,9 +67,7 @@ def test_model_profiles_do_not_select_agents() -> None:
 
 
 def test_cli_agent_overrides_benchmark_and_model_defaults(tmp_path: Path) -> None:
-    swebench = resolved_spec(
-        tmp_path / "swebench", "swebench-verified-harbor", "terminus-2"
-    )
+    swebench = resolved_spec(tmp_path / "swebench", "swebench-verified-harbor", "terminus-2")
     terminal = resolved_spec(tmp_path / "terminal", "terminal-bench-2.1", "mini-swe-agent")
 
     assert (swebench.model.subject_agent, swebench.model.subject_agent_version) == (

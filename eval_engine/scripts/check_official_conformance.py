@@ -6,6 +6,7 @@
 usage:
   python scripts/check_official_conformance.py runs/<run_id>
 """
+
 from __future__ import annotations
 
 import json
@@ -149,9 +150,7 @@ def main(run_dir: Path) -> int:
         s = json.loads(summary.read_text())
         check(
             s["submitted_instances"]
-            == s["completed_instances"]
-            + s["empty_patch_instances"]
-            + s["error_instances"],
+            == s["completed_instances"] + s["empty_patch_instances"] + s["error_instances"],
             "official_summary 내부 정합",
             json.dumps({k: v for k, v in s.items() if isinstance(v, int)}),
         )

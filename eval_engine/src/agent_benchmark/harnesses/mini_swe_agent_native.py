@@ -104,9 +104,7 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
         # shared batch process; the engine monitors the separate run-wide budget below.
         process_environment.pop("MSWEA_GLOBAL_COST_LIMIT", None)
         budget_usd = (
-            None
-            if spec.model.provider == "friendli" and spec.model.byok
-            else spec.budget.total_usd
+            None if spec.model.provider == "friendli" and spec.model.byok else spec.budget.total_usd
         )
         directory = output_dir(run_dir)
         directory.mkdir(parents=True, exist_ok=True)

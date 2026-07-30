@@ -128,9 +128,7 @@ def _normalize_native(
                     status="error" if exit_status else "missing",
                     metrics={"resolved": task_id in resolved},
                     error_type=exit_status or "MissingTrajectory",
-                    raw_artifacts=[
-                        str((directory / "preds.json").relative_to(run_dir))
-                    ],
+                    raw_artifacts=[str((directory / "preds.json").relative_to(run_dir))],
                 )
             )
             continue
