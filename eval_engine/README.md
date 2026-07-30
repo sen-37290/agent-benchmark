@@ -255,10 +255,14 @@ Every run prints an ID and stores its local bundle under `runs/<run-id>/`.
 
 ```bash
 uv run agent-bench status RUN_ID
+uv run agent-bench active
 uv run agent-bench cancel RUN_ID
 uv run agent-bench resume RUN_ID
 uv run agent-bench report RUN_ID
 ```
+
+`active` queries the fixed VM's exclusive lease and prints its run ID, or `no active run` when the
+VM is idle. Use `status RUN_ID` to inspect that run's durable local stage state.
 
 The bundle contains the request, immutable resolved spec, stage state, event log, copied pool, raw
 artifacts, normalized results, and report. `resume` continues from the first incomplete stage.

@@ -27,6 +27,27 @@ SOURCE_RSYNC_EXCLUDES = (
 )
 
 
+def active_run_id(host: str, cache_root: str) -> str | None:
+    """Return the run holding the VM-wide lease, if any."""
+    owner = PurePosixPath(cache_root) / "leases" / "active" / "owner"
+    command = f"if [ -f {shlex.quote(str(owner))} ]; then cat {shlex.quote(str(owner))}; fi"
+    result = subprocess.run(
+        ["ssh", host, command],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        detail = result.stderr.strip() or "see SSH error output"
+        raise StageError(f"failed to query active VM lease ({result.returncode}): {detail}")
+    run_id = result.stdout.strip()
+    if not run_id:
+        return None
+    if not SAFE_RUN_ID.fullmatch(run_id):
+        raise StageError(f"VM lease contains an invalid run ID: {run_id!r}")
+    return run_id
+
+
 class SSHBackend:
     """Stateless SSH/rsync transport for a long-lived execution VM."""
 

@@ -56,6 +56,10 @@ def benchmark_plugin_name(profile: str) -> str:
     return str(_load_yaml("benchmarks", profile)["plugin"])
 
 
+def target_profile(name: str) -> TargetSpec:
+    return TargetSpec(profile=name, **_load_yaml("targets", name))
+
+
 def _set_dotted(target: dict[str, Any], path: str, value: Any) -> None:
     parts = path.split(".")
     cursor = target

@@ -14,10 +14,16 @@ import yaml
 from dotenv import load_dotenv
 
 from agent_benchmark.benchmarks import benchmark_plugin
-from agent_benchmark.config.loader import benchmark_plugin_name, list_profiles, resolve
+from agent_benchmark.config.loader import (
+    benchmark_plugin_name,
+    list_profiles,
+    resolve,
+    target_profile,
+)
 from agent_benchmark.config.schema import UserRequest
 from agent_benchmark.exceptions import AgentBenchError
 from agent_benchmark.run.pipeline import Pipeline
+from agent_benchmark.run.remote import active_run_id
 from agent_benchmark.run.result import read_results, write_report, write_results
 from agent_benchmark.run.store import RunStore
 from agent_benchmark.run.worker import create_manifest, run_stage
@@ -211,6 +217,19 @@ def status(
     for stage, record in state.stages.items():
         suffix = f" — {record.error}" if record.error else ""
         typer.echo(f"{stage.value:10} {record.status.value:10} attempts={record.attempts}{suffix}")
+
+
+@app.command()
+def active(
+    target: Annotated[str, typer.Option()] = "fixed-vm",
+) -> None:
+    """Show the run ID holding the execution VM lease, if any."""
+    target_spec = target_profile(target)
+    host = os.environ.get(target_spec.host_env, "").strip()
+    if not host:
+        raise typer.BadParameter(f"set {target_spec.host_env}")
+    run_id = active_run_id(host, target_spec.cache_root)
+    typer.echo(run_id if run_id else "no active run")
 
 
 @app.command()
