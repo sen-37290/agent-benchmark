@@ -102,7 +102,7 @@ def plan(
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
-        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+        str | None, typer.Option(help="Agent profile; overrides the benchmark default.")
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
@@ -144,7 +144,7 @@ def run(
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
-        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+        str | None, typer.Option(help="Agent profile; overrides the benchmark default.")
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,

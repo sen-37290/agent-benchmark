@@ -13,4 +13,8 @@ def benchmark_plugin(name: str) -> BenchmarkPlugin:
         from agent_benchmark.benchmarks.terminal_bench import TerminalBench
 
         return TerminalBench()
+    if name == "aider_polyglot":
+        from agent_benchmark.benchmarks.aider_polyglot import AiderPolyglot
+
+        return AiderPolyglot()
     raise ConfigurationError(f"benchmark plugin is not registered: {name}")

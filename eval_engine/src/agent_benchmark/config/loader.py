@@ -112,6 +112,14 @@ def resolve(
             "select one with --agent"
         )
     agent = _load_yaml("agents", agent_profile)
+    compatible_harnesses = set(agent.get("compatible_harnesses", []))
+    if benchmark["harness"] not in compatible_harnesses:
+        available = ", ".join(sorted(compatible_harnesses)) or "none"
+        raise ConfigurationError(
+            f"agent {agent_profile!r} is not compatible with benchmark "
+            f"{request.benchmark!r} (required harness {benchmark['harness']!r}; "
+            f"agent supports: {available})"
+        )
 
     provider_contracts = {
         "openrouter": ("openrouter", None),

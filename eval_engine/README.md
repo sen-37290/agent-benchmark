@@ -18,6 +18,7 @@ The engine currently supports these benchmark profiles:
 |---|---|---:|---|---|---|
 | `swebench-verified` | SWE-bench Verified | 500 | `mini-swe-agent` | `random`, `domain`, or full | Official hermetic SWE-bench grader |
 | `terminal-bench-2.1` | Terminal-Bench 2.1 | 89 | `terminus-2` | `random`, `category`, or full | Per-task verifier run inline by Harbor |
+| `aider-polyglot` | Aider Polyglot Benchmark | 225 | `aider` | `random`, `language`, or full | Tests run inline by the official Aider runner |
 
 These agent profiles are available:
 
@@ -25,27 +26,45 @@ These agent profiles are available:
 |---|---:|---|
 | `mini-swe-agent` | 2.4.5 | Receives its generated model configuration and a per-task cost limit |
 | `terminus-2` | 2.0.0 | Harbor built-in agent; receives model, reasoning, and provider arguments directly |
+| `aider` | 0.86.0 | Aider Coder agent loop used by the native Aider benchmark runner |
 
-Benchmark and agent selection are independent. All four combinations below are supported by the
-engine; `--agent` overrides the benchmark default.
+The Aider integration uses these names consistently:
 
-| Benchmark | `mini-swe-agent` | `terminus-2` |
+| Layer | Official name | CLI/profile name |
 |---|---|---|
-| `swebench-verified` | Supported (default) | Supported |
-| `terminal-bench-2.1` | Supported | Supported (default) |
+| Benchmark | Aider Polyglot Benchmark | `aider-polyglot` |
+| Harness | Aider Benchmark Harness | `aider-native` |
+| Agent loop | Aider Coder | `aider` |
+| Dataset | Aider Polyglot exercises | `Aider-AI/polyglot-benchmark` |
 
-The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with either agent
-and either benchmark. Provider constraints still come from the model profile: GLM supports
+Benchmark and agent selection remain separate, and `--agent` overrides the benchmark default.
+Compatibility is validated because an agent must support the harness selected internally by the
+benchmark profile.
+
+| Benchmark | `mini-swe-agent` | `terminus-2` | `aider` |
+|---|---|---|---|
+| `swebench-verified` | Supported (default) | Supported | Not supported |
+| `terminal-bench-2.1` | Supported | Supported (default) | Not supported |
+| `aider-polyglot` | Not supported | Not supported | Supported (default; officially comparable only for a complete official run) |
+
+The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with every supported
+benchmark-agent combination. Provider constraints still come from the model profile: GLM supports
 OpenRouter or Friendli routing, Kimi supports OpenRouter, and Opus supports Anthropic.
 
 The harness is not a user-selectable combination axis and there is no `--harness` option. Each
-benchmark profile selects its execution harness internally. Both benchmarks above currently use
-Harbor, but this does not require future benchmarks to use Harbor.
+benchmark profile selects its execution harness internally. SWE-bench and Terminal-Bench use
+Harbor; Aider Polyglot uses the benchmark-owned `aider-native` harness.
 
 Current validation status is narrower than the supported interface: SWE-bench with mini-swe-agent
 and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The two overridden-agent
 combinations have resolved-spec and Harbor-command tests; run a small paid smoke test before a full
-evaluation.
+evaluation. Aider Polyglot currently has catalog, pool, command, transport, result, and mocked
+integration coverage only; it is not yet marked as real-VM verified.
+
+An Aider result is directly comparable with the official leaderboard only when all 225 pinned
+tasks complete using the pinned native runner, dataset, Dockerfile, Aider Coder loop, and matching
+model/edit-format settings. Sampled or incomplete runs are useful agent-benchmark evaluations but
+are explicitly reported as not officially comparable.
 
 ## Getting started
 
@@ -110,7 +129,9 @@ uv sync --extra swebench
 ```
 
 For Terminal-Bench-only development, use `uv sync --extra terminalbench`. Remote deployment
-automatically selects the extra required by the resolved benchmark profile.
+automatically selects the extra required by the resolved benchmark profile. Aider Polyglot has no
+additional local Python extra; its pinned dependencies and language toolchains live in the native
+Docker image.
 
 `uv` creates the environment from `uv.lock` and installs the required Python version when needed.
 
@@ -180,6 +201,24 @@ uv run agent-bench plan \
   --size 1
 ```
 
+A three-task, language-balanced Aider Polyglot plan is:
+
+```bash
+uv run agent-bench plan \
+  --benchmark aider-polyglot \
+  --model glm-5.2 \
+  --reasoning-effort xhigh \
+  --provider friendli \
+  --byok \
+  --workers 1 \
+  --budget-usd 5 \
+  --sampling language \
+  --size 3
+```
+
+The default agent is `aider`; specifying either Harbor agent with `--agent` is rejected before
+deployment.
+
 ### 8. Run a one-task smoke experiment
 
 This command makes a real model request and may incur cost:
@@ -235,6 +274,10 @@ SWE-bench Verified accepts `random` and `domain`. Generated pools are ignored by
 into the permanent run bundle as `inputs/pool.json`.
 Terminal-Bench 2.1 accepts `random` and category-balanced `category`; omitting sampling selects
 all 89 pinned tasks.
+Aider Polyglot accepts deterministic seeded `random` and language-balanced `language`; omitting
+sampling selects all 225 pinned tasks. The dataset has no benchmark-defined category taxonomy, so
+category sampling is not exposed. Task IDs retain their language prefix, allowing explicit pool
+inspection and reproducible reruns.
 
 | `--provider` | Internal transport | Routing |
 |---|---|---|
@@ -260,6 +303,15 @@ the verifier. Rewards are binary for the pinned 2.1 dataset and reports include 
 reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed
 trials.
 
+For Aider Polyglot, `prepare` checks out the pinned Aider and exercise revisions, verifies the
+official Dockerfile hash, builds the native image, and materializes the run pool. `execute` invokes
+the official runner, which performs both Aider generation and tests for two attempts in one native
+operation. `grade` validates those existing artifacts and does not rerun tests. `normalize`
+preserves pass-at-1, pass-at-2, edit-format, token, and cost data where supplied. Reports show both
+the official completed-task denominator and the stricter selected-pool denominator; missing cost
+data is not silently treated as zero. Resume keeps valid terminal result artifacts and reruns only
+missing or malformed tasks.
+
 Terminal-Bench 2.1 defaults to Harbor's built-in Terminus 2 (`terminus-2`, version 2.0.0), while
 SWE-bench Verified defaults to mini-swe-agent. Either benchmark can use another configured agent
 with `--agent`; benchmark preparation and grading do not change. Terminus 2 receives the resolved
@@ -281,10 +333,18 @@ experiment.
 - Benchmark SSH account allowed to access Docker without `sudo`
 - Enough disk for repositories, datasets, and Docker images
 - Outbound access to Harbor Hub and the container registries used by Terminal-Bench tasks
+- For Aider Polyglot, outbound GitHub access during initial checkout/image build and model-provider
+  access during execution
 
 The pinned Terminal-Bench 2.1 tasks request up to 4 CPUs, 8 GiB RAM, and 10 GiB task storage; allow
 additional disk for Harbor caches and container images. A full run can take many hours and incur
 substantial model cost, so validate with `plan` and obtain approval before a paid smoke run.
+
+The official Aider image installs C++, Go, Java, JavaScript, Python, and Rust toolchains. The native
+container is capped at 12 GiB, so provision at least 16 GiB host RAM plus image and repository disk;
+the first build downloads toolchains and is materially slower than cached runs. The supported
+execution target is Linux Docker. Apple Silicon hosts may build a different architecture and are
+not treated as leaderboard-comparable without separate validation.
 
 The Docker group grants control of the Docker daemon and is effectively root-level access. Add
 only a trusted benchmark execution account.
