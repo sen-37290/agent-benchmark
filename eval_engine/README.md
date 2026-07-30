@@ -54,17 +54,11 @@ evaluation. Aider Polyglot has catalog, pool, command, transport, result, and mo
 coverage plus one-task real-VM smoke results for GLM and Kimi. These samples validate integration,
 not benchmark quality or official leaderboard comparability.
 
-| Benchmark | Default agent | Model | Provider path | Support and validation status |
-|---|---|---|---|---|
-| `swebench-verified` | `mini-swe-agent` | `glm-5.2` | OpenRouter or OpenRouter → Friendli | Supported |
-| `swebench-verified` | `mini-swe-agent` | `kimi-k3` | OpenRouter → MoonshotAI | Supported |
-| `swebench-verified` | `mini-swe-agent` | `opus-5` | Anthropic | Supported |
-| `terminal-bench-2.1` | `terminus-2` | `glm-5.2` | OpenRouter or OpenRouter → Friendli | Supported |
-| `terminal-bench-2.1` | `terminus-2` | `kimi-k3` | OpenRouter → MoonshotAI | Supported |
-| `terminal-bench-2.1` | `terminus-2` | `opus-5` | Anthropic | Supported |
-| `aider-polyglot` | `aider` | `glm-5.2` | OpenRouter → Friendli only; fallback disabled | VM verified with `high`; pass@2, 16,830 input / 4,028 output tokens, $0.02849. Friendli BYOK requested; final `is_byok` metadata unavailable |
-| `aider-polyglot` | `aider` | `kimi-k3` | OpenRouter → MoonshotAI only | VM verified with `high`; pass@1, 16,991 input / 7,029 output tokens, $0.15641. Shared capacity (`is_byok:false`); recovered from upstream 429/response errors |
-| `aider-polyglot` | `aider` | `opus-5` | Anthropic | Blocked by the pinned native stack; effort translation is unsupported and calls fail before token usage |
+| Benchmark | `glm-5.2` | `kimi-k3` | `opus-5` |
+|---|---|---|---|
+| `swebench-verified` | Supported | Supported | Supported |
+| `terminal-bench-2.1` | Supported | Supported | Supported |
+| `aider-polyglot` | Supported | Supported | Not supported |
 
 The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its non-OpenRouter effort path sends
 `extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
