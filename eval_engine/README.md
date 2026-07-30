@@ -65,7 +65,7 @@ not benchmark quality or official leaderboard comparability.
 
 | Aider model | Provider path | Effort | BYOK | Real-VM status |
 |---|---|---|---|---|
-| `glm-5.2` | OpenRouter → Friendli only, fallback disabled | `high` received and recorded | Friendli BYOK | Verified; pass@2, 16,830 input / 4,028 output tokens, $0.02849 |
+| `glm-5.2` | OpenRouter → Friendli only, fallback disabled | `high` received and recorded | Requested; final `is_byok` metadata unavailable | Verified; pass@2, 16,830 input / 4,028 output tokens, $0.02849 |
 | `kimi-k3` | OpenRouter → MoonshotAI only | `high` received and recorded | Not verified (`is_byok:false`) | Verified; pass@1, 16,991 input / 7,029 output tokens, $0.15641; recovered from upstream 429/response errors |
 | `opus-5` | Anthropic | Not supported by the pinned native stack | N/A | Blocked; model calls rejected before token usage |
 
@@ -80,6 +80,12 @@ For Kimi, `--byok` is not accepted by the current profile because that CLI flag 
 Friendli BYOK with Friendli-only routing. OpenRouter may automatically use a separately registered
 MoonshotAI BYOK key, but that requires workspace configuration and must be confirmed from
 OpenRouter response metadata; the recorded smoke test used shared capacity.
+
+For GLM, `--provider friendli --byok` verifies that the request is restricted to Friendli and that
+provider fallback is disabled. OpenRouter selects registered BYOK keys at the workspace layer, but
+the pinned Aider result does not retain OpenRouter's final `is_byok` routing metadata. Confirm
+actual key use in the OpenRouter Activity raw metadata (`is_byok: true`) and enable the workspace's
+always-use setting when shared capacity must never be used.
 
 An Aider result is directly comparable with the official leaderboard only when all 225 pinned
 tasks complete using the pinned native runner, dataset, Dockerfile, Aider Coder loop, and matching
