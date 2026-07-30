@@ -42,6 +42,7 @@ def _request(
     sampling: str | None,
     size: int | None,
     model: str,
+    agent: str | None,
     reasoning_effort: str,
     provider: str,
     provider_route: str | None,
@@ -56,6 +57,7 @@ def _request(
         sampling=sampling,
         size=size,
         model=model,
+        agent=agent,
         reasoning_effort=reasoning_effort,
         provider=provider,
         provider_route=provider_route,
@@ -99,6 +101,9 @@ def plan(
     budget_usd: Annotated[float, typer.Option(min=0.01)],
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
+    agent: Annotated[
+        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+    ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
     per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
@@ -110,6 +115,7 @@ def plan(
         sampling,
         size,
         model,
+        agent,
         reasoning_effort,
         provider,
         provider_route,
@@ -137,6 +143,9 @@ def run(
     budget_usd: Annotated[float, typer.Option(min=0.01)],
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
+    agent: Annotated[
+        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+    ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
     per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
@@ -149,6 +158,7 @@ def run(
         sampling,
         size,
         model,
+        agent,
         reasoning_effort,
         provider,
         provider_route,

@@ -113,6 +113,7 @@ starting a benchmark.
 uv run agent-bench plan \
   --benchmark swebench-verified \
   --model glm-5.2 \
+  --agent terminus-2 \
   --reasoning-effort xhigh \
   --provider friendli \
   --byok \
@@ -124,7 +125,8 @@ uv run agent-bench plan \
 
 `plan` validates and prints the resolved spec without using the VM or calling the model. For
 Friendli BYOK, verify `api: openrouter`, `provider.only: [friendli]`, and
-`allow_fallbacks: false`.
+`allow_fallbacks: false`. `--agent` is optional: an explicit CLI value overrides the benchmark
+default, which in turn overrides the model default.
 
 Terminal-Bench 2.1 can be planned by changing the benchmark and sampling strategy:
 
@@ -220,8 +222,9 @@ the verifier. Rewards are binary for the pinned 2.1 dataset and reports include 
 reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed
 trials.
 
-Terminal-Bench 2.1 uses Harbor's built-in Terminus 2 (`terminus-2`, version 2.0.0) as its default
-subject agent. SWE-bench Verified continues to use mini-swe-agent. Terminus 2 receives the resolved
+Terminal-Bench 2.1 defaults to Harbor's built-in Terminus 2 (`terminus-2`, version 2.0.0), while
+SWE-bench Verified defaults to mini-swe-agent. Either benchmark can use another configured agent
+with `--agent`; benchmark preparation and grading do not change. Terminus 2 receives the resolved
 reasoning effort and OpenRouter provider routing directly through Harbor. The engine-wide measured
 cost watchdog still applies, but Terminus 2 does not expose mini-swe-agent's per-task cost-limit
 argument.

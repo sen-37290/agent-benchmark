@@ -11,6 +11,7 @@ class UserRequest(BaseModel):
     sampling: str | None = None
     size: int | None = Field(default=None, ge=1)
     model: str
+    agent: str | None = None
     reasoning_effort: str
     provider: str
     provider_route: str | None = None
@@ -23,6 +24,16 @@ class UserRequest(BaseModel):
     @field_validator("benchmark", "model", "reasoning_effort", "provider", "target")
     @classmethod
     def nonempty(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("must not be empty")
+        return value
+
+    @field_validator("agent")
+    @classmethod
+    def optional_nonempty(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip()
         if not value:
             raise ValueError("must not be empty")

@@ -114,12 +114,13 @@ def test_terminus_model_transport(
     assert f"reasoning_effort={effort}" in command
 
 
-def test_swebench_keeps_local_dataset_command(tmp_path: Path) -> None:
+def test_swebench_runs_terminus_with_local_dataset(tmp_path: Path) -> None:
     pool_file = tmp_path / "swe-pool.json"
     pool_file.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
     request = UserRequest(
         benchmark="swebench-verified",
         model="glm-5.2",
+        agent="terminus-2",
         reasoning_effort="xhigh",
         provider="openrouter",
         workers=1,
@@ -134,6 +135,10 @@ def test_swebench_keeps_local_dataset_command(tmp_path: Path) -> None:
     assert "-d" not in command
     assert "--include-task-name" not in command
     assert spec.run_id in command
+    assert command[command.index("-a") + 1] == "terminus-2"
+    assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
+    assert "reasoning_effort=xhigh" in command
+    assert not any("config_file=" in argument for argument in command)
 
 
 def test_cli_plan_resolves_terminal_bench_without_vm_or_model() -> None:
