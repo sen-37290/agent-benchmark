@@ -3,12 +3,49 @@
 The deterministic execution layer of `agent-benchmark`. It contains no LLM or agent loop.
 Humans—and later `eval_agent`—invoke the same CLI.
 
-Subject-agent integration is independent from benchmarks and harnesses. Agent profiles live under
-`config/agents/`, while their invocation adapters live under `agents/`. A benchmark may
-select a default agent profile without owning that agent's configuration or execution logic.
+Agent integration is independent from benchmarks. Agent profiles live under `config/agents/`,
+while their invocation adapters live under `agents/`. A benchmark selects a default agent without
+owning that agent's configuration or execution logic.
 
 The execution VM is fixed and long-lived. An administrator provisions it once; operators run the
 CLI locally and keep experiment inputs and retrieved results on their own machine.
+
+## Currently supported configurations
+
+The engine currently supports these benchmark profiles:
+
+| CLI profile | Benchmark | Tasks | Default agent | Sampling | Grading |
+|---|---|---:|---|---|---|
+| `swebench-verified` | SWE-bench Verified | 500 | `mini-swe-agent` | `random`, `domain`, or full | Official hermetic SWE-bench grader |
+| `terminal-bench-2.1` | Terminal-Bench 2.1 | 89 | `terminus-2` | `random`, `category`, or full | Per-task verifier run inline by Harbor |
+
+These agent profiles are available:
+
+| CLI profile | Version | Notes |
+|---|---:|---|
+| `mini-swe-agent` | 2.4.5 | Receives its generated model configuration and a per-task cost limit |
+| `terminus-2` | 2.0.0 | Harbor built-in agent; receives model, reasoning, and provider arguments directly |
+
+Benchmark and agent selection are independent. All four combinations below are supported by the
+engine; `--agent` overrides the benchmark default.
+
+| Benchmark | `mini-swe-agent` | `terminus-2` |
+|---|---|---|
+| `swebench-verified` | Supported (default) | Supported |
+| `terminal-bench-2.1` | Supported | Supported (default) |
+
+The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with either agent
+and either benchmark. Provider constraints still come from the model profile: GLM supports
+OpenRouter or Friendli routing, Kimi supports OpenRouter, and Opus supports Anthropic.
+
+The harness is not a user-selectable combination axis and there is no `--harness` option. Each
+benchmark profile selects its execution harness internally. Both benchmarks above currently use
+Harbor, but this does not require future benchmarks to use Harbor.
+
+Current validation status is narrower than the supported interface: SWE-bench with mini-swe-agent
+and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The two overridden-agent
+combinations have resolved-spec and Harbor-command tests; run a small paid smoke test before a full
+evaluation.
 
 ## Getting started
 
@@ -216,7 +253,7 @@ deploy → prepare → execute → grade → collect → normalize → report �
 The remote workspace is deleted only after artifact checksums have been verified locally. Shared
 Docker, dataset, and dependency caches remain on the VM for later experiments.
 
-For Terminal-Bench, `execute` invokes Harbor once; Harbor runs the subject agent and the task's
+For Terminal-Bench, `execute` invokes Harbor once; Harbor runs the selected agent and the task's
 hidden verifier inline. `grade` only validates Harbor's existing reward artifacts and never reruns
 the verifier. Rewards are binary for the pinned 2.1 dataset and reports include accuracy and mean
 reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed

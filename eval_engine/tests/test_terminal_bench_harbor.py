@@ -14,7 +14,7 @@ from agent_benchmark.run.remote import SSHBackend
 ROOT = Path(__file__).parents[1]
 
 
-def terminal_spec(tmp_path: Path):
+def terminal_spec(tmp_path: Path, agent: str | None = None):
     pool = tmp_path / "pool.json"
     create_pool(pool, "random", 2)
     request = UserRequest(
@@ -22,6 +22,7 @@ def terminal_spec(tmp_path: Path):
         sampling="random",
         size=2,
         model="glm-5.2",
+        agent=agent,
         reasoning_effort="xhigh",
         provider="friendli",
         byok=True,
@@ -57,6 +58,17 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
     assert json.loads(call_kwargs.removeprefix("llm_call_kwargs=")) == {
         "extra_body": {"provider": {"only": ["friendli"], "allow_fallbacks": False}}
     }
+
+
+def test_terminal_bench_runs_mini_swe_agent(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path, "mini-swe-agent")
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("-a") + 1] == "mini-swe-agent"
+    assert any("config_file=" in argument for argument in command)
+    assert "version=2.4.5" in command
+    assert "cost_limit=5.0" in command
 
 
 def test_resumes_existing_native_job(tmp_path: Path) -> None:
@@ -139,6 +151,27 @@ def test_swebench_runs_terminus_with_local_dataset(tmp_path: Path) -> None:
     assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
     assert "reasoning_effort=xhigh" in command
     assert not any("config_file=" in argument for argument in command)
+
+
+def test_swebench_runs_default_mini_swe_agent(tmp_path: Path) -> None:
+    pool_file = tmp_path / "swe-pool.json"
+    pool_file.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
+    request = UserRequest(
+        benchmark="swebench-verified",
+        model="glm-5.2",
+        reasoning_effort="xhigh",
+        provider="openrouter",
+        workers=1,
+        budget_usd=10,
+    )
+    spec = resolve(request, "test-swe-mini", ROOT, pool_file)
+
+    command = build_command(spec, tmp_path / "run", tmp_path / "cache", "secret")
+
+    assert command[command.index("-a") + 1] == "mini-swe-agent"
+    assert any("config_file=" in argument for argument in command)
+    assert "version=2.4.5" in command
+    assert "cost_limit=5.0" in command
 
 
 def test_cli_plan_resolves_terminal_bench_without_vm_or_model() -> None:
