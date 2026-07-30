@@ -55,7 +55,7 @@ def test_benchmark_resolves_independent_agent_profiles(tmp_path: Path) -> None:
         "mini-swe-agent",
         "2.4.5",
     )
-    assert list_profiles()["agents"] == ["mini-swe-agent", "terminus-2"]
+    assert list_profiles()["agents"] == ["aider", "mini-swe-agent", "terminus-2"]
 
 
 def test_model_profiles_do_not_select_agents() -> None:
@@ -67,7 +67,7 @@ def test_model_profiles_do_not_select_agents() -> None:
 
 
 def test_cli_agent_overrides_benchmark_and_model_defaults(tmp_path: Path) -> None:
-    swebench = resolved_spec(tmp_path / "swebench", "swebench-verified", "terminus-2")
+    swebench = resolved_spec(tmp_path / "swebench", "swebench-verified-harbor", "terminus-2")
     terminal = resolved_spec(tmp_path / "terminal", "terminal-bench-2.1", "mini-swe-agent")
 
     assert (swebench.model.subject_agent, swebench.model.subject_agent_version) == (
@@ -102,7 +102,7 @@ def test_cli_plan_overrides_swebench_agent(monkeypatch: pytest.MonkeyPatch) -> N
         [
             "plan",
             "--benchmark",
-            "swebench-verified",
+            "swebench-verified-harbor",
             "--model",
             "glm-5.2",
             "--agent",
@@ -124,9 +124,48 @@ def test_cli_plan_overrides_swebench_agent(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     assert result.exit_code == 0, result.output
-    assert "profile: swebench-verified" in result.output
+    assert "profile: swebench-verified-harbor" in result.output
     assert "subject_agent: terminus-2" in result.output
     assert "subject_agent_version: 2.0.0" in result.output
+
+
+def test_official_swebench_rejects_non_mini_agent(tmp_path: Path) -> None:
+    with pytest.raises(ConfigurationError, match="not compatible"):
+        resolved_spec(tmp_path, "swebench-verified", "terminus-2")
+
+
+def test_cli_plan_allows_provider_default_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    def create_test_pool(
+        self: SwebenchVerified,
+        output_path: Path,
+        sampling: str | None,
+        size: int | None,
+    ) -> None:
+        del self, sampling, size
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
+
+    monkeypatch.setattr(SwebenchVerified, "create_pool", create_test_pool)
+    result = CliRunner().invoke(
+        app,
+        [
+            "plan",
+            "--benchmark",
+            "swebench-verified",
+            "--model",
+            "opus-5",
+            "--provider",
+            "anthropic",
+            "--workers",
+            "1",
+            "--budget-usd",
+            "5",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "reasoning_effort: null" in result.output
+    assert "reasoning_effort: max" not in result.output
 
 
 def test_agent_adapters_are_loaded_from_separate_modules() -> None:

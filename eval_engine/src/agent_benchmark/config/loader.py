@@ -56,6 +56,10 @@ def benchmark_plugin_name(profile: str) -> str:
     return str(_load_yaml("benchmarks", profile)["plugin"])
 
 
+def target_profile(name: str) -> TargetSpec:
+    return TargetSpec(profile=name, **_load_yaml("targets", name))
+
+
 def _set_dotted(target: dict[str, Any], path: str, value: Any) -> None:
     parts = path.split(".")
     cursor = target
@@ -65,6 +69,24 @@ def _set_dotted(target: dict[str, Any], path: str, value: Any) -> None:
             raise ConfigurationError(f"cannot set {path!r}: {part!r} is not a mapping")
         cursor = child
     cursor[parts[-1]] = value
+
+
+def _remove_dotted(target: dict[str, Any], path: str) -> None:
+    parts = path.split(".")
+    cursor = target
+    parents: list[tuple[dict[str, Any], str]] = []
+    for part in parts[:-1]:
+        child = cursor.get(part)
+        if not isinstance(child, dict):
+            return
+        parents.append((cursor, part))
+        cursor = child
+    cursor.pop(parts[-1], None)
+    for parent, part in reversed(parents):
+        if parent.get(part) == {}:
+            parent.pop(part)
+        else:
+            break
 
 
 def _provenance(project_root: Path) -> ProvenanceSpec:
@@ -112,6 +134,14 @@ def resolve(
             "select one with --agent"
         )
     agent = _load_yaml("agents", agent_profile)
+    compatible_harnesses = set(agent.get("compatible_harnesses", []))
+    if benchmark["harness"] not in compatible_harnesses:
+        available = ", ".join(sorted(compatible_harnesses)) or "none"
+        raise ConfigurationError(
+            f"agent {agent_profile!r} is not compatible with benchmark "
+            f"{request.benchmark!r} (required harness {benchmark['harness']!r}; "
+            f"agent supports: {available})"
+        )
 
     provider_contracts = {
         "openrouter": ("openrouter", None),
@@ -131,7 +161,7 @@ def resolve(
             f"provider {request.provider!r}"
         )
     efforts = model.get("supported_efforts", [])
-    if efforts and request.reasoning_effort not in efforts:
+    if request.reasoning_effort is not None and efforts and request.reasoning_effort not in efforts:
         raise ConfigurationError(
             f"effort {request.reasoning_effort!r} is invalid for {request.model!r}; "
             f"available: {', '.join(efforts)}"
@@ -149,8 +179,21 @@ def resolve(
     if len(instance_ids) != len(set(instance_ids)):
         raise ConfigurationError("generated pool contains duplicate instance IDs")
 
+    benchmark_cost_limit = float(benchmark.get("per_task_cost_limit_usd", 5.0))
+    per_task_cost_limit = request.per_task_cost_limit_usd or benchmark_cost_limit
+    if benchmark.get("lock_per_task_cost_limit", False) and (
+        per_task_cost_limit != benchmark_cost_limit
+    ):
+        raise ConfigurationError(
+            f"benchmark {request.benchmark!r} requires "
+            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}"
+        )
+
     config = copy.deepcopy(model["config"])
-    _set_dotted(config, model["effort_path"], request.reasoning_effort)
+    if request.reasoning_effort is None:
+        _remove_dotted(config, model["effort_path"])
+    else:
+        _set_dotted(config, model["effort_path"], request.reasoning_effort)
     if provider_route or request.byok:
         provider_config = (
             config.setdefault("model", {}).setdefault("model_kwargs", {}).setdefault("provider", {})
@@ -161,6 +204,11 @@ def resolve(
             # NOTE: OpenRouter ignores a Friendli key sent with inference requests and uses the
             # Friendli BYOK key already registered in the OpenRouter dashboard.
             provider_config["allow_fallbacks"] = False
+    if request.provider == "friendli" and request.byok:
+        # Friendli BYOK responses report zero OpenRouter cost. mini-swe-agent's strict default
+        # rejects those otherwise-valid responses, so retain the run while recording cost as
+        # unavailable. Step limits still apply, but dollar-denominated limits cannot be enforced.
+        config.setdefault("model", {})["cost_tracking"] = "ignore_errors"
 
     return ResolvedSpec(
         run_id=run_id,
@@ -195,7 +243,7 @@ def resolve(
         execution=ExecutionSpec(workers=request.workers),
         budget=BudgetSpec(
             total_usd=request.budget_usd,
-            per_task_usd=request.per_task_cost_limit_usd,
+            per_task_usd=per_task_cost_limit,
         ),
         provenance=_provenance(project_root),
     )

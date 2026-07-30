@@ -14,10 +14,16 @@ import yaml
 from dotenv import load_dotenv
 
 from agent_benchmark.benchmarks import benchmark_plugin
-from agent_benchmark.config.loader import benchmark_plugin_name, list_profiles, resolve
+from agent_benchmark.config.loader import (
+    benchmark_plugin_name,
+    list_profiles,
+    resolve,
+    target_profile,
+)
 from agent_benchmark.config.schema import UserRequest
 from agent_benchmark.exceptions import AgentBenchError
 from agent_benchmark.run.pipeline import Pipeline
+from agent_benchmark.run.remote import active_run_id
 from agent_benchmark.run.result import read_results, write_report, write_results
 from agent_benchmark.run.store import RunStore
 from agent_benchmark.run.worker import create_manifest, run_stage
@@ -43,13 +49,13 @@ def _request(
     size: int | None,
     model: str,
     agent: str | None,
-    reasoning_effort: str,
+    reasoning_effort: str | None,
     provider: str,
     provider_route: str | None,
     byok: bool,
     workers: int,
     budget_usd: float,
-    per_task_cost_limit_usd: float,
+    per_task_cost_limit_usd: float | None,
     target: str,
 ) -> UserRequest:
     return UserRequest(
@@ -95,18 +101,23 @@ def _create_run(request: UserRequest, runs_root: Path, pools_root: Path | None =
 def plan(
     benchmark: Annotated[str, typer.Option()],
     model: Annotated[str, typer.Option()],
-    reasoning_effort: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
     budget_usd: Annotated[float, typer.Option(min=0.01)],
+    reasoning_effort: Annotated[
+        str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
+    ] = None,
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
-        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+        str | None, typer.Option(help="Agent profile; overrides the benchmark default.")
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
-    per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
+    per_task_cost_limit_usd: Annotated[
+        float | None,
+        typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
@@ -137,18 +148,23 @@ def plan(
 def run(
     benchmark: Annotated[str, typer.Option()],
     model: Annotated[str, typer.Option()],
-    reasoning_effort: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
     budget_usd: Annotated[float, typer.Option(min=0.01)],
+    reasoning_effort: Annotated[
+        str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
+    ] = None,
     sampling: Annotated[str | None, typer.Option(help="Benchmark-specific strategy.")] = None,
     size: Annotated[int | None, typer.Option(min=1, help="Number of tasks to sample.")] = None,
     agent: Annotated[
-        str | None, typer.Option(help="Agent profile; overrides benchmark and model defaults.")
+        str | None, typer.Option(help="Agent profile; overrides the benchmark default.")
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
-    per_task_cost_limit_usd: Annotated[float, typer.Option(min=0.01)] = 5.0,
+    per_task_cost_limit_usd: Annotated[
+        float | None,
+        typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:
@@ -211,6 +227,19 @@ def status(
     for stage, record in state.stages.items():
         suffix = f" — {record.error}" if record.error else ""
         typer.echo(f"{stage.value:10} {record.status.value:10} attempts={record.attempts}{suffix}")
+
+
+@app.command()
+def active(
+    target: Annotated[str, typer.Option()] = "fixed-vm",
+) -> None:
+    """Show the run ID holding the execution VM lease, if any."""
+    target_spec = target_profile(target)
+    host = os.environ.get(target_spec.host_env, "").strip()
+    if not host:
+        raise typer.BadParameter(f"set {target_spec.host_env}")
+    run_id = active_run_id(host, target_spec.cache_root)
+    typer.echo(run_id if run_id else "no active run")
 
 
 @app.command()

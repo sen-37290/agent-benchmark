@@ -24,12 +24,13 @@ mkdir -p /logs/verifier
 (
   cd /testbed 2>/dev/null || exit 0
   git config --global --add safe.directory /testbed 2>/dev/null || true
-  # Base images are checked out at base_commit; prefer it explicitly in case the agent committed.
-  BASE_COMMIT="$(sed -n 's/.*"base_commit"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tests/config.json | head -1)"
-  [ -z "$BASE_COMMIT" ] && BASE_COMMIT=HEAD
+  # The image records HEAD before the agent starts. This is intentionally not base_commit:
+  # SWE-bench images may add a tracked environment-setup commit above base_commit.
+  AGENT_START_COMMIT="$(cat /opt/agent-benchmark-start-commit 2>/dev/null || true)"
+  [ -z "$AGENT_START_COMMIT" ] && AGENT_START_COMMIT=HEAD
   git add -A 2>/dev/null || true
-  git diff --cached --no-color --binary "$BASE_COMMIT" > /logs/verifier/model_patch.diff 2>/dev/null \
-    || git diff --no-color --binary "$BASE_COMMIT" > /logs/verifier/model_patch.diff 2>/dev/null \
+  git diff --cached --no-color --binary "$AGENT_START_COMMIT" > /logs/verifier/model_patch.diff 2>/dev/null \
+    || git diff --no-color --binary "$AGENT_START_COMMIT" > /logs/verifier/model_patch.diff 2>/dev/null \
     || : > /logs/verifier/model_patch.diff
 ) || true
 

@@ -27,10 +27,9 @@ class Terminus2Adapter(AgentAdapter):
         model_name = spec.model.model_id
         if spec.model.api == "openrouter":
             model_name = f"openrouter/{model_name}"
-        kwargs: dict[str, object] = {
-            "reasoning_effort": spec.model.reasoning_effort,
-            "temperature": 1,
-        }
+        kwargs: dict[str, object] = {"temperature": 1}
+        if spec.model.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = spec.model.reasoning_effort
         provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
         if spec.model.api == "openrouter" and isinstance(provider, dict):
             kwargs["llm_call_kwargs"] = {"extra_body": {"provider": provider}}

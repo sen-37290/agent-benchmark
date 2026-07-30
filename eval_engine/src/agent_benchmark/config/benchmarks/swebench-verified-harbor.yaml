@@ -1,13 +1,14 @@
 plugin: swebench_verified
-harness: mini-swe-agent-native
+harness: harbor
 dataset_id: princeton-nlp/SWE-bench_Verified
 grading: official-hermetic
 default_agent: mini-swe-agent
-per_task_cost_limit_usd: 3.0
-lock_per_task_cost_limit: true
+per_task_cost_limit_usd: 5.0
 settings:
   dependency_extra: swebench
-  official_agent_version: 2.4.5
-  official_step_limit: 250
-  official_cost_limit: 3.0
+  dataset_source: local
+  attempts: 1
+  fail_on_trial_exception: true
+  harbor_adapter_ref: v0.20.0
+  adapter_swebench_version: 4.1.0
   official_grader_version: 4.0.3

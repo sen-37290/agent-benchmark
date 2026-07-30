@@ -7,7 +7,7 @@ import signal
 import subprocess
 import threading
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from agent_benchmark.exceptions import StageError
@@ -37,6 +37,13 @@ def collected_cost(job_dir: Path) -> float:
     return total
 
 
+def measured_cost(cost_reader: Callable[[], float] | None, job_dir: Path | None) -> float:
+    if cost_reader is not None:
+        return cost_reader()
+    assert job_dir is not None
+    return collected_cost(job_dir)
+
+
 def run_logged(
     command: Sequence[str],
     *,
@@ -45,6 +52,7 @@ def run_logged(
     env: Mapping[str, str] | None = None,
     redact_values: Sequence[str] = (),
     budget_job_dir: Path | None = None,
+    cost_reader: Callable[[], float] | None = None,
     budget_usd: float | None = None,
     poll_seconds: float = 5.0,
 ) -> None:
@@ -104,10 +112,10 @@ def run_logged(
             if (
                 process.poll() is None
                 and now >= next_budget_check
-                and budget_job_dir is not None
+                and (budget_job_dir is not None or cost_reader is not None)
                 and budget_usd is not None
             ):
-                spent = collected_cost(budget_job_dir)
+                spent = measured_cost(cost_reader, budget_job_dir)
                 if spent >= budget_usd:
                     budget_tripped = True
                     message = f"budget tripped: measured ${spent:.4f} >= ${budget_usd:.4f}\n"

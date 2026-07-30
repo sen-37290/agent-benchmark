@@ -1,0 +1,14 @@
+plugin: aider_polyglot
+harness: aider-native
+dataset_id: Aider-AI/polyglot-benchmark@7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f
+grading: aider-native-inline-tests
+default_agent: aider
+settings:
+  runner_version: 0.86.0
+  runner_revision: a4be6ccd87ebaa59b361f3f028d116ce1761b626
+  dataset_revision: 7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f
+  dockerfile_sha256: 352813bb478c35b88981d03a23679b33f5d1a78871c53173a68b52422fe68e80
+  image: agent-benchmark/aider-native:a4be6ccd
+  attempts: 2
+  test_timeout_seconds: 180
+  edit_format: diff

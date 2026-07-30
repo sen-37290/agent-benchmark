@@ -27,6 +27,27 @@ SOURCE_RSYNC_EXCLUDES = (
 )
 
 
+def active_run_id(host: str, cache_root: str) -> str | None:
+    """Return the run holding the VM-wide lease, if any."""
+    owner = PurePosixPath(cache_root) / "leases" / "active" / "owner"
+    command = f"if [ -f {shlex.quote(str(owner))} ]; then cat {shlex.quote(str(owner))}; fi"
+    result = subprocess.run(
+        ["ssh", host, command],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        detail = result.stderr.strip() or "see SSH error output"
+        raise StageError(f"failed to query active VM lease ({result.returncode}): {detail}")
+    run_id = result.stdout.strip()
+    if not run_id:
+        return None
+    if not SAFE_RUN_ID.fullmatch(run_id):
+        raise StageError(f"VM lease contains an invalid run ID: {run_id!r}")
+    return run_id
+
+
 class SSHBackend:
     """Stateless SSH/rsync transport for a long-lived execution VM."""
 
@@ -133,13 +154,14 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             f"umask 077; cat > {shlex.quote(str(self.remote_run / 'secrets.json'))}",
             input_text=secrets,
         )
-        dependency_extra = str(self.spec.benchmark.settings.get("dependency_extra", "swebench"))
-        if not re.fullmatch(r"[a-zA-Z0-9_-]+", dependency_extra):
-            raise ConfigurationError(f"unsafe dependency extra: {dependency_extra!r}")
-        self._ssh(
-            f"cd {shlex.quote(str(self.remote_source))} && "
-            f"uv sync --frozen --extra {shlex.quote(dependency_extra)}"
-        )
+        dependency_extra = self.spec.benchmark.settings.get("dependency_extra")
+        sync = "uv sync --frozen"
+        if dependency_extra is not None:
+            dependency_extra = str(dependency_extra)
+            if not re.fullmatch(r"[a-zA-Z0-9_-]+", dependency_extra):
+                raise ConfigurationError(f"unsafe dependency extra: {dependency_extra!r}")
+            sync += f" --extra {shlex.quote(dependency_extra)}"
+        self._ssh(f"cd {shlex.quote(str(self.remote_source))} && {sync}")
 
     def run_worker(self, stage: str) -> None:
         command = (

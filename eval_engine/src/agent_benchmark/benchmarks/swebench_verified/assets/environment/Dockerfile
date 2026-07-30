@@ -29,6 +29,11 @@ FROM {docker_image}
 # RUN apt-get update && apt-get install -y tmux asciinema
 
 WORKDIR /testbed
+# Capture the exact repository state presented to the agent. SWE-bench images can contain an
+# environment-setup commit on top of the task's base_commit; the verifier must exclude that setup
+# delta while retaining every change the agent makes, including commits and untracked files.
+RUN git config --global --add safe.directory /testbed \
+    && git rev-parse HEAD > /opt/agent-benchmark-start-commit
 # ======================================================================================
 
 # If you'd like to step into the container and run commands to help you develop the task

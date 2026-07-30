@@ -1,0 +1,1358 @@
+{
+  "schema_version": 1,
+  "dataset_id": "Aider-AI/polyglot-benchmark",
+  "dataset_revision": "7e0611e77b54e2dea774cdc0aa00cf9f7ed6144f",
+  "source": "https://github.com/Aider-AI/polyglot-benchmark",
+  "tasks": [
+    {
+      "id": "cpp/all-your-base",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/all-your-base",
+      "digest": "104786870b465b61b20b5081698ef771d1c90c59"
+    },
+    {
+      "id": "cpp/allergies",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/allergies",
+      "digest": "ac1be8305b2309db8e130f5cb5a9ce3c874bb87e"
+    },
+    {
+      "id": "cpp/bank-account",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/bank-account",
+      "digest": "4cb583316799957e54c6fd994b19020d8d33404c"
+    },
+    {
+      "id": "cpp/binary-search-tree",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/binary-search-tree",
+      "digest": "be1ec633edadc6047f95bd4a51989c8c1bb0f2f2"
+    },
+    {
+      "id": "cpp/circular-buffer",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/circular-buffer",
+      "digest": "62e2706040a137caa02378e22345b24f6fa04ecc"
+    },
+    {
+      "id": "cpp/clock",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/clock",
+      "digest": "8034be8cc696b2b0924fdc666fbc379de1b16616"
+    },
+    {
+      "id": "cpp/complex-numbers",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/complex-numbers",
+      "digest": "695df4b784c797afeb41d4d4b6bd17fac1469260"
+    },
+    {
+      "id": "cpp/crypto-square",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/crypto-square",
+      "digest": "b210203031597b5b13108f700c15919cc36abc79"
+    },
+    {
+      "id": "cpp/diamond",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/diamond",
+      "digest": "949827d1657bcc45bb49eaddf0afc1064dbb17fe"
+    },
+    {
+      "id": "cpp/dnd-character",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/dnd-character",
+      "digest": "b54bfd1c3584a5ac931a559824f6fe3589b1df6d"
+    },
+    {
+      "id": "cpp/gigasecond",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/gigasecond",
+      "digest": "9b0f897f7e5c2087a7d3d2ce108eed6a2fb0c661"
+    },
+    {
+      "id": "cpp/grade-school",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/grade-school",
+      "digest": "809033ccff349d0dc0a54d6c81b1bac01a7fc05d"
+    },
+    {
+      "id": "cpp/kindergarten-garden",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/kindergarten-garden",
+      "digest": "b3b48d8e5a6bd4e58037cc0eff56ea4cebaff021"
+    },
+    {
+      "id": "cpp/knapsack",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/knapsack",
+      "digest": "6e4e8ddf5e6205c169acca44aec0a24fbc6fc6b2"
+    },
+    {
+      "id": "cpp/linked-list",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/linked-list",
+      "digest": "23d17b155c70b4ef6fef9a17503e226216aa0ab8"
+    },
+    {
+      "id": "cpp/meetup",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/meetup",
+      "digest": "f144469b0a2a082436ca31852cadab6e7bed2f55"
+    },
+    {
+      "id": "cpp/parallel-letter-frequency",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/parallel-letter-frequency",
+      "digest": "d3c6ec800dd8e8844dfb0a2912c22dc6543b7831"
+    },
+    {
+      "id": "cpp/perfect-numbers",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/perfect-numbers",
+      "digest": "207907b990b2517c1a7c2d1ede6de2a1e4282ec3"
+    },
+    {
+      "id": "cpp/phone-number",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/phone-number",
+      "digest": "ac106c7505453d454e55a1ed8f16ea1dc2d64db7"
+    },
+    {
+      "id": "cpp/queen-attack",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/queen-attack",
+      "digest": "db0ffa2d1d39a3f98776c2480837ddaf3b286c90"
+    },
+    {
+      "id": "cpp/robot-name",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/robot-name",
+      "digest": "0e007687687827474c42e61bf154417d0a5dfdbb"
+    },
+    {
+      "id": "cpp/space-age",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/space-age",
+      "digest": "a86aeb487f227d6c316da954317205d3592bbe2b"
+    },
+    {
+      "id": "cpp/spiral-matrix",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/spiral-matrix",
+      "digest": "1e35ac0ad3867c931ca30ad70828ff76d41c8bef"
+    },
+    {
+      "id": "cpp/sublist",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/sublist",
+      "digest": "fa6c07dbf9e97fdf3452604700e1d967e35816dd"
+    },
+    {
+      "id": "cpp/yacht",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/yacht",
+      "digest": "3e1fe6c7bada0067196258655b656355f5a9bdaf"
+    },
+    {
+      "id": "cpp/zebra-puzzle",
+      "language": "cpp",
+      "path": "cpp/exercises/practice/zebra-puzzle",
+      "digest": "a726197ffab1c246ba9c86547436b3846c9b6ee7"
+    },
+    {
+      "id": "go/alphametics",
+      "language": "go",
+      "path": "go/exercises/practice/alphametics",
+      "digest": "22ad9399e24d65b94777caf9cbb433084196b917"
+    },
+    {
+      "id": "go/beer-song",
+      "language": "go",
+      "path": "go/exercises/practice/beer-song",
+      "digest": "f8e43ff21b11292712de4c418f1a2724eba7b6dd"
+    },
+    {
+      "id": "go/book-store",
+      "language": "go",
+      "path": "go/exercises/practice/book-store",
+      "digest": "34e7db74e4b046bc4bc0e15bd8acd9723613e475"
+    },
+    {
+      "id": "go/bottle-song",
+      "language": "go",
+      "path": "go/exercises/practice/bottle-song",
+      "digest": "bcaff1bca19b1e82f9e0300e8f9c48191a6edbfd"
+    },
+    {
+      "id": "go/bowling",
+      "language": "go",
+      "path": "go/exercises/practice/bowling",
+      "digest": "0c217d432ee10953e87b1de235220eda3b6c504a"
+    },
+    {
+      "id": "go/connect",
+      "language": "go",
+      "path": "go/exercises/practice/connect",
+      "digest": "9427144b90e31d75f944deab6473056c0898b515"
+    },
+    {
+      "id": "go/counter",
+      "language": "go",
+      "path": "go/exercises/practice/counter",
+      "digest": "210291d3135085085d6d0c67a952be3f85c3facc"
+    },
+    {
+      "id": "go/crypto-square",
+      "language": "go",
+      "path": "go/exercises/practice/crypto-square",
+      "digest": "f32db4315aaeabd2d6a021fa37f040245103e034"
+    },
+    {
+      "id": "go/dnd-character",
+      "language": "go",
+      "path": "go/exercises/practice/dnd-character",
+      "digest": "7c6d2e53b6055f5e4b56571cf5ac81e0d65430ef"
+    },
+    {
+      "id": "go/dominoes",
+      "language": "go",
+      "path": "go/exercises/practice/dominoes",
+      "digest": "d6d272e1d0e6338738dd70c2f74db469792534bb"
+    },
+    {
+      "id": "go/error-handling",
+      "language": "go",
+      "path": "go/exercises/practice/error-handling",
+      "digest": "69756a697289d65a8defdff1d8a5b46377422aad"
+    },
+    {
+      "id": "go/food-chain",
+      "language": "go",
+      "path": "go/exercises/practice/food-chain",
+      "digest": "004d3544cc79f41e19c2744727d7ded37e00ecda"
+    },
+    {
+      "id": "go/forth",
+      "language": "go",
+      "path": "go/exercises/practice/forth",
+      "digest": "5f02f22954870ddf610433e572a6fb8ffaf97b96"
+    },
+    {
+      "id": "go/hexadecimal",
+      "language": "go",
+      "path": "go/exercises/practice/hexadecimal",
+      "digest": "e5fed5090c432a2520cdb9f17d8c8a432841c84f"
+    },
+    {
+      "id": "go/kindergarten-garden",
+      "language": "go",
+      "path": "go/exercises/practice/kindergarten-garden",
+      "digest": "358b7eb32a4d65eefdba49c98e0f75589f876b83"
+    },
+    {
+      "id": "go/ledger",
+      "language": "go",
+      "path": "go/exercises/practice/ledger",
+      "digest": "197431800eebd309be02422513f6bfa8225cd5f8"
+    },
+    {
+      "id": "go/markdown",
+      "language": "go",
+      "path": "go/exercises/practice/markdown",
+      "digest": "07ab07b89875ac77643efeb742dfee360f3343bd"
+    },
+    {
+      "id": "go/matrix",
+      "language": "go",
+      "path": "go/exercises/practice/matrix",
+      "digest": "e439c070137ab2c653bc5d4eefd98250bcff5865"
+    },
+    {
+      "id": "go/octal",
+      "language": "go",
+      "path": "go/exercises/practice/octal",
+      "digest": "fb23a73f32b9a778bd6b290b24ac4808696d3915"
+    },
+    {
+      "id": "go/paasio",
+      "language": "go",
+      "path": "go/exercises/practice/paasio",
+      "digest": "cfca97cf509b9bac3ca4ab0c95917fa4d61e338f"
+    },
+    {
+      "id": "go/palindrome-products",
+      "language": "go",
+      "path": "go/exercises/practice/palindrome-products",
+      "digest": "7397b8305181a94b2263db789579a19c76b6a103"
+    },
+    {
+      "id": "go/pig-latin",
+      "language": "go",
+      "path": "go/exercises/practice/pig-latin",
+      "digest": "0c5f66e8448e9a1f0fb2157897f198f687abdcd4"
+    },
+    {
+      "id": "go/poker",
+      "language": "go",
+      "path": "go/exercises/practice/poker",
+      "digest": "f9d9c29f982646b3efd8555de81a7f194e7a16f6"
+    },
+    {
+      "id": "go/pov",
+      "language": "go",
+      "path": "go/exercises/practice/pov",
+      "digest": "20d29f2f96849cb952ef85c803e510d33f66c67b"
+    },
+    {
+      "id": "go/protein-translation",
+      "language": "go",
+      "path": "go/exercises/practice/protein-translation",
+      "digest": "ef12b6148a8d3d72f3bf7af195b5e6ce36cb46e5"
+    },
+    {
+      "id": "go/react",
+      "language": "go",
+      "path": "go/exercises/practice/react",
+      "digest": "77651d6c804dd8d8c97aeb3b0c8313c2a23909d1"
+    },
+    {
+      "id": "go/robot-simulator",
+      "language": "go",
+      "path": "go/exercises/practice/robot-simulator",
+      "digest": "a62a4771c36911cf9e7dac9b0eddbb49950eba26"
+    },
+    {
+      "id": "go/say",
+      "language": "go",
+      "path": "go/exercises/practice/say",
+      "digest": "b8b0f16bfa99ba06b3703f0669e1ab46ae177611"
+    },
+    {
+      "id": "go/scale-generator",
+      "language": "go",
+      "path": "go/exercises/practice/scale-generator",
+      "digest": "52f895889d071573f65f9cb114c16a783be251b0"
+    },
+    {
+      "id": "go/simple-linked-list",
+      "language": "go",
+      "path": "go/exercises/practice/simple-linked-list",
+      "digest": "04e44ec86326fcda72df52acd5550072367e7057"
+    },
+    {
+      "id": "go/sublist",
+      "language": "go",
+      "path": "go/exercises/practice/sublist",
+      "digest": "a245745f478f6f06e2b739cb2d766b72fe8e8914"
+    },
+    {
+      "id": "go/transpose",
+      "language": "go",
+      "path": "go/exercises/practice/transpose",
+      "digest": "a34a6a8c603863558444c4d84a426a77f86f5cbf"
+    },
+    {
+      "id": "go/tree-building",
+      "language": "go",
+      "path": "go/exercises/practice/tree-building",
+      "digest": "a2c847bde697527b027292a9cd702df4e18e6713"
+    },
+    {
+      "id": "go/trinary",
+      "language": "go",
+      "path": "go/exercises/practice/trinary",
+      "digest": "7d1f8284b3b9e257eacb1527ff3ad998f19b18b6"
+    },
+    {
+      "id": "go/two-bucket",
+      "language": "go",
+      "path": "go/exercises/practice/two-bucket",
+      "digest": "e7533e69229ce675536e42c5c61a8c1b63c07f50"
+    },
+    {
+      "id": "go/variable-length-quantity",
+      "language": "go",
+      "path": "go/exercises/practice/variable-length-quantity",
+      "digest": "414a14b08a88546144228666fb71c28e4b76e3c4"
+    },
+    {
+      "id": "go/word-search",
+      "language": "go",
+      "path": "go/exercises/practice/word-search",
+      "digest": "631636d3be3cd206a1db55df48e8358c6809807e"
+    },
+    {
+      "id": "go/wordy",
+      "language": "go",
+      "path": "go/exercises/practice/wordy",
+      "digest": "43a4a585d78fc3201325e0add8589f37724489fc"
+    },
+    {
+      "id": "go/zebra-puzzle",
+      "language": "go",
+      "path": "go/exercises/practice/zebra-puzzle",
+      "digest": "fc273b3c61cc937dd12c48da7b0e673c3d1d23f9"
+    },
+    {
+      "id": "java/affine-cipher",
+      "language": "java",
+      "path": "java/exercises/practice/affine-cipher",
+      "digest": "2c465b960e54085c3d25ceb0d248ef52cae6e950"
+    },
+    {
+      "id": "java/all-your-base",
+      "language": "java",
+      "path": "java/exercises/practice/all-your-base",
+      "digest": "10b2cc807b6aff3040da1c4d1b3a39c1a77a12b9"
+    },
+    {
+      "id": "java/alphametics",
+      "language": "java",
+      "path": "java/exercises/practice/alphametics",
+      "digest": "1c7dde9d68d29d4430730a60bad45f5679c49541"
+    },
+    {
+      "id": "java/bank-account",
+      "language": "java",
+      "path": "java/exercises/practice/bank-account",
+      "digest": "164b3d7b16e5b4d973046d5ce081ee6f52850585"
+    },
+    {
+      "id": "java/book-store",
+      "language": "java",
+      "path": "java/exercises/practice/book-store",
+      "digest": "c330d817594784763d0b4c915f21c44ce65cab74"
+    },
+    {
+      "id": "java/bottle-song",
+      "language": "java",
+      "path": "java/exercises/practice/bottle-song",
+      "digest": "bd2202c4ea2af421f690c885e97ac8406232dff1"
+    },
+    {
+      "id": "java/bowling",
+      "language": "java",
+      "path": "java/exercises/practice/bowling",
+      "digest": "437e918853428aa9179864142638ce0449d07bcc"
+    },
+    {
+      "id": "java/change",
+      "language": "java",
+      "path": "java/exercises/practice/change",
+      "digest": "6e76fdda6ab500a65055f7416c0494784acbd7d0"
+    },
+    {
+      "id": "java/circular-buffer",
+      "language": "java",
+      "path": "java/exercises/practice/circular-buffer",
+      "digest": "c3afef7e57e3110b6dabad51e22078382e174644"
+    },
+    {
+      "id": "java/connect",
+      "language": "java",
+      "path": "java/exercises/practice/connect",
+      "digest": "73a2d18939637f6328cd7a884d406c32de3771f5"
+    },
+    {
+      "id": "java/custom-set",
+      "language": "java",
+      "path": "java/exercises/practice/custom-set",
+      "digest": "d1c5a329593a502f63bc514ef9d4d28f843fdef7"
+    },
+    {
+      "id": "java/dominoes",
+      "language": "java",
+      "path": "java/exercises/practice/dominoes",
+      "digest": "7de5aaba60a99273460f1cd842fd42e8e8b5f64e"
+    },
+    {
+      "id": "java/food-chain",
+      "language": "java",
+      "path": "java/exercises/practice/food-chain",
+      "digest": "ac80187314dc0079d51442a98bebf40d2f74978a"
+    },
+    {
+      "id": "java/forth",
+      "language": "java",
+      "path": "java/exercises/practice/forth",
+      "digest": "d9b93625489b5d1c5d63c63aa4d80cc173057d91"
+    },
+    {
+      "id": "java/go-counting",
+      "language": "java",
+      "path": "java/exercises/practice/go-counting",
+      "digest": "de59e11c61bdcc7d4c7ae86aa9e0d5e6c8fbb00c"
+    },
+    {
+      "id": "java/hangman",
+      "language": "java",
+      "path": "java/exercises/practice/hangman",
+      "digest": "c235d999c58948122066e54986c9c9e2683caca3"
+    },
+    {
+      "id": "java/house",
+      "language": "java",
+      "path": "java/exercises/practice/house",
+      "digest": "de0448a6afcc91e9ac6ecce19e15d9bf2299a6da"
+    },
+    {
+      "id": "java/kindergarten-garden",
+      "language": "java",
+      "path": "java/exercises/practice/kindergarten-garden",
+      "digest": "e7735c962d42f69a78498eb79b2e9edcefb99745"
+    },
+    {
+      "id": "java/ledger",
+      "language": "java",
+      "path": "java/exercises/practice/ledger",
+      "digest": "dc0337edf69c833948459c64d8bb77efa1172444"
+    },
+    {
+      "id": "java/mazy-mice",
+      "language": "java",
+      "path": "java/exercises/practice/mazy-mice",
+      "digest": "2ca0ea37c8859a5f7fd2e3c06c5536b8c3a316a0"
+    },
+    {
+      "id": "java/ocr-numbers",
+      "language": "java",
+      "path": "java/exercises/practice/ocr-numbers",
+      "digest": "a9d63c0615e1ad0f735af539c75778e7d65088bd"
+    },
+    {
+      "id": "java/palindrome-products",
+      "language": "java",
+      "path": "java/exercises/practice/palindrome-products",
+      "digest": "2ee2ee096794fac1bf77b8e9b23a48306bb189bd"
+    },
+    {
+      "id": "java/phone-number",
+      "language": "java",
+      "path": "java/exercises/practice/phone-number",
+      "digest": "6a8196fedec4125c37379cac27c1d58be86e4fba"
+    },
+    {
+      "id": "java/pig-latin",
+      "language": "java",
+      "path": "java/exercises/practice/pig-latin",
+      "digest": "4fd9fb3691e2c554afdfb0970bbeff3be13da4e6"
+    },
+    {
+      "id": "java/poker",
+      "language": "java",
+      "path": "java/exercises/practice/poker",
+      "digest": "6beca91bab5db7abb732e18ea920b4bc93c2bd43"
+    },
+    {
+      "id": "java/pov",
+      "language": "java",
+      "path": "java/exercises/practice/pov",
+      "digest": "81b9b61fc552f6d23fba4af1130fe6e8e4df0f76"
+    },
+    {
+      "id": "java/protein-translation",
+      "language": "java",
+      "path": "java/exercises/practice/protein-translation",
+      "digest": "07a08658ab282f4ab4f7ea3d9986c7bfee602e99"
+    },
+    {
+      "id": "java/pythagorean-triplet",
+      "language": "java",
+      "path": "java/exercises/practice/pythagorean-triplet",
+      "digest": "d73d9f534d9da9542ec6b35f8578972009ff90cf"
+    },
+    {
+      "id": "java/queen-attack",
+      "language": "java",
+      "path": "java/exercises/practice/queen-attack",
+      "digest": "9c612f935776aa8e0a167f0756b3b29fd91aa332"
+    },
+    {
+      "id": "java/rational-numbers",
+      "language": "java",
+      "path": "java/exercises/practice/rational-numbers",
+      "digest": "9c2b1680b742c4bb8f103d55ded6dc194f6cf51f"
+    },
+    {
+      "id": "java/react",
+      "language": "java",
+      "path": "java/exercises/practice/react",
+      "digest": "abaf22b3a8d5bb8ba5158af65748df492e83b41d"
+    },
+    {
+      "id": "java/resistor-color-trio",
+      "language": "java",
+      "path": "java/exercises/practice/resistor-color-trio",
+      "digest": "ef30fd6bda72efa046894f3a9e6dd8b2d34a2057"
+    },
+    {
+      "id": "java/rest-api",
+      "language": "java",
+      "path": "java/exercises/practice/rest-api",
+      "digest": "991e365bbc02daa5f685f09a4667e17c5ad854b7"
+    },
+    {
+      "id": "java/satellite",
+      "language": "java",
+      "path": "java/exercises/practice/satellite",
+      "digest": "17c1e553cb14096493044875fd70d214281c1f65"
+    },
+    {
+      "id": "java/series",
+      "language": "java",
+      "path": "java/exercises/practice/series",
+      "digest": "06af13cca35a8f3b20fdc1244cd175fc79924578"
+    },
+    {
+      "id": "java/sgf-parsing",
+      "language": "java",
+      "path": "java/exercises/practice/sgf-parsing",
+      "digest": "5133dae288faf79e0412495db74c37daa60ae422"
+    },
+    {
+      "id": "java/simple-linked-list",
+      "language": "java",
+      "path": "java/exercises/practice/simple-linked-list",
+      "digest": "c48b9a9dbf0b4ac7f2db37c35ea2be310f3281cb"
+    },
+    {
+      "id": "java/state-of-tic-tac-toe",
+      "language": "java",
+      "path": "java/exercises/practice/state-of-tic-tac-toe",
+      "digest": "b00b81a0aa0464da0a74976acd22177fa2ae7a7a"
+    },
+    {
+      "id": "java/transpose",
+      "language": "java",
+      "path": "java/exercises/practice/transpose",
+      "digest": "5d005ad4038323fed7a6b477148399fbb2af6f1b"
+    },
+    {
+      "id": "java/tree-building",
+      "language": "java",
+      "path": "java/exercises/practice/tree-building",
+      "digest": "8e24b4949d8fc6f98c0c85744b21727aab1d3328"
+    },
+    {
+      "id": "java/twelve-days",
+      "language": "java",
+      "path": "java/exercises/practice/twelve-days",
+      "digest": "b3779a5bc97b0c10fda914cb5216cc3dc178a49d"
+    },
+    {
+      "id": "java/two-bucket",
+      "language": "java",
+      "path": "java/exercises/practice/two-bucket",
+      "digest": "2d963f19a57f9f16469f7fa8f80deaeeabb1e0b4"
+    },
+    {
+      "id": "java/variable-length-quantity",
+      "language": "java",
+      "path": "java/exercises/practice/variable-length-quantity",
+      "digest": "c9fd6a7495516243ea3221e6632c910e03a4ea02"
+    },
+    {
+      "id": "java/word-search",
+      "language": "java",
+      "path": "java/exercises/practice/word-search",
+      "digest": "53fa09ac91319195933564941ebe903dba07c520"
+    },
+    {
+      "id": "java/wordy",
+      "language": "java",
+      "path": "java/exercises/practice/wordy",
+      "digest": "339b6c8fe3c1d64f706975656d6ba6185a4324a5"
+    },
+    {
+      "id": "java/zebra-puzzle",
+      "language": "java",
+      "path": "java/exercises/practice/zebra-puzzle",
+      "digest": "c76a0133ab8fb34c2bc9efeaa83db547589ff4df"
+    },
+    {
+      "id": "java/zipper",
+      "language": "java",
+      "path": "java/exercises/practice/zipper",
+      "digest": "f313cdd962182e382e6358b7fc1b47c308a8be50"
+    },
+    {
+      "id": "javascript/affine-cipher",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/affine-cipher",
+      "digest": "4865c3b723c2ed993131a58758a3a778bbef3aa3"
+    },
+    {
+      "id": "javascript/alphametics",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/alphametics",
+      "digest": "6bb3f5a556f2693789ce34e52183cb033c12312a"
+    },
+    {
+      "id": "javascript/beer-song",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/beer-song",
+      "digest": "e49213d226fac337a5e4775913452ef3416fbc0b"
+    },
+    {
+      "id": "javascript/binary",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/binary",
+      "digest": "d48fc6656b6e261f501f540889f4e537f97821e0"
+    },
+    {
+      "id": "javascript/book-store",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/book-store",
+      "digest": "6005524e17fd33c6b45c8b35b92fe3eeac5a5488"
+    },
+    {
+      "id": "javascript/bottle-song",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/bottle-song",
+      "digest": "5612065c6a7cc674f3f53630eafa01c84ef6d5ad"
+    },
+    {
+      "id": "javascript/bowling",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/bowling",
+      "digest": "e3e8dc653bf90417e8b23dcb51b8570f8690d1e0"
+    },
+    {
+      "id": "javascript/complex-numbers",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/complex-numbers",
+      "digest": "a09a45e5a6d4e9bb7f9264c2aa164b47618be998"
+    },
+    {
+      "id": "javascript/connect",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/connect",
+      "digest": "d3cb571e02930f99027a1d2020e6933ac744e8f3"
+    },
+    {
+      "id": "javascript/food-chain",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/food-chain",
+      "digest": "5c3aa3612118299f979bf8cfef06d559453ae649"
+    },
+    {
+      "id": "javascript/forth",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/forth",
+      "digest": "a1e170622dd06590ad0378c7cf97f56d50dda8e5"
+    },
+    {
+      "id": "javascript/go-counting",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/go-counting",
+      "digest": "69667e1b787f650ab16fdc23212099b38ef19128"
+    },
+    {
+      "id": "javascript/grade-school",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/grade-school",
+      "digest": "7628f42a0d02a6d345f46f1724fefe8c69ab9201"
+    },
+    {
+      "id": "javascript/grep",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/grep",
+      "digest": "ed5bff3130a3a292045854bfd087130540cfc456"
+    },
+    {
+      "id": "javascript/house",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/house",
+      "digest": "e0117101f0613387840136a0833fe58b2cfa8a6b"
+    },
+    {
+      "id": "javascript/killer-sudoku-helper",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/killer-sudoku-helper",
+      "digest": "f7748057d2614ff50b40223763f8bb715902ce16"
+    },
+    {
+      "id": "javascript/ledger",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/ledger",
+      "digest": "ef11c12a93238ab6d1c0731758c13b76f181a32b"
+    },
+    {
+      "id": "javascript/list-ops",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/list-ops",
+      "digest": "fd06d0b08edc84c59f9ebefa38f2dae958828edb"
+    },
+    {
+      "id": "javascript/meetup",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/meetup",
+      "digest": "368b6a512d1afd649401ee2f8c3368e3bd4909d1"
+    },
+    {
+      "id": "javascript/ocr-numbers",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/ocr-numbers",
+      "digest": "e2755f43963ce5584e7780a8322ffd501c43857d"
+    },
+    {
+      "id": "javascript/palindrome-products",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/palindrome-products",
+      "digest": "92583000f24f1658dbb5c5e791b08884d03a2add"
+    },
+    {
+      "id": "javascript/parallel-letter-frequency",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/parallel-letter-frequency",
+      "digest": "16aa6539bd276e1efcc1c08ce46538f96db91e0d"
+    },
+    {
+      "id": "javascript/phone-number",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/phone-number",
+      "digest": "87a3576dd8719bea524938e4b1db605260afe3de"
+    },
+    {
+      "id": "javascript/pig-latin",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/pig-latin",
+      "digest": "133b70e16538c324fe14d0ef28c39de36dcc98fe"
+    },
+    {
+      "id": "javascript/poker",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/poker",
+      "digest": "a2e7c5ae80e30e925c739e5abd8f9da5608f502f"
+    },
+    {
+      "id": "javascript/promises",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/promises",
+      "digest": "7b3d3ebbb6df07441e79ba089606dac835b4f669"
+    },
+    {
+      "id": "javascript/queen-attack",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/queen-attack",
+      "digest": "ecc12de885d154997053a6dde9062920745c0cf1"
+    },
+    {
+      "id": "javascript/rational-numbers",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/rational-numbers",
+      "digest": "ae24e2181c65247aa2507e116b018e3e9b645a06"
+    },
+    {
+      "id": "javascript/react",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/react",
+      "digest": "9853b54acc28a4e2bc11bf2ed12514ac4dd5523d"
+    },
+    {
+      "id": "javascript/rectangles",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/rectangles",
+      "digest": "dfb454d45c21926a98bf824a3d1baac6e233132f"
+    },
+    {
+      "id": "javascript/resistor-color-trio",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/resistor-color-trio",
+      "digest": "f2bb0833b142c289e8d59df086f90381d540f063"
+    },
+    {
+      "id": "javascript/rest-api",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/rest-api",
+      "digest": "e71300d89e6b5043675851580861b9da9606fb26"
+    },
+    {
+      "id": "javascript/robot-name",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/robot-name",
+      "digest": "12ad6ab389b9631208d832cd76ebc9423baee2c2"
+    },
+    {
+      "id": "javascript/say",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/say",
+      "digest": "39bb118495f02a3b52d491cca23ac8d1001fb590"
+    },
+    {
+      "id": "javascript/scale-generator",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/scale-generator",
+      "digest": "571cdcefaa589cd4d9072045e82623c79cbd76b7"
+    },
+    {
+      "id": "javascript/simple-linked-list",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/simple-linked-list",
+      "digest": "09c9dda572b8b299561fbc38c61aab8f95184ac0"
+    },
+    {
+      "id": "javascript/space-age",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/space-age",
+      "digest": "a1690732e259f8a0bcf75ac3e7def2d94d18e6a0"
+    },
+    {
+      "id": "javascript/state-of-tic-tac-toe",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/state-of-tic-tac-toe",
+      "digest": "b5845bf87c521c7d99123f5cc4087952bf9fcaa8"
+    },
+    {
+      "id": "javascript/sum-of-multiples",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/sum-of-multiples",
+      "digest": "016062d5de0b998f335d15f2a6373795ae2f4796"
+    },
+    {
+      "id": "javascript/tournament",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/tournament",
+      "digest": "48f10d32a46c512dce4731ce002ab6659b85c55f"
+    },
+    {
+      "id": "javascript/transpose",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/transpose",
+      "digest": "1ba8d1227bfeda488e4fbb4c0a59e782bf02368c"
+    },
+    {
+      "id": "javascript/triangle",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/triangle",
+      "digest": "1c3687b3bdc8fa1e341bb498c6a5d07c678ba7e8"
+    },
+    {
+      "id": "javascript/twelve-days",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/twelve-days",
+      "digest": "0fcba38283b4d868fa60804b732d22c4fca50098"
+    },
+    {
+      "id": "javascript/two-bucket",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/two-bucket",
+      "digest": "4e3f69b669d45ba9d0965e0e069f73a2f78e1dc5"
+    },
+    {
+      "id": "javascript/variable-length-quantity",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/variable-length-quantity",
+      "digest": "0f99da9ef22ef064677c6e3061e11def6df134b4"
+    },
+    {
+      "id": "javascript/word-search",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/word-search",
+      "digest": "df011e2139291ab5c8645c8ab10c4e84664b7690"
+    },
+    {
+      "id": "javascript/wordy",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/wordy",
+      "digest": "ec199908f2776ff5fb709e4bec0208fddc89d241"
+    },
+    {
+      "id": "javascript/zebra-puzzle",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/zebra-puzzle",
+      "digest": "900343237dcb959b011e065c16686d86993833e6"
+    },
+    {
+      "id": "javascript/zipper",
+      "language": "javascript",
+      "path": "javascript/exercises/practice/zipper",
+      "digest": "e19c6923df798d737121d35ce586847b2faeab14"
+    },
+    {
+      "id": "python/affine-cipher",
+      "language": "python",
+      "path": "python/exercises/practice/affine-cipher",
+      "digest": "ae420c6ff8b590f2957a274d1843383a4a5aaaaf"
+    },
+    {
+      "id": "python/beer-song",
+      "language": "python",
+      "path": "python/exercises/practice/beer-song",
+      "digest": "4bc3cedbc3f9cdd9ad68ffaa49d7a3a88e82f95a"
+    },
+    {
+      "id": "python/book-store",
+      "language": "python",
+      "path": "python/exercises/practice/book-store",
+      "digest": "cf1773ef0d4871bd66054c61695099812f31e606"
+    },
+    {
+      "id": "python/bottle-song",
+      "language": "python",
+      "path": "python/exercises/practice/bottle-song",
+      "digest": "1b1283a09c98b999f4eccf2acd7e730469416bc5"
+    },
+    {
+      "id": "python/bowling",
+      "language": "python",
+      "path": "python/exercises/practice/bowling",
+      "digest": "befd92c01fe9b7286006807e73760b66a6f42e37"
+    },
+    {
+      "id": "python/connect",
+      "language": "python",
+      "path": "python/exercises/practice/connect",
+      "digest": "6f6c9b6cfeb588c716b6c474d1d14a10853f9aec"
+    },
+    {
+      "id": "python/dominoes",
+      "language": "python",
+      "path": "python/exercises/practice/dominoes",
+      "digest": "20999b07f388f9c7d51575420e4f22bb997eeb46"
+    },
+    {
+      "id": "python/dot-dsl",
+      "language": "python",
+      "path": "python/exercises/practice/dot-dsl",
+      "digest": "5811943734c6e7e88e6795b6d2ad37ffd2aca3a5"
+    },
+    {
+      "id": "python/food-chain",
+      "language": "python",
+      "path": "python/exercises/practice/food-chain",
+      "digest": "c214402a7510931a62c1698e21547c7beb67ab21"
+    },
+    {
+      "id": "python/forth",
+      "language": "python",
+      "path": "python/exercises/practice/forth",
+      "digest": "68e2666a2eff18adbe04e09fbea47fed848479aa"
+    },
+    {
+      "id": "python/go-counting",
+      "language": "python",
+      "path": "python/exercises/practice/go-counting",
+      "digest": "e381cfabb6d3a78e8de03324cf5cf92e4dcc6301"
+    },
+    {
+      "id": "python/grade-school",
+      "language": "python",
+      "path": "python/exercises/practice/grade-school",
+      "digest": "f89e3e5b5986592c5e00a2175155acdd68852d3d"
+    },
+    {
+      "id": "python/grep",
+      "language": "python",
+      "path": "python/exercises/practice/grep",
+      "digest": "158f7301380b18101ae4a05269e43feeb6c1d0b6"
+    },
+    {
+      "id": "python/hangman",
+      "language": "python",
+      "path": "python/exercises/practice/hangman",
+      "digest": "ddd2e236c8c009b09474c8104fbb1cdf763d1598"
+    },
+    {
+      "id": "python/list-ops",
+      "language": "python",
+      "path": "python/exercises/practice/list-ops",
+      "digest": "a8560e6c26021cf6ffe8fcc5afebbb457f2d056c"
+    },
+    {
+      "id": "python/paasio",
+      "language": "python",
+      "path": "python/exercises/practice/paasio",
+      "digest": "4a53fb60866777462cfd1b0e15bee9b26867ddc3"
+    },
+    {
+      "id": "python/phone-number",
+      "language": "python",
+      "path": "python/exercises/practice/phone-number",
+      "digest": "e51b3cb84c3d8320c9bfef89eda860edc888573f"
+    },
+    {
+      "id": "python/pig-latin",
+      "language": "python",
+      "path": "python/exercises/practice/pig-latin",
+      "digest": "b4ba027d212d863a21a2adbddcb3f18823a94ac2"
+    },
+    {
+      "id": "python/poker",
+      "language": "python",
+      "path": "python/exercises/practice/poker",
+      "digest": "a13692bc3bccd7fa01892bd8bd695e14a079f5d9"
+    },
+    {
+      "id": "python/pov",
+      "language": "python",
+      "path": "python/exercises/practice/pov",
+      "digest": "8da82b0af3d5e2dd1d23c9e7e8a9acd1022b597f"
+    },
+    {
+      "id": "python/proverb",
+      "language": "python",
+      "path": "python/exercises/practice/proverb",
+      "digest": "660909d4990635c78f29e4b813d851ed79499c93"
+    },
+    {
+      "id": "python/react",
+      "language": "python",
+      "path": "python/exercises/practice/react",
+      "digest": "b428eb40a898c94aa0b11a0bb6dca47e120b18bb"
+    },
+    {
+      "id": "python/rest-api",
+      "language": "python",
+      "path": "python/exercises/practice/rest-api",
+      "digest": "4dd79a6ceedd1e3825a3ba19cf991e4565b5213e"
+    },
+    {
+      "id": "python/robot-name",
+      "language": "python",
+      "path": "python/exercises/practice/robot-name",
+      "digest": "ba55fa5610290fb35278705f6071fa7d42cb5158"
+    },
+    {
+      "id": "python/scale-generator",
+      "language": "python",
+      "path": "python/exercises/practice/scale-generator",
+      "digest": "5c6be270ea3be89952317c9d686ad46733ccf032"
+    },
+    {
+      "id": "python/sgf-parsing",
+      "language": "python",
+      "path": "python/exercises/practice/sgf-parsing",
+      "digest": "14ccd7ae0c671c01c4c6c9bffc2553115ba53c3b"
+    },
+    {
+      "id": "python/simple-linked-list",
+      "language": "python",
+      "path": "python/exercises/practice/simple-linked-list",
+      "digest": "ab78e1503fa05e2ad6fc4c7e17387d67ed8cdfe4"
+    },
+    {
+      "id": "python/transpose",
+      "language": "python",
+      "path": "python/exercises/practice/transpose",
+      "digest": "2cde183a060805848cac55ec3fd9da9b40b17f6c"
+    },
+    {
+      "id": "python/tree-building",
+      "language": "python",
+      "path": "python/exercises/practice/tree-building",
+      "digest": "64f1aa4d1f2c71a60e36e4d0a2676be991aa93d6"
+    },
+    {
+      "id": "python/two-bucket",
+      "language": "python",
+      "path": "python/exercises/practice/two-bucket",
+      "digest": "b5ba2b576a1dab9d4a314c5a28c0563a23cb6464"
+    },
+    {
+      "id": "python/variable-length-quantity",
+      "language": "python",
+      "path": "python/exercises/practice/variable-length-quantity",
+      "digest": "ec47439fafd87c428c779a49b1624375b0ad5e9e"
+    },
+    {
+      "id": "python/wordy",
+      "language": "python",
+      "path": "python/exercises/practice/wordy",
+      "digest": "83e3a34a93e5b2b6862809bd6496a56f0cd6acac"
+    },
+    {
+      "id": "python/zebra-puzzle",
+      "language": "python",
+      "path": "python/exercises/practice/zebra-puzzle",
+      "digest": "e0355c12a6e2cd13f58fbb9966d331714fc5e3fa"
+    },
+    {
+      "id": "python/zipper",
+      "language": "python",
+      "path": "python/exercises/practice/zipper",
+      "digest": "35df9233074964300127acbfe9e3581fdb095d4e"
+    },
+    {
+      "id": "rust/accumulate",
+      "language": "rust",
+      "path": "rust/exercises/practice/accumulate",
+      "digest": "aa19a23d43fef3d2becef07f0cf6aa0dd96fe0ba"
+    },
+    {
+      "id": "rust/acronym",
+      "language": "rust",
+      "path": "rust/exercises/practice/acronym",
+      "digest": "6259908dfeb5f3586575e76f313bfc81ddb98815"
+    },
+    {
+      "id": "rust/alphametics",
+      "language": "rust",
+      "path": "rust/exercises/practice/alphametics",
+      "digest": "87920743cb4efd85b4ab3b51c535ccea939964d8"
+    },
+    {
+      "id": "rust/book-store",
+      "language": "rust",
+      "path": "rust/exercises/practice/book-store",
+      "digest": "4d0d9f9178fb63c8e1e21d478f4aea5fc36f8afd"
+    },
+    {
+      "id": "rust/bowling",
+      "language": "rust",
+      "path": "rust/exercises/practice/bowling",
+      "digest": "d4302e445863d21a9906cfcde021d0b4a39951f2"
+    },
+    {
+      "id": "rust/decimal",
+      "language": "rust",
+      "path": "rust/exercises/practice/decimal",
+      "digest": "24eeaf2e5ac9e2eecc82183f942dbe782c4e9e75"
+    },
+    {
+      "id": "rust/dot-dsl",
+      "language": "rust",
+      "path": "rust/exercises/practice/dot-dsl",
+      "digest": "d8ae4467d69de09b71e87c8b1671f0de52152dee"
+    },
+    {
+      "id": "rust/doubly-linked-list",
+      "language": "rust",
+      "path": "rust/exercises/practice/doubly-linked-list",
+      "digest": "acf680bbd1f4135f8637da51e46b82a9f3b08640"
+    },
+    {
+      "id": "rust/fizzy",
+      "language": "rust",
+      "path": "rust/exercises/practice/fizzy",
+      "digest": "fd8eab22dde730cbd9cea75911b32e71bb114f4f"
+    },
+    {
+      "id": "rust/forth",
+      "language": "rust",
+      "path": "rust/exercises/practice/forth",
+      "digest": "cfb1ae9b56bb7eba0ba1d76badadeddc1f01f93c"
+    },
+    {
+      "id": "rust/gigasecond",
+      "language": "rust",
+      "path": "rust/exercises/practice/gigasecond",
+      "digest": "3cf0bb05f2b7589649950fd795e5d05c2c8f93da"
+    },
+    {
+      "id": "rust/grade-school",
+      "language": "rust",
+      "path": "rust/exercises/practice/grade-school",
+      "digest": "c8ed8e69cd245a4ce6a8e5458dee0cf79717a36c"
+    },
+    {
+      "id": "rust/grep",
+      "language": "rust",
+      "path": "rust/exercises/practice/grep",
+      "digest": "742931d2c4586d81b5aca2f4096fd575093c15c4"
+    },
+    {
+      "id": "rust/luhn-from",
+      "language": "rust",
+      "path": "rust/exercises/practice/luhn-from",
+      "digest": "53a386b04221118f1af12f9e5404f8c3547278c3"
+    },
+    {
+      "id": "rust/macros",
+      "language": "rust",
+      "path": "rust/exercises/practice/macros",
+      "digest": "457e389d04f92bceed5624718b411df2ab0a02fa"
+    },
+    {
+      "id": "rust/nucleotide-codons",
+      "language": "rust",
+      "path": "rust/exercises/practice/nucleotide-codons",
+      "digest": "35939438ab8fb1f6d85119a4e763d3b80a3c9957"
+    },
+    {
+      "id": "rust/ocr-numbers",
+      "language": "rust",
+      "path": "rust/exercises/practice/ocr-numbers",
+      "digest": "2a046275664e3cda9a782e6afc70c8bc8751ae9e"
+    },
+    {
+      "id": "rust/parallel-letter-frequency",
+      "language": "rust",
+      "path": "rust/exercises/practice/parallel-letter-frequency",
+      "digest": "d3d12d1d7651ef141569bc734db5a8104af9daa6"
+    },
+    {
+      "id": "rust/pig-latin",
+      "language": "rust",
+      "path": "rust/exercises/practice/pig-latin",
+      "digest": "1fa6aa1447f9ac3feb62076804cf02ca028bb242"
+    },
+    {
+      "id": "rust/poker",
+      "language": "rust",
+      "path": "rust/exercises/practice/poker",
+      "digest": "0ed627ff0f0aa762a9cce5a7c3762c6139e95ab8"
+    },
+    {
+      "id": "rust/react",
+      "language": "rust",
+      "path": "rust/exercises/practice/react",
+      "digest": "aedf0e335bcd9f52bc034bd6b6d8a12f109f7e34"
+    },
+    {
+      "id": "rust/robot-name",
+      "language": "rust",
+      "path": "rust/exercises/practice/robot-name",
+      "digest": "4dc9d73c142dc054143e5ec0280844ee93f13770"
+    },
+    {
+      "id": "rust/say",
+      "language": "rust",
+      "path": "rust/exercises/practice/say",
+      "digest": "3306216939c1bd7401dae1a988ce554ab1831957"
+    },
+    {
+      "id": "rust/scale-generator",
+      "language": "rust",
+      "path": "rust/exercises/practice/scale-generator",
+      "digest": "5ba9e9ffc7eb6e28100348dbb7ca416355fbc229"
+    },
+    {
+      "id": "rust/simple-cipher",
+      "language": "rust",
+      "path": "rust/exercises/practice/simple-cipher",
+      "digest": "63a31f413b243a9d04cfefec21540e2548eb0922"
+    },
+    {
+      "id": "rust/two-bucket",
+      "language": "rust",
+      "path": "rust/exercises/practice/two-bucket",
+      "digest": "327978b594d28c55695fbcb020caaeff25868497"
+    },
+    {
+      "id": "rust/variable-length-quantity",
+      "language": "rust",
+      "path": "rust/exercises/practice/variable-length-quantity",
+      "digest": "84b67d482e731d8aa484d59517c9963b11b28d6e"
+    },
+    {
+      "id": "rust/word-count",
+      "language": "rust",
+      "path": "rust/exercises/practice/word-count",
+      "digest": "4cd0f19a2a0fdcc1adda6a0a639b29f3813851ca"
+    },
+    {
+      "id": "rust/wordy",
+      "language": "rust",
+      "path": "rust/exercises/practice/wordy",
+      "digest": "bf9ea41e59722b02fb02677874d56eb6f06f5dec"
+    },
+    {
+      "id": "rust/xorcism",
+      "language": "rust",
+      "path": "rust/exercises/practice/xorcism",
+      "digest": "7d6dac4e841199617d93fd72ed5eadb42e5252ff"
+    }
+  ]
+}

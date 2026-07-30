@@ -99,6 +99,26 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
     if has_reward_metric:
         summary["mean_reward"] = sum(rewards) / len(results)
         summary["accuracy"] = len(resolved) / len(results) if results else None
+    if any("pass_at_1" in result.metrics for result in results):
+        completed_results = [result for result in results if result.status != "missing"]
+        pass_1 = sum(result.metrics.get("pass_at_1") is True for result in results)
+        pass_2 = sum(result.metrics.get("pass_at_2") is True for result in results)
+        completed_count = len(completed_results)
+        summary.update(
+            {
+                "official_pass_rate_1": pass_1 / completed_count if completed_count else None,
+                "official_pass_rate_2": pass_2 / completed_count if completed_count else None,
+                "pool_pass_rate_1": pass_1 / len(results) if results else None,
+                "pool_pass_rate_2": pass_2 / len(results) if results else None,
+                "officially_comparable": (
+                    spec.benchmark.profile == "aider-polyglot"
+                    and len(results) == 225
+                    and completed_count == 225
+                    and spec.model.subject_agent == "aider"
+                    and spec.benchmark.harness == "aider-native"
+                ),
+            }
+        )
     report_dir = run_dir / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
     (report_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
@@ -109,14 +129,34 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
     reward_line = (
         f"- Mean reward: {summary['mean_reward']:.4f}\n" if "mean_reward" in summary else ""
     )
+    aider_lines = ""
+    if "official_pass_rate_2" in summary:
+        official_1 = summary["official_pass_rate_1"]
+        official_2 = summary["official_pass_rate_2"]
+        pool_1 = summary["pool_pass_rate_1"]
+        pool_2 = summary["pool_pass_rate_2"]
+        comparable = summary["officially_comparable"]
+        official_1_text = "n/a" if official_1 is None else f"{official_1:.1%}"
+        official_2_text = "n/a" if official_2 is None else f"{official_2:.1%}"
+        pool_1_text = "n/a" if pool_1 is None else f"{pool_1:.1%}"
+        pool_2_text = "n/a" if pool_2 is None else f"{pool_2:.1%}"
+        aider_lines = (
+            f"- Aider pass rate 1 (completed denominator): {official_1_text}\n"
+            f"- Aider pass rate 2 (completed denominator): {official_2_text}\n"
+            f"- Pool pass rate 1: {pool_1_text}\n"
+            f"- Pool pass rate 2: {pool_2_text}\n"
+            f"- Officially comparable: {str(comparable).lower()}\n"
+        )
     (report_dir / "report.md").write_text(
         f"# Evaluation report: {spec.run_id}\n\n"
         f"- Benchmark: `{spec.benchmark.profile}` "
         f"({spec.benchmark.sampling}, n={spec.benchmark.sample_size})\n"
-        f"- Model: `{spec.model.profile}` ({spec.model.reasoning_effort})\n"
+        f"- Model: `{spec.model.profile}` "
+        f"({spec.model.reasoning_effort or 'provider default'})\n"
         f"- Official resolved: {len(resolved)}/{len(results)} ({rate_text})\n"
         f"- Completed: {len(completed)}/{len(results)}\n"
         f"{reward_line}"
+        f"{aider_lines}"
         f"- Measured generation cost: {cost_text}\n"
     )
     return summary

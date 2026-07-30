@@ -14,38 +14,112 @@ CLI locally and keep experiment inputs and retrieved results on their own machin
 
 The engine currently supports these benchmark profiles:
 
-| CLI profile | Benchmark | Tasks | Default agent | Sampling | Grading |
-|---|---|---:|---|---|---|
-| `swebench-verified` | SWE-bench Verified | 500 | `mini-swe-agent` | `random`, `domain`, or full | Official hermetic SWE-bench grader |
-| `terminal-bench-2.1` | Terminal-Bench 2.1 | 89 | `terminus-2` | `random`, `category`, or full | Per-task verifier run inline by Harbor |
+| CLI profile | Benchmark | Tasks | Execution harness | Default agent | Sampling | Grading |
+|---|---|---:|---|---|---|---|
+| `swebench-verified` | SWE-bench Verified | 500 | Official native mini-swe-agent runner | `mini-swe-agent` | `random`, `domain`, or full | Official patch submission + hermetic grader |
+| `swebench-verified-harbor` | SWE-bench Verified | 500 | Harbor (compatibility path) | `mini-swe-agent` | `random`, `domain`, or full | Harbor patch capture + official hermetic grader |
+| `terminal-bench-2.1` | Terminal-Bench 2.1 | 89 | Harbor | `terminus-2` | `random`, `category`, or full | Per-task verifier run inline by Harbor |
+| `aider-polyglot` | Aider Polyglot Benchmark | 225 | Official Aider native runner | `aider` | `random`, `language`, or full | Tests run inline by the official Aider runner |
+
+The CLI profile selects the execution harness; there is no separate `--harness` option. For
+SWE-bench Verified, `swebench-verified` is the default official leaderboard path.
+`swebench-verified-harbor` is an explicit compatibility profile and is used only when named.
 
 These agent profiles are available:
 
 | CLI profile | Version | Notes |
 |---|---:|---|
-| `mini-swe-agent` | 2.4.5 | Receives its generated model configuration and a per-task cost limit |
+| `mini-swe-agent` | 2.4.5 | Uses the official SWE-bench config on the native profile; Harbor remains available separately |
 | `terminus-2` | 2.0.0 | Harbor built-in agent; receives model, reasoning, and provider arguments directly |
+| `aider` | 0.86.0 | Aider Coder agent loop used by the native Aider benchmark runner |
 
-Benchmark and agent selection are independent. All four combinations below are supported by the
-engine; `--agent` overrides the benchmark default.
+Benchmark and agent selection remain separate, and `--agent` overrides the benchmark default.
+Compatibility is validated because an agent must support the harness selected internally by the
+benchmark profile.
 
-| Benchmark | `mini-swe-agent` | `terminus-2` |
-|---|---|---|
-| `swebench-verified` | Supported (default) | Supported |
-| `terminal-bench-2.1` | Supported | Supported (default) |
+| Benchmark | `mini-swe-agent` | `terminus-2` | `aider` |
+|---|---|---|---|
+| `swebench-verified` | Supported (default and required) | Not supported | Not supported |
+| `swebench-verified-harbor` | Supported (default) | Supported | Not supported |
+| `terminal-bench-2.1` | Supported | Supported (default) | Not supported |
+| `aider-polyglot` | Not supported | Not supported | Supported (default; officially comparable only for a complete official run) |
 
-The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with either agent
-and either benchmark. Provider constraints still come from the model profile: GLM supports
-OpenRouter or Friendli routing, Kimi supports OpenRouter, and Opus supports Anthropic.
+The configured model profiles—`glm-5.2`, `kimi-k3`, and `opus-5`—can be paired with the supported
+SWE-bench and Terminal-Bench agent combinations. Kimi intentionally routes through OpenRouter to
+MoonshotAI rather than Friendli. The pinned Aider stack has the Opus-specific limitation documented
+below.
 
-The harness is not a user-selectable combination axis and there is no `--harness` option. Each
-benchmark profile selects its execution harness internally. Both benchmarks above currently use
-Harbor, but this does not require future benchmarks to use Harbor.
+In detail, `swebench-verified` invokes the official `mini-extra swebench` batch runner directly;
+`swebench-verified-harbor` and Terminal-Bench use Harbor; Aider Polyglot uses the benchmark-owned
+`aider-native` harness.
 
-Current validation status is narrower than the supported interface: SWE-bench with mini-swe-agent
-and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The two overridden-agent
-combinations have resolved-spec and Harbor-command tests; run a small paid smoke test before a full
-evaluation.
+The official SWE-bench profile uses mini-swe-agent 2.4.5's packaged `swebench.yaml` unchanged for
+the agent loop and submission protocol. It therefore fixes the public configuration's 250-step and
+$3 per-task limits. The runner writes each submitted patch directly to
+`artifacts/minisweagent_swebench/preds.json`; that same file is passed to
+`swebench.harness.run_evaluation` without reconstructing a patch from the worktree. Use the Harbor
+profile only when Harbor compatibility is specifically required; its results do not represent the
+same submission path as the official mini-swe-agent profile. A complete 500-task run through
+`swebench-verified` uses the official leaderboard evaluation procedure; sampled smoke runs use the
+same procedure but are not themselves full leaderboard submissions.
+
+Current validation status is narrower than the supported interface: the Harbor-based SWE-bench
+path and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The official native
+SWE-bench path has completed a Kimi K3 end-to-end smoke through submission, official grading,
+normalization, reporting, and cleanup; its conformance checker passed all config, patch provenance,
+and grading-hygiene checks. Aider Polyglot has catalog, pool, command, transport, result, and mocked integration
+coverage plus real-VM smoke results for GLM, Kimi, and Opus. These samples validate integration,
+not benchmark quality or official leaderboard comparability.
+
+| CLI profile | `glm-5.2` | `kimi-k3` | `opus-5` |
+|---|---|---|---|
+| `swebench-verified` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `swebench-verified-harbor` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `aider-polyglot` | Supported; `high` VM verified | Supported; `high` VM verified | Supported; provider-default effort VM verified |
+
+Effort values in the first three rows are accepted by the model profile and passed to the selected
+agent. They do not claim that every benchmark-model-effort combination has completed a paid VM
+run. The Aider GLM and Kimi smoke results additionally confirm that `high` was recorded by the
+native runner.
+
+Omitting `--reasoning-effort` leaves the value unset and delegates the choice to the downstream
+agent, LiteLLM, or provider default. The resolved spec records `reasoning_effort: null`; the engine
+does not add an effort value from the model profile.
+
+The pinned Aider 0.86.0 image installs LiteLLM 1.75.0. Its explicit non-OpenRouter effort path sends
+`extra_body.reasoning_effort`, but Claude Opus 5 requires `output_config.effort`; Anthropic rejects
+the former with `extra_body: Extra inputs are not permitted`. Run `opus-5` with `aider-polyglot`
+without `--reasoning-effort` until the native Aider/LiteLLM pin is upgraded or an officially
+validated translation is added. The generated Aider model setting also disables `temperature` for
+Opus 5 because Anthropic rejects that parameter for this model; GLM and Kimi retain Aider's native
+temperature behavior. A three-task provider-default smoke run resolved all tasks with pass@1 2/3,
+pass@2 3/3, 48,676 input tokens, 12,639 output tokens, and $0.559355 measured cost. Model-call
+errors with error output and zero tokens are classified as `AiderModelCallError`, fail validation,
+and are never reported as ordinary zero-score results.
+
+For Kimi, `--byok` is not accepted by the current profile because that CLI flag specifically means
+Friendli BYOK with Friendli-only routing. OpenRouter may automatically use a separately registered
+MoonshotAI BYOK key, but that requires workspace configuration and must be confirmed from
+OpenRouter response metadata; the recorded smoke test used shared capacity.
+
+For GLM, `--provider friendli --byok` verifies that the request is restricted to Friendli and that
+provider fallback is disabled. OpenRouter selects registered BYOK keys at the workspace layer, but
+the pinned Aider result does not retain OpenRouter's final `is_byok` routing metadata. Confirm
+actual key use in the OpenRouter Activity raw metadata (`is_byok: true`) and enable the workspace's
+always-use setting when shared capacity must never be used.
+
+Friendli BYOK reports zero OpenRouter cost. The engine therefore configures mini-swe-agent to
+accept missing/zero cost metadata for these runs. The official SWE-bench submission prompt,
+250-step limit, patch handoff, and grader remain unchanged, but the $3 per-task limit and the
+run-wide dollar budget cannot be enforced from provider telemetry. Reports record cost as zero or
+unavailable; describe these runs as using the official evaluation procedure without claiming
+cost-budget equivalence to the public leaderboard.
+
+An Aider result is directly comparable with the official leaderboard only when all 225 pinned
+tasks complete using the pinned native runner, dataset, Dockerfile, Aider Coder loop, and matching
+model/edit-format settings. Sampled or incomplete runs are useful agent-benchmark evaluations but
+are explicitly reported as not officially comparable.
 
 ## Getting started
 
@@ -110,7 +184,9 @@ uv sync --extra swebench
 ```
 
 For Terminal-Bench-only development, use `uv sync --extra terminalbench`. Remote deployment
-automatically selects the extra required by the resolved benchmark profile.
+automatically selects the extra required by the resolved benchmark profile. Aider Polyglot has no
+additional local Python extra; its pinned dependencies and language toolchains live in the native
+Docker image.
 
 `uv` creates the environment from `uv.lock` and installs the required Python version when needed.
 
@@ -150,7 +226,6 @@ starting a benchmark.
 uv run agent-bench plan \
   --benchmark swebench-verified \
   --model glm-5.2 \
-  --agent terminus-2 \
   --reasoning-effort xhigh \
   --provider friendli \
   --byok \
@@ -160,7 +235,9 @@ uv run agent-bench plan \
   --size 1
 ```
 
-`plan` validates and prints the resolved spec without using the VM or calling the model. For
+`plan` validates and prints the resolved spec without using the VM or calling the model. The
+official SWE-bench profile only accepts `mini-swe-agent`; select `swebench-verified-harbor` to use
+Terminus 2 or the legacy Harbor execution path. For
 Friendli BYOK, verify `api: openrouter`, `provider.only: [friendli]`, and
 `allow_fallbacks: false`. `--agent` is optional: an explicit CLI value overrides the benchmark
 default. Model profiles do not select agents.
@@ -180,33 +257,53 @@ uv run agent-bench plan \
   --size 1
 ```
 
-### 8. Run a one-task smoke experiment
-
-This command makes a real model request and may incur cost:
+A three-task, language-balanced Aider Polyglot plan is:
 
 ```bash
-uv run agent-bench run \
-  --benchmark swebench-verified \
-  --agent mini-swe-agent \
+uv run agent-bench plan \
+  --benchmark aider-polyglot \
   --model glm-5.2 \
   --reasoning-effort xhigh \
   --provider friendli \
   --byok \
   --workers 1 \
   --budget-usd 5 \
-  --per-task-cost-limit-usd 5 \
+  --sampling language \
+  --size 3
+```
+
+The default agent is `aider`; specifying either Harbor agent with `--agent` is rejected before
+deployment.
+
+### 8. Run a one-task SWE-bench smoke experiment
+
+This command uses the default official SWE-bench path and makes a real model request:
+
+```bash
+uv run agent-bench run \
+  --benchmark swebench-verified \
+  --model glm-5.2 \
+  --reasoning-effort xhigh \
+  --provider friendli \
+  --byok \
+  --workers 1 \
+  --budget-usd 3 \
   --sampling random \
   --size 1
 ```
 
+Do not pass `--agent` or `--per-task-cost-limit-usd` for the official path. The profile selects
+mini-swe-agent and its official $3 per-task limit automatically.
+
 Always use an explicit one-task sample for the first run. Omitting `--sampling` and `--size` runs
-all 500 SWE-bench Verified tasks.
+all 500 SWE-bench Verified tasks. The official profile fixes the per-task limit at $3; passing a
+different `--per-task-cost-limit-usd` value is rejected before deployment.
 
 | Model profile | Effort example | Provider | Required key |
 |---|---|---|---|
 | `glm-5.2` | `xhigh` | `friendli --byok` | `OPENROUTER_API_KEY` |
 | `kimi-k3` | `max` | `openrouter` | `OPENROUTER_API_KEY` |
-| `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY` |
+| `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY`; with `aider-polyglot`, omit `--reasoning-effort` |
 
 Run one experiment at a time. The engine holds a VM-wide lease until completion or cancellation.
 
@@ -216,10 +313,14 @@ Every run prints an ID and stores its local bundle under `runs/<run-id>/`.
 
 ```bash
 uv run agent-bench status RUN_ID
+uv run agent-bench active
 uv run agent-bench cancel RUN_ID
 uv run agent-bench resume RUN_ID
 uv run agent-bench report RUN_ID
 ```
+
+`active` queries the fixed VM's exclusive lease and prints its run ID, or `no active run` when the
+VM is idle. Use `status RUN_ID` to inspect that run's durable local stage state.
 
 The bundle contains the request, immutable resolved spec, stage state, event log, copied pool, raw
 artifacts, normalized results, and report. `resume` continues from the first incomplete stage.
@@ -235,6 +336,10 @@ SWE-bench Verified accepts `random` and `domain`. Generated pools are ignored by
 into the permanent run bundle as `inputs/pool.json`.
 Terminal-Bench 2.1 accepts `random` and category-balanced `category`; omitting sampling selects
 all 89 pinned tasks.
+Aider Polyglot accepts deterministic seeded `random` and language-balanced `language`; omitting
+sampling selects all 225 pinned tasks. The dataset has no benchmark-defined category taxonomy, so
+category sampling is not exposed. Task IDs retain their language prefix, allowing explicit pool
+inspection and reproducible reruns.
 
 | `--provider` | Internal transport | Routing |
 |---|---|---|
@@ -260,6 +365,15 @@ the verifier. Rewards are binary for the pinned 2.1 dataset and reports include 
 reward. An interrupted execute stage resumes the deterministic Harbor job and skips completed
 trials.
 
+For Aider Polyglot, `prepare` checks out the pinned Aider and exercise revisions, verifies the
+official Dockerfile hash, builds the native image, and materializes the run pool. `execute` invokes
+the official runner, which performs both Aider generation and tests for two attempts in one native
+operation. `grade` validates those existing artifacts and does not rerun tests. `normalize`
+preserves pass-at-1, pass-at-2, edit-format, token, and cost data where supplied. Reports show both
+the official completed-task denominator and the stricter selected-pool denominator; missing cost
+data is not silently treated as zero. Resume keeps valid terminal result artifacts and reruns only
+missing or malformed tasks.
+
 Terminal-Bench 2.1 defaults to Harbor's built-in Terminus 2 (`terminus-2`, version 2.0.0), while
 SWE-bench Verified defaults to mini-swe-agent. Either benchmark can use another configured agent
 with `--agent`; benchmark preparation and grading do not change. Terminus 2 receives the resolved
@@ -281,10 +395,18 @@ experiment.
 - Benchmark SSH account allowed to access Docker without `sudo`
 - Enough disk for repositories, datasets, and Docker images
 - Outbound access to Harbor Hub and the container registries used by Terminal-Bench tasks
+- For Aider Polyglot, outbound GitHub access during initial checkout/image build and model-provider
+  access during execution
 
 The pinned Terminal-Bench 2.1 tasks request up to 4 CPUs, 8 GiB RAM, and 10 GiB task storage; allow
 additional disk for Harbor caches and container images. A full run can take many hours and incur
 substantial model cost, so validate with `plan` and obtain approval before a paid smoke run.
+
+The official Aider image installs C++, Go, Java, JavaScript, Python, and Rust toolchains. The native
+container is capped at 12 GiB, so provision at least 16 GiB host RAM plus image and repository disk;
+the first build downloads toolchains and is materially slower than cached runs. The supported
+execution target is Linux Docker. Apple Silicon hosts may build a different architecture and are
+not treated as leaderboard-comparable without separate validation.
 
 The Docker group grants control of the Docker daemon and is effectively root-level access. Add
 only a trusted benchmark execution account.

@@ -12,16 +12,16 @@ class UserRequest(BaseModel):
     size: int | None = Field(default=None, ge=1)
     model: str
     agent: str | None = None
-    reasoning_effort: str
+    reasoning_effort: str | None = None
     provider: str
     provider_route: str | None = None
     byok: bool = False
     workers: PositiveInt
     budget_usd: PositiveFloat
-    per_task_cost_limit_usd: PositiveFloat = 5.0
+    per_task_cost_limit_usd: PositiveFloat | None = None
     target: str = "fixed-vm"
 
-    @field_validator("benchmark", "model", "reasoning_effort", "provider", "target")
+    @field_validator("benchmark", "model", "provider", "target")
     @classmethod
     def nonempty(cls, value: str) -> str:
         value = value.strip()
@@ -29,7 +29,7 @@ class UserRequest(BaseModel):
             raise ValueError("must not be empty")
         return value
 
-    @field_validator("agent")
+    @field_validator("agent", "reasoning_effort")
     @classmethod
     def optional_nonempty(cls, value: str | None) -> str | None:
         if value is None:
@@ -60,7 +60,7 @@ class ModelSpec(BaseModel):
     api: str
     api_key_env: str
     effort_path: str
-    reasoning_effort: str
+    reasoning_effort: str | None = None
     provider_route: str | None = None
     byok: bool = False
     config: dict[str, Any]
