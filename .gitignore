@@ -10,6 +10,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 eval_engine/runs/
+results/
 eval_engine/.agent-bench/
 eval_engine/dist/
 eval_engine/pools/*.json
