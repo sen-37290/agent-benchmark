@@ -18,3 +18,9 @@ eval_engine/tests/*
 !eval_engine/tests/.gitkeep
 !eval_engine/tests/test_terminal_bench_*.py
 !eval_engine/tests/test_result_reporting.py
+
+notebooks/analysis_scripts/
+notebooks/graphs/
+notebooks/swebench_classification/
+notebooks/swebench_trajectory_graph/
+data/
