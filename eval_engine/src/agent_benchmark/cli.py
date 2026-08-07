@@ -56,6 +56,8 @@ def _request(
     workers: int,
     budget_usd: float,
     per_task_cost_limit_usd: float | None,
+    no_timeout: bool,
+    error_retries: int | None,
     target: str,
 ) -> UserRequest:
     return UserRequest(
@@ -71,6 +73,8 @@ def _request(
         workers=workers,
         budget_usd=budget_usd,
         per_task_cost_limit_usd=per_task_cost_limit_usd,
+        no_timeout=no_timeout,
+        error_retries=error_retries,
         target=target,
     )
 
@@ -118,6 +122,21 @@ def plan(
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
     ] = None,
+    no_timeout: Annotated[
+        bool,
+        typer.Option(
+            "--no-timeout",
+            help="Disable the Harbor agent-execution deadline.",
+        ),
+    ] = False,
+    error_retries: Annotated[
+        int | None,
+        typer.Option(
+            "--error-retries",
+            min=0,
+            help="Retry Harbor trials that end with an exception; reward-0 results are not retried.",
+        ),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
@@ -134,6 +153,8 @@ def plan(
         workers,
         budget_usd,
         per_task_cost_limit_usd,
+        no_timeout,
+        error_retries,
         target,
     )
     run_id = _new_run_id(benchmark, model)
@@ -165,6 +186,21 @@ def run(
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
     ] = None,
+    no_timeout: Annotated[
+        bool,
+        typer.Option(
+            "--no-timeout",
+            help="Disable the Harbor agent-execution deadline.",
+        ),
+    ] = False,
+    error_retries: Annotated[
+        int | None,
+        typer.Option(
+            "--error-retries",
+            min=0,
+            help="Retry Harbor trials that end with an exception; reward-0 results are not retried.",
+        ),
+    ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:
@@ -182,6 +218,8 @@ def run(
         workers,
         budget_usd,
         per_task_cost_limit_usd,
+        no_timeout,
+        error_retries,
         target,
     )
     store = _create_run(request, runs_root)

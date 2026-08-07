@@ -19,6 +19,8 @@ class UserRequest(BaseModel):
     workers: PositiveInt
     budget_usd: PositiveFloat
     per_task_cost_limit_usd: PositiveFloat | None = None
+    no_timeout: bool = False
+    error_retries: int | None = Field(default=None, ge=0)
     target: str = "fixed-vm"
 
     @field_validator("benchmark", "model", "provider", "target")
@@ -90,6 +92,8 @@ class TargetSpec(BaseModel):
 class ExecutionSpec(BaseModel):
     workers: PositiveInt
     environment: str = "docker"
+    no_timeout: bool = False
+    error_retries: int = Field(default=0, ge=0)
 
 
 class BudgetSpec(BaseModel):
