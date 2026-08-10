@@ -134,7 +134,9 @@ def plan(
         typer.Option(
             "--error-retries",
             min=0,
-            help="Retry Harbor trials that end with an exception; reward-0 results are not retried.",
+            help=(
+                "Retry Harbor trials that end with an exception; reward-0 results are not retried."
+            ),
         ),
     ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
@@ -198,7 +200,9 @@ def run(
         typer.Option(
             "--error-retries",
             min=0,
-            help="Retry Harbor trials that end with an exception; reward-0 results are not retried.",
+            help=(
+                "Retry Harbor trials that end with an exception; reward-0 results are not retried."
+            ),
         ),
     ] = None,
     target: Annotated[str, typer.Option()] = "fixed-vm",
