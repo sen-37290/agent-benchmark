@@ -60,6 +60,40 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
     }
 
 
+def test_no_timeout_disables_harbor_agent_deadline(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.no_timeout = True
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--agent-timeout-multiplier") + 1] == "inf"
+
+
+def test_default_keeps_task_agent_deadline(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert "--agent-timeout-multiplier" not in command
+
+
+def test_terminal_bench_retries_exception_results_by_default(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--max-retries") + 1] == "2"
+
+
+def test_error_retries_can_be_disabled(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.error_retries = 0
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert "--max-retries" not in command
+
+
 def test_terminal_bench_runs_mini_swe_agent(tmp_path: Path) -> None:
     spec, run_dir = terminal_spec(tmp_path, "mini-swe-agent")
 
@@ -202,6 +236,35 @@ def test_cli_plan_resolves_terminal_bench_without_vm_or_model() -> None:
     assert "grading: harbor-inline-verifier" in result.output
     assert "sample_size: 2" in result.output
     assert "subject_agent: terminus-2" in result.output
+
+
+def test_cli_plan_records_no_timeout() -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "plan",
+            "--benchmark",
+            "terminal-bench-2.1",
+            "--model",
+            "kimi-k3",
+            "--reasoning-effort",
+            "max",
+            "--provider",
+            "openrouter",
+            "--workers",
+            "1",
+            "--budget-usd",
+            "5",
+            "--sampling",
+            "random",
+            "--size",
+            "1",
+            "--no-timeout",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "no_timeout: true" in result.output
     assert "subject_agent_version: 2.0.0" in result.output
 
 

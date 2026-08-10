@@ -172,6 +172,8 @@ def resolve(
 
     if not generated_pool.is_file():
         raise ConfigurationError(f"generated pool does not exist: {generated_pool}")
+    if request.no_timeout and benchmark["harness"] != "harbor":
+        raise ConfigurationError("--no-timeout is supported only by Harbor benchmark profiles")
     pool_data = yaml.safe_load(generated_pool.read_text())
     instance_ids = pool_data.get("instance_ids") if isinstance(pool_data, dict) else None
     if not isinstance(instance_ids, list) or not instance_ids:
@@ -240,7 +242,15 @@ def resolve(
             config=config,
         ),
         target=TargetSpec(profile=request.target, **target),
-        execution=ExecutionSpec(workers=request.workers),
+        execution=ExecutionSpec(
+            workers=request.workers,
+            no_timeout=request.no_timeout,
+            error_retries=(
+                request.error_retries
+                if request.error_retries is not None
+                else int(benchmark.get("settings", {}).get("error_retries", 0))
+            ),
+        ),
         budget=BudgetSpec(
             total_usd=request.budget_usd,
             per_task_usd=per_task_cost_limit,

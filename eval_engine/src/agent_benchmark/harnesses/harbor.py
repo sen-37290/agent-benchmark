@@ -73,6 +73,10 @@ def build_command(
             "--yes",
         ]
     )
+    if spec.execution.no_timeout:
+        command.extend(["--agent-timeout-multiplier", "inf"])
+    if spec.execution.error_retries:
+        command.extend(["--max-retries", str(spec.execution.error_retries)])
     return command
 
 

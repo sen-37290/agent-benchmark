@@ -10,6 +10,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 eval_engine/runs/
+results/
 eval_engine/.agent-bench/
 eval_engine/dist/
 eval_engine/pools/*.json
@@ -17,3 +18,4 @@ eval_engine/tests/*
 !eval_engine/tests/.gitkeep
 !eval_engine/tests/test_terminal_bench_*.py
 !eval_engine/tests/test_result_reporting.py
+notebooks/tmp
