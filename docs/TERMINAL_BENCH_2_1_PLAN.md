@@ -15,7 +15,7 @@ Each task provides:
 - a natural-language instruction shown to the subject agent;
 - a container environment and resource/time limits;
 - hidden verifier inputs and `tests/test.sh`;
-- an oracle solution used by benchmark maintainers for validation;
+- a reference solution used by benchmark maintainers for validation;
 - metadata such as category and difficulty.
 
 The default subject agent, Terminus 2, operates against the task environment. The eval
