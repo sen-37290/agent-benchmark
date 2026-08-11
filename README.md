@@ -13,3 +13,6 @@ not a runtime dependency.
 See [`eval_engine/README.md`](eval_engine/README.md) for usage,
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for component boundaries, and
 [`docs/VM_SMOKE_TEST.md`](docs/VM_SMOKE_TEST.md) for the manual VM integration gate.
+
+The reproducible publication figures live in [`usecase/`](usecase/README.md). Each figure has one
+self-contained Python script that downloads its public input data and creates the corresponding PNG.
