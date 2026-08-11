@@ -5,14 +5,30 @@ images are written to `graph/` and are intentionally excluded from Git.
 
 ## Run a figure
 
-From the repository root, run any script with Python 3.11 or newer:
+### 1. Check your Python version
+
+Python 3.11 or newer is required:
 
 ```bash
-python3 usecase/scripts/Fig_1_Benchmark_Breakdown.py
-python3 usecase/scripts/Fig_2_Performance_by_Task_Category.py
-python3 usecase/scripts/Fig_3_Cost_Per_Task.py
-python3 usecase/scripts/Fig_4_Routing.py
-python3 usecase/scripts/Fig_5_Solve_Rate_Versus_Cost_With_Routing.py
+python3 --version
+```
+
+If the version is lower than 3.11, install Python 3.11:
+
+```bash
+brew install python@3.11
+```
+
+### 2. Run a figure
+
+From the repository root, run the desired script with `python3.11`:
+
+```bash
+python3.11 usecase/scripts/Fig_1_Benchmark_Breakdown.py
+python3.11 usecase/scripts/Fig_2_Performance_by_Task_Category.py
+python3.11 usecase/scripts/Fig_3_Cost_Per_Task.py
+python3.11 usecase/scripts/Fig_4_Routing.py
+python3.11 usecase/scripts/Fig_5_Solve_Rate_Versus_Cost_With_Routing.py
 ```
 
 No uv setup or manual package installation is required. On the first run, the script creates
