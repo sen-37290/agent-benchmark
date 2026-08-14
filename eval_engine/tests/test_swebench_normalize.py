@@ -26,7 +26,13 @@ def test_nullable_step_results_have_no_usage() -> None:
     )
 
 
-def test_normalizes_official_grade_and_missing_trial(tmp_path: Path, pool_file: Path) -> None:
+def test_normalizes_official_grade_and_missing_trial(tmp_path: Path) -> None:
+    pool_file = tmp_path / "pool.json"
+    pool_file.write_text(
+        json.dumps(
+            {"instance_ids": ["django__django-13741", "pytest-dev__pytest-7571"]}
+        )
+    )
     request = UserRequest(
         benchmark="swebench-verified-harbor",
         model="glm-5.2",
