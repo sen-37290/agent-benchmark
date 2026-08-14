@@ -17,6 +17,13 @@ from agent_benchmark.harnesses.mini_swe_agent_native import (
 PROJECT = Path(__file__).parents[1]
 
 
+@pytest.fixture
+def pool_file(tmp_path: Path) -> Path:
+    file = tmp_path / "pool.json"
+    file.write_text(json.dumps({"instance_ids": ["django__django-13741", "pytest-dev__pytest-7571"]}))
+    return file
+
+
 def test_nullable_step_results_have_no_usage() -> None:
     assert cost_and_tokens({"agent_result": None, "step_results": None}) == (
         None,
@@ -26,13 +33,7 @@ def test_nullable_step_results_have_no_usage() -> None:
     )
 
 
-def test_normalizes_official_grade_and_missing_trial(tmp_path: Path) -> None:
-    pool_file = tmp_path / "pool.json"
-    pool_file.write_text(
-        json.dumps(
-            {"instance_ids": ["django__django-13741", "pytest-dev__pytest-7571"]}
-        )
-    )
+def test_normalizes_official_grade_and_missing_trial(tmp_path: Path, pool_file: Path) -> None:
     request = UserRequest(
         benchmark="swebench-verified-harbor",
         model="glm-5.2",
