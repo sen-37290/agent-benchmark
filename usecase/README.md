@@ -1,6 +1,6 @@
 # Reproducible figures
 
-This directory contains the two analysis notebooks and five standalone figure scripts. Generated
+This directory contains the analysis notebooks and seven standalone figure scripts. Generated
 images are written to `graph/` and are intentionally excluded from Git.
 
 ## Run a figure
@@ -29,6 +29,8 @@ python3.11 usecase/scripts/Fig_2_Performance_by_Task_Category.py
 python3.11 usecase/scripts/Fig_3_Cost_Per_Task.py
 python3.11 usecase/scripts/Fig_4_Routing.py
 python3.11 usecase/scripts/Fig_5_Solve_Rate_Versus_Cost_With_Routing.py
+python3.11 usecase/scripts/Fig_6_Terminal_Bench_Domain_Comparison.py
+python3.11 usecase/scripts/Fig_7_Terminal_Bench_Domain_Difference.py
 ```
 
 No uv setup or manual package installation is required. On the first run, the script creates
