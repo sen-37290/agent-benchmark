@@ -66,6 +66,39 @@ def test_model_profiles_do_not_select_agents() -> None:
         assert "default_agent" not in model
 
 
+@pytest.mark.parametrize("benchmark", ["swebench-verified", "terminal-bench-2.1"])
+def test_glm_5_3_resolves_for_swebench_and_terminal_bench(
+    tmp_path: Path, benchmark: str
+) -> None:
+    pool = tmp_path / "pool.json"
+    if benchmark == "terminal-bench-2.1":
+        create_pool(pool, "random", 1)
+    else:
+        pool.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
+    spec = resolve(
+        UserRequest(
+            benchmark=benchmark,
+            sampling="random" if benchmark == "terminal-bench-2.1" else None,
+            size=1 if benchmark == "terminal-bench-2.1" else None,
+            model="glm-5.3",
+            reasoning_effort="xhigh",
+            provider="openrouter",
+            workers=1,
+            budget_usd=5,
+        ),
+        f"test-glm-5-3-{benchmark}",
+        ROOT,
+        pool,
+    )
+
+    assert spec.model.model_id == "z-ai/glm-5.3"
+    assert spec.model.api == "openrouter"
+    assert spec.model.config["model"]["model_name"] == "z-ai/glm-5.3"
+    assert spec.model.config["model"]["model_kwargs"]["reasoning"] == {
+        "effort": "xhigh"
+    }
+
+
 def test_cli_agent_overrides_benchmark_and_model_defaults(tmp_path: Path) -> None:
     swebench = resolved_spec(tmp_path / "swebench", "swebench-verified-harbor", "terminus-2")
     terminal = resolved_spec(tmp_path / "terminal", "terminal-bench-2.1", "mini-swe-agent")
