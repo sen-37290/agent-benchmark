@@ -125,6 +125,7 @@ def test_resumes_existing_native_job(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("model", "effort", "provider", "expected_model"),
     [
+        ("glm-5.3", "xhigh", "openrouter", "openrouter/z-ai/glm-5.3"),
         ("kimi-k3", "max", "openrouter", "openrouter/moonshotai/kimi-k3"),
         ("opus-5", "max", "anthropic", "anthropic/claude-opus-5"),
     ],
@@ -160,12 +161,21 @@ def test_terminus_model_transport(
     assert f"reasoning_effort={effort}" in command
 
 
-def test_swebench_runs_terminus_with_local_dataset(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("model", "expected_model"),
+    [
+        ("glm-5.2", "openrouter/z-ai/glm-5.2"),
+        ("glm-5.3", "openrouter/z-ai/glm-5.3"),
+    ],
+)
+def test_swebench_runs_terminus_with_local_dataset(
+    tmp_path: Path, model: str, expected_model: str
+) -> None:
     pool_file = tmp_path / "swe-pool.json"
     pool_file.write_text(json.dumps({"instance_ids": ["django__django-13741"]}))
     request = UserRequest(
         benchmark="swebench-verified-harbor",
-        model="glm-5.2",
+        model=model,
         agent="terminus-2",
         reasoning_effort="xhigh",
         provider="openrouter",
@@ -182,7 +192,7 @@ def test_swebench_runs_terminus_with_local_dataset(tmp_path: Path) -> None:
     assert "--include-task-name" not in command
     assert spec.run_id in command
     assert command[command.index("-a") + 1] == "terminus-2"
-    assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
+    assert command[command.index("-m") + 1] == expected_model
     assert "reasoning_effort=xhigh" in command
     assert not any("config_file=" in argument for argument in command)
 
