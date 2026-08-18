@@ -67,9 +67,7 @@ def test_model_profiles_do_not_select_agents() -> None:
 
 
 @pytest.mark.parametrize("benchmark", ["swebench-verified", "terminal-bench-2.1"])
-def test_glm_5_3_resolves_for_swebench_and_terminal_bench(
-    tmp_path: Path, benchmark: str
-) -> None:
+def test_glm_5_3_resolves_for_swebench_and_terminal_bench(tmp_path: Path, benchmark: str) -> None:
     pool = tmp_path / "pool.json"
     if benchmark == "terminal-bench-2.1":
         create_pool(pool, "random", 1)
@@ -94,9 +92,7 @@ def test_glm_5_3_resolves_for_swebench_and_terminal_bench(
     assert spec.model.model_id == "z-ai/glm-5.3"
     assert spec.model.api == "openrouter"
     assert spec.model.config["model"]["model_name"] == "z-ai/glm-5.3"
-    assert spec.model.config["model"]["model_kwargs"]["reasoning"] == {
-        "effort": "xhigh"
-    }
+    assert spec.model.config["model"]["model_kwargs"]["reasoning"] == {"effort": "xhigh"}
 
 
 def test_cli_agent_overrides_benchmark_and_model_defaults(tmp_path: Path) -> None:
