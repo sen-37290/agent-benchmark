@@ -1,67 +1,143 @@
-# Reproducible figures
+# Reproduce the benchmark figures
 
-This directory contains the analysis notebooks and seven standalone figure scripts. Generated
-images are written to `graph/` and are intentionally excluded from Git.
+Follow these steps from the root of this repository.
 
-## Run a figure
+## 1. Install the required command-line tools
 
-### 1. Check your Python version
-
-Python 3.11 or newer is required:
+Check whether `uv` and the Google Cloud CLI are installed:
 
 ```bash
-python3 --version
+uv --version
+gcloud --version
 ```
 
-If the version is lower than 3.11, install Python 3.11:
+If a command is missing, install it:
 
-```bash
-brew install python@3.11
-```
+- [Install uv](https://docs.astral.sh/uv/getting-started/installation/)
+- [Install the Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
 
-### 2. Run a figure
+You do not need to install Python packages manually. `uv` handles them for each script.
 
-From the repository root, run the desired script with `python3.11`:
+## 2. Choose a GLM-5.3 figure
 
-```bash
-python3.11 usecase/scripts/Fig_1_Benchmark_Breakdown.py
-python3.11 usecase/scripts/Fig_2_Performance_by_Task_Category.py
-python3.11 usecase/scripts/Fig_3_Cost_Per_Task.py
-python3.11 usecase/scripts/Fig_4_Routing.py
-python3.11 usecase/scripts/Fig_5_Solve_Rate_Versus_Cost_With_Routing.py
-python3.11 usecase/scripts/Fig_6_Terminal_Bench_Domain_Comparison.py
-python3.11 usecase/scripts/Fig_7_Terminal_Bench_Domain_Difference.py
-```
-
-No uv setup or manual package installation is required. On the first run, the script creates
-`usecase/.venv`, installs pinned plotting and download dependencies, downloads only that figure's
-public Google Drive subfolder, validates its input checksum, and generates the PNG. Later runs reuse
-the local environment and that figure's download under `usecase/.cache/`.
-
-Google authentication is not required because the source folder is shared as “Anyone with the link
-— Viewer.” Network access is required on the first run.
-
-## Options
-
-Every script accepts the same operational options:
+The available scripts are:
 
 ```text
---data PATH    Use a local CSV instead of downloading from Drive.
---output PATH  Write the PNG to a custom location.
---refresh      Redownload only this figure's public Drive subfolder before plotting.
+Fig_1_Benchmark_Breakdown.py
+Fig_2_SWE_Bench_Category_Cost_Accuracy.py
+Fig_3_SWE_Bench_Category_Accuracy.py
+Fig_4_Terminal_Bench_Domain_Cost_Accuracy.py
+Fig_5_Terminal_Bench_Domain_Accuracy.py
+Fig_6_Routing.py
+Fig_7_Cost_Versus_Accuracy_With_Routing.py
+Fig_8_Successful_Case_Overlap.py
+Fig_9_Pairwise_Exclusive_Successes.py
 ```
 
-Titles, colors, dimensions, DPI, and output filenames are grouped in the configuration block near
-the top of each script so visual changes are easy to make.
+## 3. Generate your chosen figure
 
-Figures 3 and 5 preserve their selected reference charts' recorded/estimated generation-cost
-baseline. Their input CSVs store those per-task costs explicitly so both charts remain reproducible.
+On the first run, add `--login --refresh`. For example, to generate Figure 1:
 
-## Layout
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py --login --refresh
+```
+
+A browser will open. Sign in with your `@friendli.ai` Google account. The script then downloads
+the required CSV from the organization Drive folder and creates:
 
 ```text
-usecase/
-├── graph/      # generated PNGs; only .gitkeep is tracked
-├── notebooks/  # exploratory analysis notebooks
-└── scripts/    # exactly one Python script per figure
+usecase/graph/glm5.3/fig1_benchmark_family_accuracy_glm53_vs_kimi.png
+```
+
+To generate another figure, change only the script name. For example:
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_6_Routing.py --refresh
+```
+
+You normally need `--login` only once. Use `--refresh` whenever you want the latest data from
+Drive.
+
+## Run a figure again
+
+The downloaded CSV is cached locally. To regenerate the same figure without downloading it again:
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py
+```
+
+## Generate all GLM-5.3 figures
+
+This is optional:
+
+```bash
+for script in usecase/scripts/glm5.3/Fig_*.py; do
+  uv run "$script" --refresh
+done
+```
+
+## Use a local CSV
+
+Google login is not required when you already have the required CSV. Pass its path with `--data`:
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py \
+  --data /path/to/fig01_benchmark_family_accuracy.csv
+```
+
+## Choose a different output path
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py \
+  --output /tmp/benchmark-breakdown.png
+```
+
+## Generate a GLM-5.2 figure
+
+GLM-5.2 follows the same workflow as GLM-5.3. On the first run, add `--login --refresh`:
+
+```bash
+uv run usecase/scripts/glm5.2/Fig_1_Benchmark_Breakdown.py --login --refresh
+```
+
+Sign in with your `@friendli.ai` Google account when the browser opens. The generated PNG is
+written under:
+
+```text
+usecase/graph/glm5.2/
+```
+
+To run the same figure again with its cached CSV:
+
+```bash
+uv run usecase/scripts/glm5.2/Fig_1_Benchmark_Breakdown.py
+```
+
+To download updated data, add `--refresh`. To generate a different GLM-5.2 figure, replace the
+script name with another `Fig_*.py` file from `usecase/scripts/glm5.2/`.
+
+## Troubleshooting
+
+### Google Drive access is denied
+
+Run the script with `--login` and sign in with an authorized `@friendli.ai` account:
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py --login --refresh
+```
+
+Personal Gmail accounts cannot access the organization-restricted folder.
+
+### Sign in with a different Google account
+
+```bash
+gcloud auth revoke
+```
+
+Then rerun your figure with `--login --refresh`.
+
+### Display every option
+
+```bash
+uv run usecase/scripts/glm5.3/Fig_1_Benchmark_Breakdown.py --help
 ```
