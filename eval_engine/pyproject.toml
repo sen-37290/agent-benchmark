@@ -17,7 +17,7 @@ swebench = [
   "swebench==4.0.3",
 ]
 terminalbench = [
-  "harbor==0.20.0",
+  "harbor==0.21.0",
   "mini-swe-agent==2.4.5",
 ]
 
@@ -28,6 +28,11 @@ agent-bench = "agent_benchmark.cli:main"
 dev = [
   "pytest>=8,<9",
   "ruff>=0.12,<1",
+]
+
+[tool.uv.sources]
+harbor = [
+  { git = "https://github.com/friendliai/harbor.git", rev = "d0bcab5bc8c04963cc00a4d293aba40db54fe9bc", marker = "extra == 'terminalbench'" },
 ]
 
 [build-system]
