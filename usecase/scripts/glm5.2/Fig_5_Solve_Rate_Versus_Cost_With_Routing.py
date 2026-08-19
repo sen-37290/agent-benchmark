@@ -1,21 +1,21 @@
-#!/usr/bin/env python3
-"""Download the Figure 3 inputs and generate the cost-per-task chart."""
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["matplotlib==3.10.5", "numpy==2.3.2", "google-api-python-client==2.179.0"]
+# ///
+"""Download the Figure 5 inputs and generate the routed cost-versus-solve-rate chart."""
 
 from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import os
-import shutil
-import subprocess
-import sys
-import venv
 from pathlib import Path
+
+from _drive import get_data_file
 
 # Figure configuration: edit these values to change the presentation.
 TITLE = "COST VS. SOLVE RATE — SWE-BENCH VERIFIED + TERMINAL-BENCH 2.1"
-COLORS = {"GLM-5.2 xhigh": "#2f78d2", "Kimi-K3 max": "#ef6632"}
+COLORS = {"GLM-5.2 xhigh": "#2f78d2", "Kimi-K3 max": "#ef6632", "Routing": "#00a950"}
 SURFACE, INK, MUTED, GRID, CONNECT = (
     "#fbfbfa",
     "#111111",
@@ -25,56 +25,17 @@ SURFACE, INK, MUTED, GRID, CONNECT = (
 )
 FIGURE_SIZE = (12.4, 7.0)
 DPI = 180
-OUTPUT_FILENAME = "Fig_3_Cost_Per_Task.png"
+OUTPUT_FILENAME = "Fig_5_Solve_Rate_Versus_Cost_With_Routing.png"
 
-DRIVE_FOLDER_URL = (
-    "https://drive.google.com/drive/folders/1wfp-Pwch7i7EP8wdHQX-hfGFzzf2oqda"
-)
-DATA_FILENAME = "fig_3_cost_per_task.csv"
-DATA_SHA256 = "466c30470aafc613474ca1b673aea997acaf691546efe55d2893e607ad38f0fa"
-DEPENDENCIES = ("matplotlib==3.11.1", "gdown==5.2.0", "urllib3==1.26.20")
-USECASE_ROOT = Path(__file__).resolve().parents[1]
-CACHE_DIR = USECASE_ROOT / ".cache" / "fig_3_cost_per_task"
-DEFAULT_OUTPUT = USECASE_ROOT / "graph" / OUTPUT_FILENAME
+DATA_FILENAME = "fig_5_routing_cost_vs_solve_rate.csv"
+DATA_SHA256 = "4a47b2ff57260ff246f11c53b70e8d40c925c3bcc5f966ed648e8cd3a9e94f21"
+USECASE_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT = USECASE_ROOT / "graph" / "glm5.2" / OUTPUT_FILENAME
 EXPECTED_TASKS = {"SWE-bench Verified": 500, "Terminal-Bench 2.1": 89}
+BASE_MODELS = ("GLM-5.2 xhigh", "Kimi-K3 max")
 os.environ.setdefault("MPLCONFIGDIR", str(USECASE_ROOT / ".cache" / "matplotlib"))
 
 
-def ensure_dependencies() -> None:
-    try:
-        import matplotlib  # noqa: F401
-
-        if not any(
-            arg == "--data" or arg.startswith("--data=") for arg in sys.argv[1:]
-        ):
-            import gdown  # noqa: F401
-        return
-    except ModuleNotFoundError:
-        pass
-    environment = USECASE_ROOT / ".venv"
-    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if python.exists() and Path(sys.prefix).resolve() != environment.resolve():
-        os.execv(
-            str(python), [str(python), str(Path(__file__).resolve()), *sys.argv[1:]]
-        )
-    if not python.exists():
-        print(f"Creating local Python environment at {environment}")
-        venv.EnvBuilder(with_pip=True).create(environment)
-    print("Installing pinned graph dependencies (first run only)")
-    subprocess.check_call(
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            *DEPENDENCIES,
-        ]
-    )
-    os.execv(str(python), [str(python), str(Path(__file__).resolve()), *sys.argv[1:]])
-
-
-ensure_dependencies()
 import matplotlib
 
 matplotlib.use("Agg")
@@ -83,46 +44,8 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import FuncFormatter
 
 
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def get_data(local_path: Path | None, refresh: bool) -> Path:
-    if local_path is not None:
-        path = local_path.resolve()
-    else:
-        matches = list(CACHE_DIR.rglob(DATA_FILENAME)) if CACHE_DIR.exists() else []
-        valid = len(matches) == 1 and sha256(matches[0]) == DATA_SHA256
-        if refresh or not valid:
-            import gdown
-
-            if CACHE_DIR.exists():
-                shutil.rmtree(CACHE_DIR)
-            CACHE_DIR.mkdir(parents=True)
-            print("Downloading public figure inputs from Google Drive")
-            gdown.download_folder(
-                url=DRIVE_FOLDER_URL,
-                output=str(CACHE_DIR),
-                quiet=False,
-                remaining_ok=True,
-            )
-            matches = list(CACHE_DIR.rglob(DATA_FILENAME))
-        if len(matches) != 1:
-            raise FileNotFoundError(
-                f"Expected exactly one {DATA_FILENAME} in the Drive folder, found {len(matches)}"
-            )
-        path = matches[0]
-    actual = sha256(path)
-    if actual != DATA_SHA256:
-        raise ValueError(
-            f"Checksum mismatch for {path}: expected {DATA_SHA256}, got {actual}"
-        )
-    return path
-
+def get_data(local_path: Path | None, refresh: bool, login: bool) -> Path:
+    return get_data_file(DATA_FILENAME, DATA_SHA256, local_path, refresh, login)
 
 def parse_bool(value: str) -> bool:
     normalized = value.strip().lower()
@@ -134,11 +57,20 @@ def parse_bool(value: str) -> bool:
 def load_rows(path: Path) -> list[dict[str, object]]:
     with path.open(encoding="utf-8-sig", newline="") as stream:
         raw = list(csv.DictReader(stream))
-    required = {"benchmark", "task_id", "model", "resolved", "generation_cost_usd"}
+    required = {
+        "benchmark",
+        "task_id",
+        "model",
+        "resolved",
+        "generation_cost_usd",
+        "selected_model",
+    }
     if not raw or not required.issubset(raw[0]):
         raise ValueError(f"{path} must contain columns: {sorted(required)}")
     rows = []
     for row in raw:
+        if row["model"] not in BASE_MODELS or row["selected_model"] not in BASE_MODELS:
+            raise ValueError(f"Unexpected model in row for {row['task_id']}")
         parsed = {
             **row,
             "resolved": parse_bool(row["resolved"]),
@@ -149,11 +81,9 @@ def load_rows(path: Path) -> list[dict[str, object]]:
                 f"Negative generation cost for {row['benchmark']} / {row['task_id']}"
             )
         rows.append(parsed)
-    if (
-        len(rows) != 1178
-        or len({(r["benchmark"], r["task_id"], r["model"]) for r in rows}) != 1178
-    ):
-        raise ValueError("Figure 3 requires 1,178 unique benchmark/task/model rows")
+    keys = {(row["benchmark"], row["task_id"], row["model"]) for row in rows}
+    if len(rows) != 1178 or len(keys) != 1178:
+        raise ValueError("Figure 5 requires 1,178 unique benchmark/task/model rows")
     return rows
 
 
@@ -162,21 +92,20 @@ def task_cost(row: dict[str, object]) -> float:
 
 
 def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
-    summary = []
+    output = []
     for benchmark, expected in EXPECTED_TASKS.items():
-        for model in COLORS:
-            group = [
-                row
-                for row in rows
-                if row["benchmark"] == benchmark and row["model"] == model
-            ]
-            if (
-                len(group) != expected
-                or len({row["task_id"] for row in group}) != expected
-            ):
-                raise ValueError(f"Expected {expected} {benchmark} rows for {model}")
+        benchmark_rows = [row for row in rows if row["benchmark"] == benchmark]
+        task_groups = {}
+        for row in benchmark_rows:
+            task_groups.setdefault(str(row["task_id"]), []).append(row)
+        if len(task_groups) != expected or any(
+            len(group) != 2 for group in task_groups.values()
+        ):
+            raise ValueError(f"Expected {expected} paired tasks for {benchmark}")
+        for model in BASE_MODELS:
+            group = [row for row in benchmark_rows if row["model"] == model]
             solved = sum(bool(row["resolved"]) for row in group)
-            summary.append(
+            output.append(
                 {
                     "benchmark": benchmark,
                     "model": model,
@@ -184,7 +113,28 @@ def summarize(rows: list[dict[str, object]]) -> list[dict[str, object]]:
                     "cost_per_task": sum(task_cost(row) for row in group) / expected,
                 }
             )
-    return summary
+        routed_solved = 0
+        routed_cost = 0.0
+        for task_id, group in task_groups.items():
+            selections = {str(row["selected_model"]) for row in group}
+            if len(selections) != 1:
+                raise ValueError(
+                    f"Inconsistent routing selection for {benchmark} / {task_id}"
+                )
+            selected = selections.pop()
+            routed_solved += any(bool(row["resolved"]) for row in group)
+            routed_cost += task_cost(
+                next(row for row in group if row["model"] == selected)
+            )
+        output.append(
+            {
+                "benchmark": benchmark,
+                "model": "Routing",
+                "solve_rate": 100 * routed_solved / expected,
+                "cost_per_task": routed_cost / expected,
+            }
+        )
+    return output
 
 
 def draw(summary: list[dict[str, object]], output: Path) -> None:
@@ -210,7 +160,7 @@ def draw(summary: list[dict[str, object]], output: Path) -> None:
                 point["cost_per_task"],
                 point["solve_rate"],
                 marker,
-                ms=11,
+                ms=12,
                 color=COLORS[str(point["model"])],
                 markeredgecolor=SURFACE,
                 markeredgewidth=1.8,
@@ -223,6 +173,7 @@ def draw(summary: list[dict[str, object]], output: Path) -> None:
                 textcoords="offset points",
                 ha="center",
                 fontfamily="DejaVu Sans Mono",
+                zorder=5,
             )
     costs = [float(row["cost_per_task"]) for row in summary]
     padding = max(0.05, 0.08 * (max(costs) - min(costs)))
@@ -269,8 +220,11 @@ def main() -> None:
     parser.add_argument(
         "--refresh", action="store_true", help="Redownload the Drive folder"
     )
+    parser.add_argument(
+        "--login", action="store_true", help="Open Google login through gcloud"
+    )
     args = parser.parse_args()
-    draw(summarize(load_rows(get_data(args.data, args.refresh))), args.output.resolve())
+    draw(summarize(load_rows(get_data(args.data, args.refresh, args.login))), args.output.resolve())
     print(args.output.resolve())
 
 

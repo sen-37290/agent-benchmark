@@ -1,17 +1,17 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# dependencies = ["matplotlib==3.10.5", "numpy==2.3.2", "google-api-python-client==2.179.0"]
+# ///
 """Download the Figure 1 inputs and generate the benchmark breakdown chart."""
 
 from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import os
-import shutil
-import subprocess
-import sys
-import venv
 from pathlib import Path
+
+from _drive import get_data_file
 
 # Figure configuration: edit these values to change the presentation.
 TITLE = "TOTAL ACCURACY GROUPED BY BENCHMARK FAMILY"
@@ -21,56 +21,14 @@ FIGURE_SIZE = (12.8, 7.2)
 DPI = 160
 OUTPUT_FILENAME = "Fig_1_Benchmark_Breakdown.png"
 
-# Public Google Drive source and integrity metadata.
-DRIVE_FOLDER_URL = (
-    "https://drive.google.com/drive/folders/1c_Cgnmc2BZtYemBKTpdeKjRh5YKpPKgm"
-)
 DATA_FILENAME = "fig_1_benchmark_breakdown.csv"
 DATA_SHA256 = "cd56597c1fd66f445f8dd27ea795eb221e5f7bed0a8d8ae53d48c2de7b91abd9"
-DEPENDENCIES = ("matplotlib==3.11.1", "gdown==5.2.0", "urllib3==1.26.20")
 
-USECASE_ROOT = Path(__file__).resolve().parents[1]
-CACHE_DIR = USECASE_ROOT / ".cache" / "fig_1_benchmark_breakdown"
-DEFAULT_OUTPUT = USECASE_ROOT / "graph" / OUTPUT_FILENAME
+USECASE_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT = USECASE_ROOT / "graph" / "glm5.2" / OUTPUT_FILENAME
 os.environ.setdefault("MPLCONFIGDIR", str(USECASE_ROOT / ".cache" / "matplotlib"))
 
 
-def ensure_dependencies() -> None:
-    try:
-        import matplotlib  # noqa: F401
-
-        if not any(
-            arg == "--data" or arg.startswith("--data=") for arg in sys.argv[1:]
-        ):
-            import gdown  # noqa: F401
-        return
-    except ModuleNotFoundError:
-        pass
-
-    environment = USECASE_ROOT / ".venv"
-    python = environment / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if python.exists() and Path(sys.prefix).resolve() != environment.resolve():
-        os.execv(
-            str(python), [str(python), str(Path(__file__).resolve()), *sys.argv[1:]]
-        )
-    if not python.exists():
-        print(f"Creating local Python environment at {environment}")
-        venv.EnvBuilder(with_pip=True).create(environment)
-    print("Installing pinned graph dependencies (first run only)")
-    subprocess.check_call(
-        [
-            str(python),
-            "-m",
-            "pip",
-            "install",
-            "--disable-pip-version-check",
-            *DEPENDENCIES,
-        ]
-    )
-    os.execv(str(python), [str(python), str(Path(__file__).resolve()), *sys.argv[1:]])
-
-
-ensure_dependencies()
 
 import matplotlib
 
@@ -80,46 +38,8 @@ import numpy as np
 from matplotlib.patches import Patch
 
 
-def sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def get_data(local_path: Path | None, refresh: bool) -> Path:
-    if local_path is not None:
-        path = local_path.resolve()
-    else:
-        matches = list(CACHE_DIR.rglob(DATA_FILENAME)) if CACHE_DIR.exists() else []
-        valid = len(matches) == 1 and sha256(matches[0]) == DATA_SHA256
-        if refresh or not valid:
-            import gdown
-
-            if CACHE_DIR.exists():
-                shutil.rmtree(CACHE_DIR)
-            CACHE_DIR.mkdir(parents=True)
-            print("Downloading public figure inputs from Google Drive")
-            gdown.download_folder(
-                url=DRIVE_FOLDER_URL,
-                output=str(CACHE_DIR),
-                quiet=False,
-                remaining_ok=True,
-            )
-            matches = list(CACHE_DIR.rglob(DATA_FILENAME))
-        if len(matches) != 1:
-            raise FileNotFoundError(
-                f"Expected exactly one {DATA_FILENAME} in the Drive folder, found {len(matches)}"
-            )
-        path = matches[0]
-    actual = sha256(path)
-    if actual != DATA_SHA256:
-        raise ValueError(
-            f"Checksum mismatch for {path}: expected {DATA_SHA256}, got {actual}"
-        )
-    return path
-
+def get_data(local_path: Path | None, refresh: bool, login: bool) -> Path:
+    return get_data_file(DATA_FILENAME, DATA_SHA256, local_path, refresh, login)
 
 def load_rows(path: Path) -> list[dict[str, object]]:
     with path.open(encoding="utf-8-sig", newline="") as stream:
@@ -212,8 +132,11 @@ def main() -> None:
     parser.add_argument(
         "--refresh", action="store_true", help="Redownload the Drive folder"
     )
+    parser.add_argument(
+        "--login", action="store_true", help="Open Google login through gcloud"
+    )
     args = parser.parse_args()
-    data = get_data(args.data, args.refresh)
+    data = get_data(args.data, args.refresh, args.login)
     draw(load_rows(data), args.output.resolve())
     print(args.output.resolve())
 
