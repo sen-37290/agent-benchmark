@@ -16,6 +16,11 @@ class TaskResult(BaseModel):
     status: Literal["completed", "error", "missing"]
     metrics: dict[str, float | int | bool | None] = Field(default_factory=dict)
     cost_usd: float | None = None
+    attempt_count: int = 1
+    retry_overhead_cost_usd: float | None = None
+    billed_cost_usd: float | None = None
+    retry_cost_complete: bool = True
+    retry_exhausted: bool = False
     input_tokens: int | None = None
     output_tokens: int | None = None
     cached_tokens: int | None = None
@@ -38,6 +43,9 @@ def write_results(run_dir: Path, results: list[TaskResult]) -> None:
         "resolved",
         "reward",
         "cost_usd",
+        "attempt_count",
+        "retry_overhead_cost_usd",
+        "billed_cost_usd",
         "input_tokens",
         "output_tokens",
         "cached_tokens",
@@ -56,6 +64,9 @@ def write_results(run_dir: Path, results: list[TaskResult]) -> None:
                     "resolved": result.metrics.get("resolved"),
                     "reward": result.metrics.get("reward"),
                     "cost_usd": result.cost_usd,
+                    "attempt_count": result.attempt_count,
+                    "retry_overhead_cost_usd": result.retry_overhead_cost_usd,
+                    "billed_cost_usd": result.billed_cost_usd,
                     "input_tokens": result.input_tokens,
                     "output_tokens": result.output_tokens,
                     "cached_tokens": result.cached_tokens,
@@ -74,6 +85,14 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
     completed = [result for result in results if result.status == "completed"]
     resolved = [result for result in results if result.metrics.get("resolved") is True]
     measured_costs = [result.cost_usd for result in results if result.cost_usd is not None]
+    retry_costs = [
+        result.retry_overhead_cost_usd
+        for result in results
+        if result.retry_overhead_cost_usd is not None
+    ]
+    billed_costs = [
+        result.billed_cost_usd for result in results if result.billed_cost_usd is not None
+    ]
     rewards = [
         float(result.metrics["reward"])
         for result in results
@@ -95,6 +114,12 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
         "error_count": sum(result.status == "error" for result in results),
         "missing_count": sum(result.status == "missing" for result in results),
         "measured_total_cost_usd": sum(measured_costs) if measured_costs else None,
+        "measured_retry_overhead_cost_usd": sum(retry_costs) if retry_costs else 0.0,
+        "measured_billed_cost_usd": sum(billed_costs) if billed_costs else None,
+        "retried_task_count": sum(result.attempt_count > 1 for result in results),
+        "retry_attempt_count": sum(max(0, result.attempt_count - 1) for result in results),
+        "retry_cost_complete": all(result.retry_cost_complete for result in results),
+        "exhausted_retry_count": sum(result.retry_exhausted for result in results),
     }
     if has_reward_metric:
         summary["mean_reward"] = sum(rewards) / len(results)
@@ -119,6 +144,25 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
                 ),
             }
         )
+    reasoning_audit_path = run_dir / "artifacts" / "reasoning_audit.json"
+    if reasoning_audit_path.is_file():
+        reasoning_audit = json.loads(reasoning_audit_path.read_text())
+        audits = list(reasoning_audit.get("tasks", {}).values())
+        summary["assistant_response_count"] = sum(
+            int(audit.get("assistant_responses", 0)) for audit in audits
+        )
+        summary["reasoning_response_count"] = sum(
+            int(audit.get("reasoning_responses", 0)) for audit in audits
+        )
+        summary["reasoning_details_response_count"] = sum(
+            int(audit.get("reasoning_details_responses", 0)) for audit in audits
+        )
+        summary["returned_models"] = sorted(
+            {model for audit in audits for model in audit.get("models", [])}
+        )
+        summary["returned_providers"] = sorted(
+            {provider for audit in audits for provider in audit.get("providers", [])}
+        )
     report_dir = run_dir / "report"
     report_dir.mkdir(parents=True, exist_ok=True)
     (report_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
@@ -126,6 +170,10 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
     rate_text = "n/a" if rate is None else f"{rate:.1%}"
     cost = summary["measured_total_cost_usd"]
     cost_text = "unavailable" if cost is None else f"${cost:.2f}"
+    overhead = summary["measured_retry_overhead_cost_usd"]
+    billed = summary["measured_billed_cost_usd"]
+    overhead_text = f"${overhead:.2f}"
+    billed_text = "unavailable" if billed is None else f"${billed:.2f}"
     reward_line = (
         f"- Mean reward: {summary['mean_reward']:.4f}\n" if "mean_reward" in summary else ""
     )
@@ -147,6 +195,16 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
             f"- Pool pass rate 2: {pool_2_text}\n"
             f"- Officially comparable: {str(comparable).lower()}\n"
         )
+    reasoning_lines = ""
+    if "assistant_response_count" in summary:
+        reasoning_lines = (
+            f"- Assistant responses: {summary['assistant_response_count']}\n"
+            f"- Responses with reasoning: {summary['reasoning_response_count']}\n"
+            "- Responses with reasoning details: "
+            f"{summary['reasoning_details_response_count']}\n"
+            f"- Returned models: {summary['returned_models']}\n"
+            f"- Returned providers: {summary['returned_providers']}\n"
+        )
     (report_dir / "report.md").write_text(
         f"# Evaluation report: {spec.run_id}\n\n"
         f"- Benchmark: `{spec.benchmark.profile}` "
@@ -157,6 +215,10 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
         f"- Completed: {len(completed)}/{len(results)}\n"
         f"{reward_line}"
         f"{aider_lines}"
+        f"{reasoning_lines}"
         f"- Measured generation cost: {cost_text}\n"
+        f"- Measured retry overhead: {overhead_text}\n"
+        f"- Measured billed cost (all attempts): {billed_text}\n"
+        f"- Retried tasks: {summary['retried_task_count']}\n"
     )
     return summary

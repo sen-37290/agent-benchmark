@@ -40,6 +40,9 @@ app.add_typer(remote_app, name="remote")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_ROOT = PROJECT_ROOT / "runs"
+# The repository-root file is the canonical shared environment for benchmark jobs. Keep the
+# engine-local file as a backwards-compatible fallback, without overriding process/root values.
+load_dotenv(PROJECT_ROOT.parent / ".env", override=False)
 load_dotenv(PROJECT_ROOT / ".env", override=False)
 
 
@@ -54,7 +57,8 @@ def _request(
     provider_route: str | None,
     byok: bool,
     workers: int,
-    budget_usd: float,
+    budget_usd: float | None,
+    no_budget_limit: bool,
     per_task_cost_limit_usd: float | None,
     no_timeout: bool,
     error_retries: int | None,
@@ -72,6 +76,7 @@ def _request(
         byok=byok,
         workers=workers,
         budget_usd=budget_usd,
+        no_budget_limit=no_budget_limit,
         per_task_cost_limit_usd=per_task_cost_limit_usd,
         no_timeout=no_timeout,
         error_retries=error_retries,
@@ -107,7 +112,10 @@ def plan(
     model: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
-    budget_usd: Annotated[float, typer.Option(min=0.01)],
+    budget_usd: Annotated[float | None, typer.Option(min=0.01)] = None,
+    no_budget_limit: Annotated[
+        bool, typer.Option("--no-budget-limit", help="Disable the run-wide cost watchdog.")
+    ] = False,
     reasoning_effort: Annotated[
         str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
     ] = None,
@@ -135,7 +143,7 @@ def plan(
             "--error-retries",
             min=0,
             help=(
-                "Retry Harbor trials that end with an exception; reward-0 results are not retried."
+                "Retry tasks after transient provider failures; reward-0 results are not retried."
             ),
         ),
     ] = None,
@@ -154,6 +162,7 @@ def plan(
         byok,
         workers,
         budget_usd,
+        no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
         error_retries,
@@ -173,7 +182,10 @@ def run(
     model: Annotated[str, typer.Option()],
     provider: Annotated[str, typer.Option()],
     workers: Annotated[int, typer.Option(min=1)],
-    budget_usd: Annotated[float, typer.Option(min=0.01)],
+    budget_usd: Annotated[float | None, typer.Option(min=0.01)] = None,
+    no_budget_limit: Annotated[
+        bool, typer.Option("--no-budget-limit", help="Disable the run-wide cost watchdog.")
+    ] = False,
     reasoning_effort: Annotated[
         str | None, typer.Option(help="Optional model reasoning effort; omit for provider default.")
     ] = None,
@@ -201,7 +213,7 @@ def run(
             "--error-retries",
             min=0,
             help=(
-                "Retry Harbor trials that end with an exception; reward-0 results are not retried."
+                "Retry tasks after transient provider failures; reward-0 results are not retried."
             ),
         ),
     ] = None,
@@ -221,6 +233,7 @@ def run(
         byok,
         workers,
         budget_usd,
+        no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
         error_retries,

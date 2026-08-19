@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 from agent_benchmark.agents import agent_adapter
@@ -9,6 +10,15 @@ from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.run.process import run_logged
+from agent_benchmark.run.retry import (
+    is_transient,
+    load_manifest,
+    pending_tasks,
+    record_attempt,
+    save_manifest,
+    select_attempt,
+    wait_before_attempt,
+)
 
 VALID_TERMINAL_STATUSES = frozenset(
     {"Submitted", "LimitsExceeded", "TimeExceeded", "RepeatedFormatError"}
@@ -29,7 +39,7 @@ def _instance_filter(ids: list[str]) -> str:
 
 def collected_cost(directory: Path) -> float:
     total = 0.0
-    for trajectory in directory.glob("*/*.traj.json"):
+    for trajectory in directory.rglob("*.traj.json"):
         try:
             data = json.loads(trajectory.read_text())
             total += float(data.get("info", {}).get("model_stats", {}).get("instance_cost", 0))
@@ -56,8 +66,13 @@ def task_failures(directory: Path, ids: list[str]) -> dict[str, str]:
     return failures
 
 
-def build_command(spec: ResolvedSpec, run_dir: Path) -> list[str]:
-    ids = _pool_ids(spec, run_dir)
+def build_command(
+    spec: ResolvedSpec,
+    run_dir: Path,
+    ids: list[str] | None = None,
+    destination: Path | None = None,
+) -> list[str]:
+    ids = ids or _pool_ids(spec, run_dir)
     return [
         "uv",
         "run",
@@ -70,7 +85,7 @@ def build_command(spec: ResolvedSpec, run_dir: Path) -> list[str]:
         "--filter",
         _instance_filter(ids),
         "--output",
-        str(output_dir(run_dir)),
+        str(destination or output_dir(run_dir)),
         "--workers",
         str(spec.execution.workers),
         "--config",
@@ -106,50 +121,99 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
         budget_usd = (
             None if spec.model.provider == "friendli" and spec.model.byok else spec.budget.total_usd
         )
+        ids = _pool_ids(spec, run_dir)
+        attempts_root = run_dir / "artifacts" / "retry_attempts" / "mini_swe_agent_native"
+        manifest = load_manifest(run_dir, ids)
+        max_attempts = spec.execution.error_retries + 1
+        for attempt in range(1, max_attempts + 1):
+            all_pending = pending_tasks(manifest, max_attempts)
+            save_manifest(run_dir, manifest)
+            if not all_pending:
+                break
+            pending = [
+                task_id
+                for task_id in all_pending
+                if len(manifest["tasks"][task_id]["attempts"]) == attempt - 1
+            ]
+            if not pending:
+                continue
+            wait_before_attempt(attempt)
+            round_dir = attempts_root / f"attempt-{attempt:02d}"
+            round_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                run_logged(
+                    build_command(spec, run_dir, pending, round_dir),
+                    cwd=run_dir,
+                    log_path=run_dir / "logs" / "execute.log",
+                    env=process_environment,
+                    redact_values=[api_key],
+                    cost_reader=lambda: collected_cost(attempts_root),
+                    budget_usd=budget_usd,
+                )
+            except StageError as error:
+                if "budget" in str(error).lower():
+                    raise
+            predictions_path = round_dir / "preds.json"
+            predictions = (
+                json.loads(predictions_path.read_text()) if predictions_path.is_file() else {}
+            )
+            failures = task_failures(round_dir, pending)
+            for task_id in pending:
+                trajectory_path = round_dir / task_id / f"{task_id}.traj.json"
+                cost = None
+                message = None
+                if trajectory_path.is_file():
+                    try:
+                        trajectory = json.loads(trajectory_path.read_text())
+                        info = trajectory.get("info", {})
+                        value = info.get("model_stats", {}).get("instance_cost")
+                        cost = float(value) if value is not None else None
+                        message = str(info.get("exception_str") or "")
+                    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+                        pass
+                error_type = failures.get(task_id)
+                retryable = error_type in {
+                    "MissingTrajectory",
+                    "InvalidTrajectory",
+                } or is_transient(error_type, message)
+                valid_prediction = isinstance(predictions.get(task_id), dict)
+                status = "completed" if error_type is None and valid_prediction else "error"
+                record_attempt(
+                    manifest,
+                    task_id,
+                    attempt=attempt,
+                    artifact=str(round_dir.relative_to(run_dir)),
+                    status=status,
+                    error_type=error_type or (None if valid_prediction else "MissingPrediction"),
+                    retryable=retryable,
+                    cost_usd=cost,
+                )
+                if status == "completed" or not retryable:
+                    select_attempt(manifest, task_id, attempt)
+            save_manifest(run_dir, manifest)
+
+        pending_tasks(manifest, max_attempts)
+        save_manifest(run_dir, manifest)
         directory = output_dir(run_dir)
         directory.mkdir(parents=True, exist_ok=True)
-        run_logged(
-            build_command(spec, run_dir),
-            cwd=run_dir,
-            log_path=run_dir / "logs" / "execute.log",
-            env=process_environment,
-            redact_values=[api_key],
-            cost_reader=lambda: collected_cost(directory),
-            budget_usd=budget_usd,
-        )
-
-        predictions_path = directory / "preds.json"
-        if not predictions_path.is_file():
-            raise StageError("official mini-swe-agent runner did not produce preds.json")
-        predictions = json.loads(predictions_path.read_text())
-        expected = set(_pool_ids(spec, run_dir))
-        actual = set(predictions)
-        if actual != expected:
-            missing = sorted(expected - actual)
-            extra = sorted(actual - expected)
-            raise StageError(
-                "official mini-swe-agent predictions do not match the pool: "
-                f"missing={missing[:3]}, extra={extra[:3]}"
+        canonical_predictions: dict[str, object] = {}
+        for task_id in ids:
+            task = manifest["tasks"][task_id]
+            selected = task["selected_attempt"]
+            item = next(entry for entry in task["attempts"] if entry["attempt"] == selected)
+            source = run_dir / item["artifact"]
+            source_task = source / task_id
+            if source_task.is_dir():
+                shutil.copytree(source_task, directory / task_id, dirs_exist_ok=True)
+            round_predictions_path = source / "preds.json"
+            round_predictions = (
+                json.loads(round_predictions_path.read_text())
+                if round_predictions_path.is_file()
+                else {}
             )
-        invalid = [
-            task_id
-            for task_id, prediction in predictions.items()
-            if not isinstance(prediction, dict)
-            or prediction.get("instance_id") != task_id
-            or not isinstance(prediction.get("model_name_or_path"), str)
-            or not isinstance(prediction.get("model_patch"), str)
-        ]
-        if invalid:
-            raise StageError(
-                "official mini-swe-agent produced invalid predictions for: "
-                + ", ".join(sorted(invalid)[:3])
-            )
-        failures = task_failures(directory, _pool_ids(spec, run_dir))
-        if failures:
-            examples = ", ".join(
-                f"{task_id}={status}" for task_id, status in sorted(failures.items())[:3]
-            )
-            raise StageError(
-                f"official mini-swe-agent reported task errors for {len(failures)}/{len(expected)} "
-                f"instances ({examples})"
-            )
+            canonical_predictions[task_id] = round_predictions.get(task_id) or {
+                "model_name_or_path": spec.model.model_id,
+                "instance_id": task_id,
+                "model_patch": "",
+            }
+        (directory / "preds.json").write_text(json.dumps(canonical_predictions, indent=2) + "\n")

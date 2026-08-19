@@ -9,6 +9,7 @@ from typing import Any
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 from agent_benchmark.run.result import TaskResult
+from agent_benchmark.run.retry import attempt_costs, attempt_exhausted
 
 INSTANCE_RE = re.compile(r"[A-Za-z0-9][\w.-]*__[\w.-]+-\d+")
 
@@ -97,6 +98,36 @@ def _native_usage(trajectory: dict[str, Any]) -> tuple[int | None, int | None, i
     return input_tokens, output_tokens, cached_tokens
 
 
+def _native_reasoning_audit(trajectory: dict[str, Any]) -> dict[str, Any]:
+    responses: list[dict[str, Any]] = []
+    for message in trajectory.get("messages", []):
+        response = message.get("extra", {}).get("response")
+        if message.get("role") == "assistant" and isinstance(response, dict):
+            responses.append(response)
+    reasoning = 0
+    reasoning_details = 0
+    models: set[str] = set()
+    providers: set[str] = set()
+    for response in responses:
+        choices = response.get("choices") or []
+        response_message = choices[0].get("message", {}) if choices else {}
+        if response_message.get("reasoning"):
+            reasoning += 1
+        if response_message.get("reasoning_details"):
+            reasoning_details += 1
+        if response.get("model"):
+            models.add(str(response["model"]))
+        if response.get("provider"):
+            providers.add(str(response["provider"]))
+    return {
+        "assistant_responses": len(responses),
+        "reasoning_responses": reasoning,
+        "reasoning_details_responses": reasoning_details,
+        "models": sorted(models),
+        "providers": sorted(providers),
+    }
+
+
 def _native_exit_statuses(directory: Path) -> dict[str, str]:
     import yaml
 
@@ -117,22 +148,31 @@ def _normalize_native(
     directory = run_dir / "artifacts" / "minisweagent_swebench"
     exit_statuses = _native_exit_statuses(directory)
     results: list[TaskResult] = []
+    audits: dict[str, dict[str, Any]] = {}
     for task_id in ids:
         trajectory_path = directory / task_id / f"{task_id}.traj.json"
         if not trajectory_path.is_file():
             exit_status = exit_statuses.get(task_id)
+            attempt_count, final_cost, overhead, cost_complete = attempt_costs(run_dir, task_id)
             results.append(
                 TaskResult(
                     run_id=spec.run_id,
                     task_id=task_id,
                     status="error" if exit_status else "missing",
                     metrics={"resolved": task_id in resolved},
+                    cost_usd=final_cost,
+                    attempt_count=attempt_count,
+                    retry_overhead_cost_usd=overhead,
+                    billed_cost_usd=(final_cost + overhead if final_cost is not None else None),
+                    retry_cost_complete=cost_complete,
+                    retry_exhausted=attempt_exhausted(run_dir, task_id),
                     error_type=exit_status or "MissingTrajectory",
                     raw_artifacts=[str((directory / "preds.json").relative_to(run_dir))],
                 )
             )
             continue
         trajectory = json.loads(trajectory_path.read_text())
+        audits[task_id] = _native_reasoning_audit(trajectory)
         info = trajectory.get("info", {})
         input_tokens, output_tokens, cached_tokens = _native_usage(trajectory)
         error_type = None
@@ -141,13 +181,24 @@ def _normalize_native(
         cost = info.get("model_stats", {}).get("instance_cost")
         if spec.model.provider == "friendli" and spec.model.byok:
             cost = None
+        attempt_count, manifest_final, overhead, cost_complete = attempt_costs(run_dir, task_id)
+        final_cost = (
+            manifest_final
+            if manifest_final is not None
+            else (float(cost) if cost is not None else None)
+        )
         results.append(
             TaskResult(
                 run_id=spec.run_id,
                 task_id=task_id,
                 status="error" if error_type else "completed",
                 metrics={"resolved": task_id in resolved},
-                cost_usd=float(cost) if cost is not None else None,
+                cost_usd=final_cost,
+                attempt_count=attempt_count,
+                retry_overhead_cost_usd=overhead,
+                billed_cost_usd=(final_cost + overhead) if final_cost is not None else None,
+                retry_cost_complete=cost_complete,
+                retry_exhausted=attempt_exhausted(run_dir, task_id),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 cached_tokens=cached_tokens,
@@ -155,6 +206,9 @@ def _normalize_native(
                 raw_artifacts=[str(trajectory_path.relative_to(run_dir))],
             )
         )
+    (run_dir / "artifacts" / "reasoning_audit.json").write_text(
+        json.dumps({"tasks": audits}, indent=2, sort_keys=True) + "\n"
+    )
     return results
 
 

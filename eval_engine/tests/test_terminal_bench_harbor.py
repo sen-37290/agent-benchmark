@@ -82,7 +82,7 @@ def test_terminal_bench_retries_exception_results_by_default(tmp_path: Path) -> 
 
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
 
-    assert command[command.index("--max-retries") + 1] == "2"
+    assert command[command.index("--max-retries") + 1] == "3"
 
 
 def test_error_retries_can_be_disabled(tmp_path: Path) -> None:
@@ -92,6 +92,27 @@ def test_error_retries_can_be_disabled(tmp_path: Path) -> None:
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
 
     assert "--max-retries" not in command
+
+
+def test_engine_managed_retry_round_uses_subset_without_harbor_retries(tmp_path: Path) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+    command = build_command(
+        spec,
+        run_dir,
+        tmp_path / "cache",
+        "secret",
+        task_ids=["build-cython-extension"],
+        output_dir=tmp_path / "attempts",
+        job_name="retry-round-2",
+        engine_managed_retries=True,
+    )
+
+    assert "--max-retries" not in command
+    assert command[command.index("--job-name") + 1] == "retry-round-2"
+    includes = [
+        command[index + 1] for index, value in enumerate(command) if value == "--include-task-name"
+    ]
+    assert includes == ["terminal-bench/build-cython-extension"]
 
 
 def test_terminal_bench_runs_mini_swe_agent(tmp_path: Path) -> None:

@@ -11,3 +11,4 @@ settings:
   official_step_limit: 250
   official_cost_limit: 3.0
   official_grader_version: 4.0.3
+  error_retries: 3
