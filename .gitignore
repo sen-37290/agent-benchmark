@@ -18,6 +18,7 @@ eval_engine/tests/*
 !eval_engine/tests/.gitkeep
 !eval_engine/tests/test_terminal_bench_*.py
 !eval_engine/tests/test_result_reporting.py
+!eval_engine/tests/test_retry_pipeline.py
 usecase/tmp
 usecase/.cache/
 usecase/.venv/

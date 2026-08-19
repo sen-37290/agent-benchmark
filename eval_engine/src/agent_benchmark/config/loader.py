@@ -252,7 +252,7 @@ def resolve(
             ),
         ),
         budget=BudgetSpec(
-            total_usd=request.budget_usd,
+            total_usd=None if request.no_budget_limit else request.budget_usd,
             per_task_usd=per_task_cost_limit,
         ),
         provenance=_provenance(project_root),

@@ -205,8 +205,9 @@ OPENROUTER_API_KEY=
 ANTHROPIC_API_KEY=
 ```
 
-The CLI loads `eval_engine/.env` automatically. Existing process environment variables take
-precedence, allowing CI or a secret manager to inject credentials. `.env` is ignored by Git.
+The CLI loads the repository-root `.env` automatically and uses `eval_engine/.env` only as a
+backwards-compatible fallback for missing names. Existing process environment variables take
+precedence, allowing CI or a secret manager to inject credentials. Both files are ignored by Git.
 
 Do not add `FRIENDLI_API_KEY`. OpenRouter ignores a Friendli key sent with an inference request;
 Friendli BYOK uses the key registered in the OpenRouter workspace dashboard.
@@ -286,7 +287,7 @@ uv run agent-bench run \
   --reasoning-effort xhigh \
   --provider openrouter \
   --workers 1 \
-  --budget-usd 3 \
+  --no-budget-limit \
   --sampling random \
   --size 1
 ```
@@ -306,6 +307,43 @@ different `--per-task-cost-limit-usd` value is rejected before deployment.
 | `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY`; with `aider-polyglot`, omit `--reasoning-effort` |
 
 Run one experiment at a time. The engine holds a VM-wide lease until completion or cancellation.
+
+For a Terminal-Bench smoke without a task-solving deadline, use the corresponding profile and add
+`--no-timeout`. `--no-budget-limit` disables only the run-wide cost watchdog. The official
+SWE-bench profile retains mini-swe-agent's pinned $3 limit for each individual attempt.
+
+## Provider failure retries
+
+The official native SWE-bench and Terminal-Bench profiles retry tasks that end because of a
+transient provider or network failure. Each profile defaults to three retries after the initial
+attempt, with waits of 30, 60, and 120 seconds. Use `--error-retries 0` to disable task retries or
+another non-negative value to override the default. Valid unresolved submissions, reward-zero
+Terminal-Bench results, task-solving deadlines, verifier failures, authentication failures, and
+model-not-found errors are not retried.
+
+Deploy, dependency preparation, grading, artifact collection, and cleanup also retry remote
+infrastructure failures with the same bounded backoff. Execute-stage SSH commands are deliberately
+not restarted wholesale: task-level checkpoints handle generation retries without duplicating
+successful model calls. This is particularly important for Docker pull failures: native SWE-bench
+container-start failures become missing task trajectories and are retried per task, while Docker
+pull failures in the official grading stage retry the grading stage.
+
+Every attempt is retained under `artifacts/retry_attempts/`, and its selection is recorded in
+`artifacts/retry_attempts/manifest.json`. Resume keeps successful tasks and continues only missing
+or transiently failed work. If all attempts are exhausted, the task is recorded as an error (and as
+an empty SWE-bench submission) while the rest of the run proceeds to grading.
+
+`measured_total_cost_usd` remains the cost of the selected final attempts. Reports separately show
+`measured_retry_overhead_cost_usd` for discarded failed attempts and
+`measured_billed_cost_usd` for all attempts. A configured run-wide budget is checked against all
+attempts, not just the selected results. `retry_cost_complete` indicates whether every attempt
+reported cost telemetry.
+
+Normalization also writes `artifacts/reasoning_audit.json`. For native SWE-bench it counts both
+OpenRouter `reasoning` and `reasoning_details` values and records returned model/provider metadata;
+null fields remain visible and are not counted. Terminal-Bench uses Harbor's ATIF
+`reasoning_content` field. ATIF preserves the returned model name but not provider metadata, so its
+audit explicitly records provider metadata as unavailable rather than inferring it.
 
 ## Run management
 

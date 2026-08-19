@@ -17,7 +17,8 @@ class UserRequest(BaseModel):
     provider_route: str | None = None
     byok: bool = False
     workers: PositiveInt
-    budget_usd: PositiveFloat
+    budget_usd: PositiveFloat | None = None
+    no_budget_limit: bool = False
     per_task_cost_limit_usd: PositiveFloat | None = None
     no_timeout: bool = False
     error_retries: int | None = Field(default=None, ge=0)
@@ -49,6 +50,8 @@ class UserRequest(BaseModel):
             raise ValueError("--byok requires --provider friendli or --provider-route")
         if (self.sampling is None) != (self.size is None):
             raise ValueError("--sampling and --size must be provided together")
+        if (self.budget_usd is None) == (not self.no_budget_limit):
+            raise ValueError("provide exactly one of --budget-usd or --no-budget-limit")
         return self
 
 
@@ -97,7 +100,7 @@ class ExecutionSpec(BaseModel):
 
 
 class BudgetSpec(BaseModel):
-    total_usd: PositiveFloat
+    total_usd: PositiveFloat | None
     per_task_usd: PositiveFloat
 
 
