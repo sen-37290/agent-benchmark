@@ -1,0 +1,9 @@
+plugin: arc_agi_3
+harness: arc-agi-3-native
+dataset_id: arcprize/arc-agi-3@2026
+grading: interactive-environment-reward
+default_agent: mini-swe-agent
+settings:
+  pool_path: inputs/pool.json
+  runner: arc-agi-3-runner
+  timeout_seconds: 3600

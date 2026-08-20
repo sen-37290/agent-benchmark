@@ -1,0 +1,9 @@
+plugin: agent_perf
+harness: agent-perf-native
+dataset_id: rajeev-chaurasia/agent-perf@main
+grading: native-latency-throughput
+default_agent: mini-swe-agent
+settings:
+  pool_path: inputs/pool.json
+  runner: agentperf-generate
+  target_port: 8000
