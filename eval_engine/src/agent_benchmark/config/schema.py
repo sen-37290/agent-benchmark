@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 
 class UserRequest(BaseModel):
@@ -22,7 +30,7 @@ class UserRequest(BaseModel):
     per_task_cost_limit_usd: PositiveFloat | None = None
     no_timeout: bool = False
     error_retries: int | None = Field(default=None, ge=0)
-    target: str = "fixed-vm"
+    target: str = "primary"
 
     @field_validator("benchmark", "model", "provider", "target")
     @classmethod
@@ -85,8 +93,12 @@ class BenchmarkSpec(BaseModel):
 
 
 class TargetSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     profile: str
     backend: Literal["ssh"] = "ssh"
+    # The default keeps resolved specs from the original single-VM implementation resumable.
+    mode: Literal["primary", "backup"] = "primary"
     host_env: str
     remote_root: str
     cache_root: str

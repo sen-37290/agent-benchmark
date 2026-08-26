@@ -9,7 +9,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
 
-from agent_benchmark.config.schema import ResolvedSpec
+from agent_benchmark.config.schema import ResolvedSpec, TargetSpec
 from agent_benchmark.exceptions import ConfigurationError, IntegrityError, StageError
 
 SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{5,127}$")
@@ -17,6 +17,7 @@ SOURCE_RSYNC_EXCLUDES = (
     "/.venv/",
     "/.git/",
     "/.env",
+    "/.agent-bench/",
     "/runs/",
     "/pools/",
     "/tests/",
@@ -27,38 +28,15 @@ SOURCE_RSYNC_EXCLUDES = (
 )
 
 
-def active_run_id(host: str, cache_root: str) -> str | None:
-    """Return the run holding the VM-wide lease, if any."""
-    owner = PurePosixPath(cache_root) / "leases" / "active" / "owner"
-    command = f"if [ -f {shlex.quote(str(owner))} ]; then cat {shlex.quote(str(owner))}; fi"
-    result = subprocess.run(
-        ["ssh", host, command],
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode:
-        detail = result.stderr.strip() or "see SSH error output"
-        raise StageError(f"failed to query active VM lease ({result.returncode}): {detail}")
-    run_id = result.stdout.strip()
-    if not run_id:
-        return None
-    if not SAFE_RUN_ID.fullmatch(run_id):
-        raise StageError(f"VM lease contains an invalid run ID: {run_id!r}")
-    return run_id
-
-
 class SSHBackend:
-    """Stateless SSH/rsync transport for a long-lived execution VM."""
+    """Stateless SSH/rsync transport for one selected execution VM."""
 
     def __init__(self, spec: ResolvedSpec, project_root: Path):
         self.spec = spec
         self.project_root = project_root.resolve()
-        self.host = os.environ.get(spec.target.host_env, "").strip()
-        if not self.host:
-            raise ConfigurationError(
-                f"set {spec.target.host_env} to the fixed VM SSH host or alias"
-            )
+        self.target_name = spec.target.profile
+        self.mode = spec.target.mode
+        self.host = self.target_host(spec.target)
         if not SAFE_RUN_ID.fullmatch(spec.run_id):
             raise ConfigurationError(f"unsafe run id: {spec.run_id!r}")
         self.remote_run = PurePosixPath(spec.target.remote_root) / spec.run_id
@@ -66,8 +44,18 @@ class SSHBackend:
         self.remote_cache = PurePosixPath(spec.target.cache_root)
         self.remote_lease = self.remote_cache / "leases" / "active"
 
-    def _ssh(
-        self,
+    @staticmethod
+    def target_host(target: TargetSpec) -> str:
+        host = os.environ.get(target.host_env, "").strip()
+        if not host:
+            raise ConfigurationError(
+                f"set {target.host_env} to the SSH host or alias for target {target.profile!r}"
+            )
+        return host
+
+    @staticmethod
+    def _ssh_host(
+        host: str,
         command: Sequence[str] | str,
         *,
         input_text: str | None = None,
@@ -75,7 +63,7 @@ class SSHBackend:
     ) -> subprocess.CompletedProcess[str]:
         remote = command if isinstance(command, str) else " ".join(shlex.quote(x) for x in command)
         result = subprocess.run(
-            ["ssh", self.host, remote],
+            ["ssh", host, remote],
             input=input_text,
             text=True,
             capture_output=capture,
@@ -86,12 +74,43 @@ class SSHBackend:
             raise StageError(f"remote command failed ({result.returncode}): {detail}")
         return result
 
-    def doctor(self) -> None:
+    @classmethod
+    def active_run_id(cls, target: TargetSpec) -> str | None:
+        """Return the run holding the selected VM's lease, if any."""
+        owner = PurePosixPath(target.cache_root) / "leases" / "active" / "owner"
+        command = f"if [ -f {shlex.quote(str(owner))} ]; then cat {shlex.quote(str(owner))}; fi"
+        result = cls._ssh_host(cls.target_host(target), command, capture=True)
+        run_id = result.stdout.strip()
+        if not run_id:
+            return None
+        if not SAFE_RUN_ID.fullmatch(run_id):
+            raise StageError(f"VM lease contains an invalid run ID: {run_id!r}")
+        return run_id
+
+    @classmethod
+    def doctor_target(cls, target: TargetSpec) -> None:
         checks = (
             "command -v python3 && command -v uv && command -v docker && command -v rsync "
             "&& docker compose version >/dev/null"
         )
-        self._ssh(["sh", "-c", checks])
+        cls._ssh_host(cls.target_host(target), ["sh", "-c", checks])
+
+    def _ssh(
+        self,
+        command: Sequence[str] | str,
+        *,
+        input_text: str | None = None,
+        capture: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        return self._ssh_host(
+            self.host,
+            command,
+            input_text=input_text,
+            capture=capture,
+        )
+
+    def doctor(self) -> None:
+        self.doctor_target(self.spec.target)
 
     def deploy(self, local_run: Path) -> None:
         # Atomic directory creation is the VM-wide single-run lease. A stale lease is deliberately

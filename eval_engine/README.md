@@ -7,8 +7,9 @@ Agent integration is independent from benchmarks. Agent profiles live under `con
 while their invocation adapters live under `agents/`. A benchmark selects a default agent without
 owning that agent's configuration or execution logic.
 
-The execution VM is fixed and long-lived. An administrator provisions it once; operators run the
-CLI locally and keep experiment inputs and retrieved results on their own machine.
+The primary execution VM is fixed and long-lived. Administrators may manually provision temporary
+backup VMs when more capacity is needed; the engine never creates or deletes VMs. Operators run
+the CLI locally, and one experiment may run on each configured VM at a time.
 
 ## Currently supported configurations
 
@@ -212,6 +213,12 @@ The CLI loads the repository-root `.env` automatically and uses `eval_engine/.en
 backwards-compatible fallback for missing names. Existing process environment variables take
 precedence, allowing CI or a secret manager to inject credentials. Both files are ignored by Git.
 
+The committed `primary` target uses `AGENT_BENCH_SSH_HOST`. To add a manually provisioned backup
+VM, create the ignored file `eval_engine/.agent-bench/targets.local.yaml`, then add it under the
+top-level `targets` mapping with `mode: backup`, `backend: ssh`, its `host_env`, `remote_root`, and
+`cache_root`. Set that host environment variable and select it with `--backup NAME`; for example,
+`--backup vm-2`. Local targets cannot replace the built-in primary target.
+
 Do not add `FRIENDLI_API_KEY`. OpenRouter ignores a Friendli key sent with an inference request;
 Friendli BYOK uses the key registered in the OpenRouter workspace dashboard.
 
@@ -223,7 +230,8 @@ uv run agent-bench remote doctor
 
 A successful preflight ends with `remote preflight passed`. It checks SSH and the remote
 availability of `python3`, `uv`, `docker`, Docker Compose, and `rsync`, without calling a model or
-starting a benchmark.
+starting a benchmark. Use `uv run agent-bench remote doctor --backup NAME` to check a configured
+backup VM.
 
 ### 7. Validate a plan
 
@@ -310,7 +318,9 @@ different `--per-task-cost-limit-usd` value is rejected before deployment.
 | `kimi-k3` | `max` | `openrouter` | `OPENROUTER_API_KEY` |
 | `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY`; with `aider-polyglot`, omit `--reasoning-effort` |
 
-Run one experiment at a time. The engine holds a VM-wide lease until completion or cancellation.
+Run one experiment per VM at a time. Each VM holds its own lease until that experiment completes or
+is cancelled. Omit both VM options, or pass `--primary`, to use the primary VM. Concurrent runs can
+select different manually configured VMs with `--backup NAME`.
 
 For a Terminal-Bench smoke without a task-solving deadline, use the corresponding profile and add
 `--no-timeout`. `--no-budget-limit` disables only the run-wide cost watchdog. The official
@@ -356,13 +366,15 @@ Every run prints an ID and stores its local bundle under `runs/<run-id>/`.
 ```bash
 uv run agent-bench status RUN_ID
 uv run agent-bench active
+uv run agent-bench active --backup vm-2
 uv run agent-bench cancel RUN_ID
 uv run agent-bench resume RUN_ID
 uv run agent-bench report RUN_ID
 ```
 
-`active` queries the fixed VM's exclusive lease and prints its run ID, or `no active run` when the
-VM is idle. Use `status RUN_ID` to inspect that run's durable local stage state.
+`active` queries the selected VM's exclusive lease and prints its run ID, or `no active run` when
+the VM is idle. It uses the primary VM by default; pass `--backup NAME` to inspect a backup. Use
+`status RUN_ID` to inspect that run's durable local stage state.
 
 The bundle contains the request, immutable resolved spec, stage state, event log, copied pool, raw
 artifacts, normalized results, and report. `resume` continues from the first incomplete stage.
@@ -425,9 +437,9 @@ argument.
 
 ## Execution VM provisioning
 
-Provision each long-lived VM once. The engine deploys its source and creates its locked Python
-environment automatically, but deliberately does not modify the VM operating system during an
-experiment.
+Provision each VM before selecting it. The engine deploys its source and creates its locked Python
+environment automatically, but deliberately does not create or delete VMs or modify their
+operating systems during an experiment.
 
 ### VM requirements
 

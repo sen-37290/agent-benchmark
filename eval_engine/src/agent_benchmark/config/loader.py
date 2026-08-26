@@ -24,6 +24,60 @@ from agent_benchmark.config.schema import (
 from agent_benchmark.exceptions import ConfigurationError
 
 CONFIG_ROOT = files("agent_benchmark.config")
+LOCAL_TARGETS_PATH = Path(__file__).resolve().parents[3] / ".agent-bench" / "targets.local.yaml"
+
+
+def _local_targets() -> dict[str, dict[str, Any]]:
+    if not LOCAL_TARGETS_PATH.is_file():
+        return {}
+    data = yaml.safe_load(LOCAL_TARGETS_PATH.read_text())
+    if not isinstance(data, dict) or set(data) != {"targets"}:
+        raise ConfigurationError(
+            f"{LOCAL_TARGETS_PATH} must contain exactly one top-level 'targets' mapping"
+        )
+    targets = data["targets"]
+    if not isinstance(targets, dict):
+        raise ConfigurationError(f"{LOCAL_TARGETS_PATH}: 'targets' must be a mapping")
+    result: dict[str, dict[str, Any]] = {}
+    for name, target in targets.items():
+        if not isinstance(name, str) or not name.strip() or not isinstance(target, dict):
+            raise ConfigurationError(
+                f"{LOCAL_TARGETS_PATH}: target names must be non-empty strings with mappings"
+            )
+        result[name.strip()] = target
+    return result
+
+
+def _target_names() -> list[str]:
+    packaged = {
+        p.name.removesuffix(".yaml")
+        for p in CONFIG_ROOT.joinpath("targets").iterdir()
+        if p.name.endswith(".yaml")
+    }
+    local = set(_local_targets())
+    duplicates = packaged & local
+    if duplicates:
+        raise ConfigurationError(
+            f"local targets cannot replace built-in targets: {', '.join(sorted(duplicates))}"
+        )
+    return sorted(packaged | local)
+
+
+def _load_target(name: str) -> dict[str, Any]:
+    local = _local_targets()
+    path = CONFIG_ROOT.joinpath("targets", f"{name}.yaml")
+    if name in local and path.is_file():
+        raise ConfigurationError(f"local targets cannot replace built-in target {name!r}")
+    if name in local:
+        return local[name]
+    if path.is_file():
+        data = yaml.safe_load(path.read_text())
+        if isinstance(data, dict):
+            return data
+        raise ConfigurationError(f"invalid profile: {path}")
+    raise ConfigurationError(
+        f"unknown target profile {name!r}; available: {', '.join(_target_names())}"
+    )
 
 
 def _load_yaml(group: str, name: str) -> dict[str, Any]:
@@ -43,12 +97,13 @@ def _load_yaml(group: str, name: str) -> dict[str, Any]:
 
 def list_profiles() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {}
-    for group in ("agents", "benchmarks", "models", "targets"):
+    for group in ("agents", "benchmarks", "models"):
         result[group] = sorted(
             p.name.removesuffix(".yaml")
             for p in CONFIG_ROOT.joinpath(group).iterdir()
             if p.name.endswith(".yaml")
         )
+    result["targets"] = _target_names()
     return result
 
 
@@ -57,7 +112,7 @@ def benchmark_plugin_name(profile: str) -> str:
 
 
 def target_profile(name: str) -> TargetSpec:
-    return TargetSpec(profile=name, **_load_yaml("targets", name))
+    return TargetSpec(profile=name, **_load_target(name))
 
 
 def _set_dotted(target: dict[str, Any], path: str, value: Any) -> None:
@@ -126,7 +181,7 @@ def resolve(
 ) -> ResolvedSpec:
     benchmark = _load_yaml("benchmarks", request.benchmark)
     model = _load_yaml("models", request.model)
-    target = _load_yaml("targets", request.target)
+    target = target_profile(request.target)
     agent_profile = request.agent or benchmark.get("default_agent")
     if not agent_profile:
         raise ConfigurationError(
@@ -241,7 +296,7 @@ def resolve(
             byok=request.byok,
             config=config,
         ),
-        target=TargetSpec(profile=request.target, **target),
+        target=target,
         execution=ExecutionSpec(
             workers=request.workers,
             no_timeout=request.no_timeout,
