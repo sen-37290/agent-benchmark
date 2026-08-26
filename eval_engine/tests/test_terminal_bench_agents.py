@@ -67,7 +67,16 @@ def test_model_profiles_do_not_select_agents() -> None:
 
 
 @pytest.mark.parametrize("benchmark", ["swebench-verified", "terminal-bench-2.1"])
-def test_glm_5_3_resolves_for_swebench_and_terminal_bench(tmp_path: Path, benchmark: str) -> None:
+@pytest.mark.parametrize(
+    ("model", "model_id"),
+    [
+        ("glm-5.3", "z-ai/glm-5.3"),
+        ("glm-5.3-flash", "z-ai/glm-5.3-flash"),
+    ],
+)
+def test_glm_5_3_profiles_resolve_for_swebench_and_terminal_bench(
+    tmp_path: Path, benchmark: str, model: str, model_id: str
+) -> None:
     pool = tmp_path / "pool.json"
     if benchmark == "terminal-bench-2.1":
         create_pool(pool, "random", 1)
@@ -78,20 +87,20 @@ def test_glm_5_3_resolves_for_swebench_and_terminal_bench(tmp_path: Path, benchm
             benchmark=benchmark,
             sampling="random" if benchmark == "terminal-bench-2.1" else None,
             size=1 if benchmark == "terminal-bench-2.1" else None,
-            model="glm-5.3",
+            model=model,
             reasoning_effort="xhigh",
             provider="openrouter",
             workers=1,
             budget_usd=5,
         ),
-        f"test-glm-5-3-{benchmark}",
+        f"test-{model}-{benchmark}",
         ROOT,
         pool,
     )
 
-    assert spec.model.model_id == "z-ai/glm-5.3"
+    assert spec.model.model_id == model_id
     assert spec.model.api == "openrouter"
-    assert spec.model.config["model"]["model_name"] == "z-ai/glm-5.3"
+    assert spec.model.config["model"]["model_name"] == model_id
     assert spec.model.config["model"]["model_kwargs"]["reasoning"] == {"effort": "xhigh"}
 
 
