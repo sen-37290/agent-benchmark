@@ -44,10 +44,10 @@ benchmark profile.
 | `terminal-bench-2.1` | Supported | Supported (default) | Not supported |
 | `aider-polyglot` | Not supported | Not supported | Supported (default; officially comparable only for a complete official run) |
 
-The configured model profiles—`glm-5.2`, `glm-5.3`, `kimi-k3`, and `opus-5`—can be paired with the supported
-SWE-bench and Terminal-Bench agent combinations. Kimi intentionally routes through OpenRouter to
-MoonshotAI rather than Friendli. The pinned Aider stack has the Opus-specific limitation documented
-below.
+The configured model profiles—`glm-5.2`, `glm-5.3`, `glm-5.3-flash`, `kimi-k3`, and `opus-5`—can
+be paired with the supported SWE-bench and Terminal-Bench agent combinations. Kimi intentionally
+routes through OpenRouter to MoonshotAI rather than Friendli. The pinned Aider stack has the
+Opus-specific limitation documented below.
 
 In detail, `swebench-verified` invokes the official `mini-extra swebench` batch runner directly;
 `swebench-verified-harbor` and Terminal-Bench use Harbor; Aider Polyglot uses the benchmark-owned
@@ -67,16 +67,19 @@ Current validation status is narrower than the supported interface: the Harbor-b
 path and Terminal-Bench with Terminus 2 have completed real VM end-to-end runs. The official native
 SWE-bench path has completed a Kimi K3 end-to-end smoke through submission, official grading,
 normalization, reporting, and cleanup; its conformance checker passed all config, patch provenance,
-and grading-hygiene checks. Aider Polyglot has catalog, pool, command, transport, result, and mocked integration
-coverage plus real-VM smoke results for GLM, Kimi, and Opus. These samples validate integration,
-not benchmark quality or official leaderboard comparability.
+and grading-hygiene checks. GLM 5.3 Flash also completed that end-to-end path at `xhigh`: all 16
+assistant responses identified `z-ai/glm-5.3-flash` from provider `Z.AI`, 13 included reasoning
+details, and the submitted task had no model-call error. Aider Polyglot has catalog, pool, command,
+transport, result, and mocked integration coverage plus real-VM smoke results for GLM, Kimi, and
+Opus. These samples validate integration, not benchmark quality or official leaderboard
+comparability.
 
-| CLI profile | `glm-5.2` | `glm-5.3` | `kimi-k3` | `opus-5` |
-|---|---|---|---|---|
-| `swebench-verified` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
-| `swebench-verified-harbor` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
-| `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
-| `aider-polyglot` | Supported; `high` VM verified | Configured via OpenRouter; not VM verified | Supported; `high` VM verified | Supported; provider-default effort VM verified |
+| CLI profile | `glm-5.2` | `glm-5.3` | `glm-5.3-flash` | `kimi-k3` | `opus-5` |
+|---|---|---|---|---|---|
+| `swebench-verified` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | `xhigh` VM verified via OpenRouter; `high` supported | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `swebench-verified-harbor` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `terminal-bench-2.1` | Supported; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported via OpenRouter; `high`, `xhigh` | Supported; `low`, `high`, `max` | Supported; `low`, `medium`, `high`, `xhigh`, `max` |
+| `aider-polyglot` | Supported; `high` VM verified | Configured via OpenRouter; not VM verified | Configured via OpenRouter; not VM verified | Supported; `high` VM verified | Supported; provider-default effort VM verified |
 
 Effort values in the first three rows are accepted by the model profile and passed to the selected
 agent. They do not claim that every benchmark-model-effort combination has completed a paid VM
@@ -104,8 +107,8 @@ MoonshotAI BYOK key, but that requires workspace configuration and must be confi
 OpenRouter response metadata; the recorded smoke test used shared capacity.
 
 For GLM 5.2, `--provider friendli --byok` verifies that the request is restricted to Friendli and
-that provider fallback is disabled. GLM 5.3 currently uses the OpenRouter route. OpenRouter selects
-registered BYOK keys at the workspace layer, but
+that provider fallback is disabled. The GLM 5.3 profiles currently use the OpenRouter route.
+OpenRouter selects registered BYOK keys at the workspace layer, but
 the pinned Aider result does not retain OpenRouter's final `is_byok` routing metadata. Confirm
 actual key use in the OpenRouter Activity raw metadata (`is_byok: true`) and enable the workspace's
 always-use setting when shared capacity must never be used.
@@ -131,7 +134,7 @@ Obtain:
 - Read access to this repository
 - SSH access to the provisioned execution VM
 - The VM target as `user@host`, or an approved SSH alias
-- An OpenRouter API key for GLM-5.2, GLM-5.3, or Kimi-K3
+- An OpenRouter API key for GLM-5.2, GLM-5.3, GLM-5.3 Flash, or Kimi-K3
 - An Anthropic API key for Opus 5
 - For Friendli BYOK, a Friendli key registered in the OpenRouter workspace dashboard
 
@@ -303,6 +306,7 @@ different `--per-task-cost-limit-usd` value is rejected before deployment.
 |---|---|---|---|
 | `glm-5.2` | `xhigh` | `friendli --byok` | `OPENROUTER_API_KEY` |
 | `glm-5.3` | `xhigh` | `openrouter` | `OPENROUTER_API_KEY` |
+| `glm-5.3-flash` | `xhigh` | `openrouter` | `OPENROUTER_API_KEY` |
 | `kimi-k3` | `max` | `openrouter` | `OPENROUTER_API_KEY` |
 | `opus-5` | `max` | `anthropic` | `ANTHROPIC_API_KEY`; with `aider-polyglot`, omit `--reasoning-effort` |
 

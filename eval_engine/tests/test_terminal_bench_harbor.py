@@ -147,6 +147,12 @@ def test_resumes_existing_native_job(tmp_path: Path) -> None:
     ("model", "effort", "provider", "expected_model"),
     [
         ("glm-5.3", "xhigh", "openrouter", "openrouter/z-ai/glm-5.3"),
+        (
+            "glm-5.3-flash",
+            "xhigh",
+            "openrouter",
+            "openrouter/z-ai/glm-5.3-flash",
+        ),
         ("kimi-k3", "max", "openrouter", "openrouter/moonshotai/kimi-k3"),
         ("opus-5", "max", "anthropic", "anthropic/claude-opus-5"),
     ],
@@ -187,6 +193,7 @@ def test_terminus_model_transport(
     [
         ("glm-5.2", "openrouter/z-ai/glm-5.2"),
         ("glm-5.3", "openrouter/z-ai/glm-5.3"),
+        ("glm-5.3-flash", "openrouter/z-ai/glm-5.3-flash"),
     ],
 )
 def test_swebench_runs_terminus_with_local_dataset(
