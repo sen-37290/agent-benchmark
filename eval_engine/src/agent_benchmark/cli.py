@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import tempfile
 import uuid
 from datetime import UTC, datetime
@@ -23,7 +21,7 @@ from agent_benchmark.config.loader import (
 from agent_benchmark.config.schema import UserRequest
 from agent_benchmark.exceptions import AgentBenchError
 from agent_benchmark.run.pipeline import Pipeline
-from agent_benchmark.run.remote import active_run_id
+from agent_benchmark.run.remote import SSHBackend
 from agent_benchmark.run.result import read_results, write_report, write_results
 from agent_benchmark.run.store import RunStore
 from agent_benchmark.run.worker import create_manifest, run_stage
@@ -34,7 +32,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 profiles_app = typer.Typer(help="Inspect registered profiles.")
-remote_app = typer.Typer(help="Inspect the fixed execution VM.")
+remote_app = typer.Typer(help="Inspect a configured execution VM.")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(remote_app, name="remote")
 
@@ -82,6 +80,22 @@ def _request(
         error_retries=error_retries,
         target=target,
     )
+
+
+def _selected_target(primary: bool, backup: str | None) -> str:
+    if primary and backup is not None:
+        raise typer.BadParameter("use either --primary or --backup NAME, not both")
+    name = "primary" if backup is None else backup.strip()
+    if not name:
+        raise typer.BadParameter("--backup requires a non-empty target name")
+    target = target_profile(name)
+    expected_mode = "primary" if backup is None else "backup"
+    if target.mode != expected_mode:
+        option = "--primary" if expected_mode == "primary" else "--backup"
+        raise typer.BadParameter(
+            f"target {name!r} has mode {target.mode!r} and cannot be selected with {option}"
+        )
+    return name
 
 
 def _new_run_id(benchmark: str, model: str) -> str:
@@ -147,7 +161,12 @@ def plan(
             ),
         ),
     ] = None,
-    target: Annotated[str, typer.Option()] = "fixed-vm",
+    primary: Annotated[
+        bool, typer.Option("--primary", help="Use the primary execution VM (the default).")
+    ] = False,
+    backup: Annotated[
+        str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
+    ] = None,
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
     request = _request(
@@ -166,7 +185,7 @@ def plan(
         per_task_cost_limit_usd,
         no_timeout,
         error_retries,
-        target,
+        _selected_target(primary, backup),
     )
     run_id = _new_run_id(benchmark, model)
     with tempfile.TemporaryDirectory(prefix="agent-bench-plan-") as temporary:
@@ -217,7 +236,12 @@ def run(
             ),
         ),
     ] = None,
-    target: Annotated[str, typer.Option()] = "fixed-vm",
+    primary: Annotated[
+        bool, typer.Option("--primary", help="Use the primary execution VM (the default).")
+    ] = False,
+    backup: Annotated[
+        str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
+    ] = None,
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:
     """Create and execute a complete benchmark run."""
@@ -237,7 +261,7 @@ def run(
         per_task_cost_limit_usd,
         no_timeout,
         error_retries,
-        target,
+        _selected_target(primary, backup),
     )
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")
@@ -286,14 +310,16 @@ def status(
 
 @app.command()
 def active(
-    target: Annotated[str, typer.Option()] = "fixed-vm",
+    primary: Annotated[
+        bool, typer.Option("--primary", help="Inspect the primary execution VM (the default).")
+    ] = False,
+    backup: Annotated[
+        str | None, typer.Option("--backup", metavar="NAME", help="Inspect a named backup VM.")
+    ] = None,
 ) -> None:
     """Show the run ID holding the execution VM lease, if any."""
-    target_spec = target_profile(target)
-    host = os.environ.get(target_spec.host_env, "").strip()
-    if not host:
-        raise typer.BadParameter(f"set {target_spec.host_env}")
-    run_id = active_run_id(host, target_spec.cache_root)
+    target_spec = target_profile(_selected_target(primary, backup))
+    run_id = SSHBackend.active_run_id(target_spec)
     typer.echo(run_id if run_id else "no active run")
 
 
@@ -336,20 +362,16 @@ def profiles_list() -> None:
 
 @remote_app.command("doctor")
 def remote_doctor(
-    target: Annotated[str, typer.Option()] = "fixed-vm",
+    primary: Annotated[
+        bool, typer.Option("--primary", help="Check the primary execution VM (the default).")
+    ] = False,
+    backup: Annotated[
+        str | None, typer.Option("--backup", metavar="NAME", help="Check a named backup VM.")
+    ] = None,
 ) -> None:
     """Check SSH connectivity and required VM executables without changing the VM."""
-    del target  # v1 has one SSH target; target profiles remain the extension point.
-    host = os.environ.get("AGENT_BENCH_SSH_HOST", "").strip()
-    if not host:
-        raise typer.BadParameter("set AGENT_BENCH_SSH_HOST")
-    checks = (
-        "command -v python3 && command -v uv && command -v docker && command -v rsync "
-        "&& docker compose version >/dev/null"
-    )
-    result = subprocess.run(["ssh", host, checks], check=False)
-    if result.returncode:
-        raise typer.Exit(result.returncode)
+    target_spec = target_profile(_selected_target(primary, backup))
+    SSHBackend.doctor_target(target_spec)
     typer.echo("remote preflight passed")
 
 
