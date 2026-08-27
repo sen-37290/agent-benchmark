@@ -116,44 +116,39 @@ class CyberGym(BenchmarkPlugin):
         expected = {"task_ids": sorted(ids), "level": "level1", "revision": DATASET_REVISION}
         if marker.is_file() and json.loads(marker.read_text()) == expected:
             return
-        dataset = data_root / "dataset"
-        if not (dataset / ".git").is_dir():
-            run_logged(
-                [
-                    "git",
-                    "clone",
-                    "--filter=blob:none",
-                    "--no-checkout",
-                    "https://huggingface.co/datasets/sunblaze-ucb/cybergym",
-                    str(dataset),
-                ],
-                cwd=data_root,
-                log_path=log,
-            )
-        patterns = ["tasks.json"]
+        # Fetch immutable files directly from the pinned Hugging Face revision.  The
+        # dataset repository uses Git LFS/promisor objects; direct resolves avoid
+        # intermittent partial-clone failures while retaining exact revision pins.
+        base = f"https://huggingface.co/datasets/sunblaze-ucb/cybergym/resolve/{DATASET_REVISION}"
+        run_logged(
+            [
+                "wget",
+                "-q",
+                "--show-progress",
+                "-O",
+                str(data_root / "tasks.json"),
+                f"{base}/tasks.json",
+            ],
+            cwd=data_root,
+            log_path=log,
+        )
         for task_id in ids:
             family, ident = task_id.split(":", 1)
-            patterns.extend(
-                [f"data/{family}/{ident}/repo-vul.tar.gz", f"data/{family}/{ident}/description.txt"]
-            )
-        run_logged(
-            ["git", "-C", str(dataset), "sparse-checkout", "init", "--no-cone"],
-            cwd=data_root,
-            log_path=log,
-        )
-        run_logged(
-            ["git", "-C", str(dataset), "sparse-checkout", "set", *patterns],
-            cwd=data_root,
-            log_path=log,
-        )
-        run_logged(
-            ["git", "-C", str(dataset), "checkout", DATASET_REVISION], cwd=data_root, log_path=log
-        )
-        run_logged(
-            ["git", "-C", str(dataset), "lfs", "pull", "--include", ",".join(patterns)],
-            cwd=data_root,
-            log_path=log,
-        )
+            destination = data_root / family / ident
+            destination.mkdir(parents=True, exist_ok=True)
+            for filename in ("repo-vul.tar.gz", "description.txt"):
+                run_logged(
+                    [
+                        "wget",
+                        "-q",
+                        "--show-progress",
+                        "-O",
+                        str(destination / filename),
+                        f"{base}/data/{family}/{ident}/{filename}",
+                    ],
+                    cwd=data_root,
+                    log_path=log,
+                )
         marker.write_text(json.dumps(expected, indent=2) + "\n")
 
     @staticmethod
