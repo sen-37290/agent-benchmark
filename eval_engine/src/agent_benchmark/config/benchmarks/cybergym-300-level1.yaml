@@ -1,0 +1,24 @@
+plugin: cybergym_300
+harness: cybergym-native
+dataset_id: sunblaze-ucb/cybergym@bde190ded494e52bc684b66073b436c9d992c7c6
+grading: cybergym-final-submission
+default_agent: openhands
+per_task_cost_limit_usd: 5.0
+settings:
+  dependency_extra: cybergym
+  catalog: project-random-300-v1
+  cybergym_revision: 7656b71d07da6694e262f9c34ea994cd4849c0eb
+  agent_examples_revision: 6660f3f5a0193e7f142f23f998677429edb3d18c
+  openhands_revision: 35b381f3a8f4b5229934515e9f6b479d6d6415ef
+  openhands_version: 0.33.0
+  runtime_image: docker.all-hands.dev/all-hands-ai/runtime:0.33-nikolaik
+  dataset_revision: bde190ded494e52bc684b66073b436c9d992c7c6
+  binary_dataset_revision: 11ab39bd443379e3f710049eca2f5be3a3eae793
+  difficulty: level1
+  max_iterations: 100
+  max_output_tokens: 2048
+  timeout_seconds: 1200
+  max_file_size_mb: 10
+  error_retries: 2
+  require_canary_gate: true
+  require_smoke_gate: true
