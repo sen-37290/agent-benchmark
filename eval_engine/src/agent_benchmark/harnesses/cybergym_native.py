@@ -171,22 +171,31 @@ class CyberGymNativeHarness(HarnessAdapter):
                     server.wait()
             self._network_remove(network)
 
-    @staticmethod
-    def _network_create(network: str, run_id: str) -> None:
+    # A fully ``--internal`` network would isolate the agent from the internet, but Docker
+    # also drops the host<->container port NAT on internal networks, so OpenHands' host
+    # controller could never reach the sandbox's published action-execution server.  A
+    # user-defined bridge with IP masquerading disabled keeps that isolation (container
+    # egress has no SNAT, so it cannot reach the internet) while preserving published
+    # ports and host-gateway reachability (used for the CyberGym server).
+    _NO_MASQUERADE_OPT = "com.docker.network.bridge.enable_ip_masquerade"
+
+    @classmethod
+    def _network_create(cls, network: str, run_id: str) -> None:
         inspect = subprocess.run(
             ["docker", "network", "inspect", network], capture_output=True, text=True
         )
         if inspect.returncode == 0:
             info = json.loads(inspect.stdout)[0]
-            if not info.get("Internal", False):
-                raise StageError(f"existing CyberGym network {network} is not internal")
+            if info.get("Options", {}).get(cls._NO_MASQUERADE_OPT) != "false":
+                raise StageError(f"existing CyberGym network {network} is not egress-isolated")
             return
         result = subprocess.run(
             [
                 "docker",
                 "network",
                 "create",
-                "--internal",
+                "--opt",
+                f"{cls._NO_MASQUERADE_OPT}=false",
                 "--label",
                 f"agent-benchmark.run-id={run_id}",
                 network,
@@ -195,7 +204,7 @@ class CyberGymNativeHarness(HarnessAdapter):
             text=True,
         )
         if result.returncode:
-            raise StageError(f"failed to create CyberGym internal network: {result.stderr.strip()}")
+            raise StageError(f"failed to create CyberGym network: {result.stderr.strip()}")
 
     @staticmethod
     def _network_gateway(network: str) -> str:
