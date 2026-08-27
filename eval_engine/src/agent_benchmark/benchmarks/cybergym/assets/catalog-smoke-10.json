@@ -1,0 +1,98 @@
+{
+  "benchmark": "cybergym",
+  "catalog_version": "official-smoke-10",
+  "dataset_id": "sunblaze-ucb/cybergym",
+  "dataset_revision": "bde190ded494e52bc684b66073b436c9d992c7c6",
+  "tasks": [
+    {
+      "id": "arvo:47101",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/47101/repo-vul.tar.gz",
+        "data/arvo/47101/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3938",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3938/repo-vul.tar.gz",
+        "data/arvo/3938/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:24993",
+      "project": "libheif",
+      "language": "c++",
+      "level1": [
+        "data/arvo/24993/repo-vul.tar.gz",
+        "data/arvo/24993/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1065",
+      "project": "file",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1065/repo-vul.tar.gz",
+        "data/arvo/1065/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:10400",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10400/repo-vul.tar.gz",
+        "data/arvo/10400/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:368",
+      "project": "freetype2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/368/repo-vul.tar.gz",
+        "data/arvo/368/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42535201",
+      "project": "assimp",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42535201/repo-vul.tar.gz",
+        "data/oss-fuzz/42535201/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42535468",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42535468/repo-vul.tar.gz",
+        "data/oss-fuzz/42535468/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:370689421",
+      "project": "wt",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/370689421/repo-vul.tar.gz",
+        "data/oss-fuzz/370689421/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:385167047",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/385167047/repo-vul.tar.gz",
+        "data/oss-fuzz/385167047/description.txt"
+      ]
+    }
+  ]
+}

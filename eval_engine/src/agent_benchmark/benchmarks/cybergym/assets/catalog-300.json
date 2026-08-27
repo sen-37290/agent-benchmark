@@ -1,0 +1,2713 @@
+{
+  "benchmark": "cybergym",
+  "catalog_version": "project-random-300-v1",
+  "dataset_id": "sunblaze-ucb/cybergym",
+  "dataset_revision": "bde190ded494e52bc684b66073b436c9d992c7c6",
+  "selection": {
+    "algorithm": "sha256-rank",
+    "seed": 42,
+    "domain": "cybergym-300-v1"
+  },
+  "tasks": [
+    {
+      "id": "arvo:10147",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10147/repo-vul.tar.gz",
+        "data/arvo/10147/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:10306",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10306/repo-vul.tar.gz",
+        "data/arvo/10306/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:10341",
+      "project": "harfbuzz",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10341/repo-vul.tar.gz",
+        "data/arvo/10341/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:10710",
+      "project": "openvswitch",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10710/repo-vul.tar.gz",
+        "data/arvo/10710/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:10864",
+      "project": "wpantund",
+      "language": "c++",
+      "level1": [
+        "data/arvo/10864/repo-vul.tar.gz",
+        "data/arvo/10864/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:11033",
+      "project": "harfbuzz",
+      "language": "c++",
+      "level1": [
+        "data/arvo/11033/repo-vul.tar.gz",
+        "data/arvo/11033/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:11248",
+      "project": "poppler",
+      "language": "c++",
+      "level1": [
+        "data/arvo/11248/repo-vul.tar.gz",
+        "data/arvo/11248/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:11429",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/11429/repo-vul.tar.gz",
+        "data/arvo/11429/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:11435",
+      "project": "open62541",
+      "language": "c++",
+      "level1": [
+        "data/arvo/11435/repo-vul.tar.gz",
+        "data/arvo/11435/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:11945",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/11945/repo-vul.tar.gz",
+        "data/arvo/11945/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:12255",
+      "project": "openvswitch",
+      "language": "c++",
+      "level1": [
+        "data/arvo/12255/repo-vul.tar.gz",
+        "data/arvo/12255/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1237",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1237/repo-vul.tar.gz",
+        "data/arvo/1237/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:12797",
+      "project": "poppler",
+      "language": "c++",
+      "level1": [
+        "data/arvo/12797/repo-vul.tar.gz",
+        "data/arvo/12797/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:12817",
+      "project": "libarchive",
+      "language": "c++",
+      "level1": [
+        "data/arvo/12817/repo-vul.tar.gz",
+        "data/arvo/12817/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:12818",
+      "project": "kimageformats",
+      "language": "c++",
+      "level1": [
+        "data/arvo/12818/repo-vul.tar.gz",
+        "data/arvo/12818/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:13249",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/13249/repo-vul.tar.gz",
+        "data/arvo/13249/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1337",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1337/repo-vul.tar.gz",
+        "data/arvo/1337/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:13467",
+      "project": "capstone",
+      "language": "c++",
+      "level1": [
+        "data/arvo/13467/repo-vul.tar.gz",
+        "data/arvo/13467/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1348",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1348/repo-vul.tar.gz",
+        "data/arvo/1348/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:13530",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/13530/repo-vul.tar.gz",
+        "data/arvo/13530/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:13725",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/13725/repo-vul.tar.gz",
+        "data/arvo/13725/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:13741",
+      "project": "openthread",
+      "language": "c++",
+      "level1": [
+        "data/arvo/13741/repo-vul.tar.gz",
+        "data/arvo/13741/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14455",
+      "project": "lwan",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14455/repo-vul.tar.gz",
+        "data/arvo/14455/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14481",
+      "project": "net-snmp",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14481/repo-vul.tar.gz",
+        "data/arvo/14481/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14560",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14560/repo-vul.tar.gz",
+        "data/arvo/14560/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14574",
+      "project": "libarchive",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14574/repo-vul.tar.gz",
+        "data/arvo/14574/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14582",
+      "project": "lwan",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14582/repo-vul.tar.gz",
+        "data/arvo/14582/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1473",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1473/repo-vul.tar.gz",
+        "data/arvo/1473/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:14935",
+      "project": "libspng",
+      "language": "c++",
+      "level1": [
+        "data/arvo/14935/repo-vul.tar.gz",
+        "data/arvo/14935/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1639",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1639/repo-vul.tar.gz",
+        "data/arvo/1639/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:16442",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/16442/repo-vul.tar.gz",
+        "data/arvo/16442/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:16541",
+      "project": "zstd",
+      "language": "c++",
+      "level1": [
+        "data/arvo/16541/repo-vul.tar.gz",
+        "data/arvo/16541/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:16972",
+      "project": "libfdk-aac",
+      "language": "c++",
+      "level1": [
+        "data/arvo/16972/repo-vul.tar.gz",
+        "data/arvo/16972/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:17607",
+      "project": "poppler",
+      "language": "c++",
+      "level1": [
+        "data/arvo/17607/repo-vul.tar.gz",
+        "data/arvo/17607/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:17737",
+      "project": "libxml2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/17737/repo-vul.tar.gz",
+        "data/arvo/17737/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:18140",
+      "project": "jsoncpp",
+      "language": "c++",
+      "level1": [
+        "data/arvo/18140/repo-vul.tar.gz",
+        "data/arvo/18140/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:18321",
+      "project": "radare2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/18321/repo-vul.tar.gz",
+        "data/arvo/18321/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:18449",
+      "project": "karchive",
+      "language": "c++",
+      "level1": [
+        "data/arvo/18449/repo-vul.tar.gz",
+        "data/arvo/18449/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:18615",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/18615/repo-vul.tar.gz",
+        "data/arvo/18615/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:18868",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/18868/repo-vul.tar.gz",
+        "data/arvo/18868/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19013",
+      "project": "lwan",
+      "language": "c++",
+      "level1": [
+        "data/arvo/19013/repo-vul.tar.gz",
+        "data/arvo/19013/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19039",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/19039/repo-vul.tar.gz",
+        "data/arvo/19039/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19385",
+      "project": "samba",
+      "language": "c",
+      "level1": [
+        "data/arvo/19385/repo-vul.tar.gz",
+        "data/arvo/19385/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19414",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/19414/repo-vul.tar.gz",
+        "data/arvo/19414/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19426",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/19426/repo-vul.tar.gz",
+        "data/arvo/19426/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19463",
+      "project": "samba",
+      "language": "c",
+      "level1": [
+        "data/arvo/19463/repo-vul.tar.gz",
+        "data/arvo/19463/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:1976",
+      "project": "libxml2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/1976/repo-vul.tar.gz",
+        "data/arvo/1976/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:19956",
+      "project": "harfbuzz",
+      "language": "c++",
+      "level1": [
+        "data/arvo/19956/repo-vul.tar.gz",
+        "data/arvo/19956/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:20652",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/20652/repo-vul.tar.gz",
+        "data/arvo/20652/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:20775",
+      "project": "openthread",
+      "language": "c++",
+      "level1": [
+        "data/arvo/20775/repo-vul.tar.gz",
+        "data/arvo/20775/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:20800",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/20800/repo-vul.tar.gz",
+        "data/arvo/20800/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:20905",
+      "project": "njs",
+      "language": "c++",
+      "level1": [
+        "data/arvo/20905/repo-vul.tar.gz",
+        "data/arvo/20905/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:21299",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/21299/repo-vul.tar.gz",
+        "data/arvo/21299/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:21309",
+      "project": "ndpi",
+      "language": "c++",
+      "level1": [
+        "data/arvo/21309/repo-vul.tar.gz",
+        "data/arvo/21309/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:21327",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/21327/repo-vul.tar.gz",
+        "data/arvo/21327/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:21359",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/21359/repo-vul.tar.gz",
+        "data/arvo/21359/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:21638",
+      "project": "libspectre",
+      "language": "c++",
+      "level1": [
+        "data/arvo/21638/repo-vul.tar.gz",
+        "data/arvo/21638/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:22427",
+      "project": "pcapplusplus",
+      "language": "c++",
+      "level1": [
+        "data/arvo/22427/repo-vul.tar.gz",
+        "data/arvo/22427/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:22507",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/22507/repo-vul.tar.gz",
+        "data/arvo/22507/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:22528",
+      "project": "pcapplusplus",
+      "language": "c++",
+      "level1": [
+        "data/arvo/22528/repo-vul.tar.gz",
+        "data/arvo/22528/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:22979",
+      "project": "libraw",
+      "language": "c++",
+      "level1": [
+        "data/arvo/22979/repo-vul.tar.gz",
+        "data/arvo/22979/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:23077",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/23077/repo-vul.tar.gz",
+        "data/arvo/23077/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:23296",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/23296/repo-vul.tar.gz",
+        "data/arvo/23296/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:23816",
+      "project": "glib",
+      "language": "c++",
+      "level1": [
+        "data/arvo/23816/repo-vul.tar.gz",
+        "data/arvo/23816/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:24020",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/24020/repo-vul.tar.gz",
+        "data/arvo/24020/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:24055",
+      "project": "libxml2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/24055/repo-vul.tar.gz",
+        "data/arvo/24055/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:24157",
+      "project": "ots",
+      "language": "c++",
+      "level1": [
+        "data/arvo/24157/repo-vul.tar.gz",
+        "data/arvo/24157/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:25341",
+      "project": "assimp",
+      "language": "c++",
+      "level1": [
+        "data/arvo/25341/repo-vul.tar.gz",
+        "data/arvo/25341/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:25384",
+      "project": "php",
+      "language": "c++",
+      "level1": [
+        "data/arvo/25384/repo-vul.tar.gz",
+        "data/arvo/25384/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:25473",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/25473/repo-vul.tar.gz",
+        "data/arvo/25473/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:2623",
+      "project": "h2o",
+      "language": "c++",
+      "level1": [
+        "data/arvo/2623/repo-vul.tar.gz",
+        "data/arvo/2623/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:27025",
+      "project": "fluent-bit",
+      "language": "c++",
+      "level1": [
+        "data/arvo/27025/repo-vul.tar.gz",
+        "data/arvo/27025/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:27480",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/27480/repo-vul.tar.gz",
+        "data/arvo/27480/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:27812",
+      "project": "c-blosc2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/27812/repo-vul.tar.gz",
+        "data/arvo/27812/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:27961",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/27961/repo-vul.tar.gz",
+        "data/arvo/27961/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:28216",
+      "project": "uwebsockets",
+      "language": "c++",
+      "level1": [
+        "data/arvo/28216/repo-vul.tar.gz",
+        "data/arvo/28216/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:28383",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/28383/repo-vul.tar.gz",
+        "data/arvo/28383/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:28462",
+      "project": "selinux",
+      "language": "c",
+      "level1": [
+        "data/arvo/28462/repo-vul.tar.gz",
+        "data/arvo/28462/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:28750",
+      "project": "arrow",
+      "language": "c++",
+      "level1": [
+        "data/arvo/28750/repo-vul.tar.gz",
+        "data/arvo/28750/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:29185",
+      "project": "wolfssl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/29185/repo-vul.tar.gz",
+        "data/arvo/29185/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:29538",
+      "project": "php",
+      "language": "c++",
+      "level1": [
+        "data/arvo/29538/repo-vul.tar.gz",
+        "data/arvo/29538/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:29633",
+      "project": "fio",
+      "language": "c++",
+      "level1": [
+        "data/arvo/29633/repo-vul.tar.gz",
+        "data/arvo/29633/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:29912",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/29912/repo-vul.tar.gz",
+        "data/arvo/29912/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30217",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30217/repo-vul.tar.gz",
+        "data/arvo/30217/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30339",
+      "project": "wolfssl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30339/repo-vul.tar.gz",
+        "data/arvo/30339/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30403",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30403/repo-vul.tar.gz",
+        "data/arvo/30403/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30507",
+      "project": "serenity",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30507/repo-vul.tar.gz",
+        "data/arvo/30507/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30921",
+      "project": "serenity",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30921/repo-vul.tar.gz",
+        "data/arvo/30921/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30983",
+      "project": "ots",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30983/repo-vul.tar.gz",
+        "data/arvo/30983/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:30999",
+      "project": "php",
+      "language": "c++",
+      "level1": [
+        "data/arvo/30999/repo-vul.tar.gz",
+        "data/arvo/30999/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:31250",
+      "project": "sudoers",
+      "language": "c",
+      "level1": [
+        "data/arvo/31250/repo-vul.tar.gz",
+        "data/arvo/31250/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:31332",
+      "project": "md4c",
+      "language": "c",
+      "level1": [
+        "data/arvo/31332/repo-vul.tar.gz",
+        "data/arvo/31332/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:31501",
+      "project": "kimageformats",
+      "language": "c++",
+      "level1": [
+        "data/arvo/31501/repo-vul.tar.gz",
+        "data/arvo/31501/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:32029",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/32029/repo-vul.tar.gz",
+        "data/arvo/32029/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:32356",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/32356/repo-vul.tar.gz",
+        "data/arvo/32356/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:32521",
+      "project": "lxc",
+      "language": "c",
+      "level1": [
+        "data/arvo/32521/repo-vul.tar.gz",
+        "data/arvo/32521/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:32663",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/32663/repo-vul.tar.gz",
+        "data/arvo/32663/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:33059",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/33059/repo-vul.tar.gz",
+        "data/arvo/33059/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:33474",
+      "project": "geos",
+      "language": "c++",
+      "level1": [
+        "data/arvo/33474/repo-vul.tar.gz",
+        "data/arvo/33474/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:33576",
+      "project": "selinux",
+      "language": "c",
+      "level1": [
+        "data/arvo/33576/repo-vul.tar.gz",
+        "data/arvo/33576/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3411",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3411/repo-vul.tar.gz",
+        "data/arvo/3411/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:34299",
+      "project": "espeak-ng",
+      "language": "c++",
+      "level1": [
+        "data/arvo/34299/repo-vul.tar.gz",
+        "data/arvo/34299/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:35109",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/35109/repo-vul.tar.gz",
+        "data/arvo/35109/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:35140",
+      "project": "njs",
+      "language": "c++",
+      "level1": [
+        "data/arvo/35140/repo-vul.tar.gz",
+        "data/arvo/35140/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3531",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3531/repo-vul.tar.gz",
+        "data/arvo/3531/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:36861",
+      "project": "spice-usbredir",
+      "language": "c++",
+      "level1": [
+        "data/arvo/36861/repo-vul.tar.gz",
+        "data/arvo/36861/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:36930",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/36930/repo-vul.tar.gz",
+        "data/arvo/36930/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:36955",
+      "project": "sleuthkit",
+      "language": "c++",
+      "level1": [
+        "data/arvo/36955/repo-vul.tar.gz",
+        "data/arvo/36955/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:37151",
+      "project": "knot-dns",
+      "language": "c++",
+      "level1": [
+        "data/arvo/37151/repo-vul.tar.gz",
+        "data/arvo/37151/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:37687",
+      "project": "libgd",
+      "language": "c++",
+      "level1": [
+        "data/arvo/37687/repo-vul.tar.gz",
+        "data/arvo/37687/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:38156",
+      "project": "icu",
+      "language": "c++",
+      "level1": [
+        "data/arvo/38156/repo-vul.tar.gz",
+        "data/arvo/38156/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:38347",
+      "project": "flac",
+      "language": "c++",
+      "level1": [
+        "data/arvo/38347/repo-vul.tar.gz",
+        "data/arvo/38347/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:38751",
+      "project": "libarchive",
+      "language": "c++",
+      "level1": [
+        "data/arvo/38751/repo-vul.tar.gz",
+        "data/arvo/38751/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:38870",
+      "project": "assimp",
+      "language": "c++",
+      "level1": [
+        "data/arvo/38870/repo-vul.tar.gz",
+        "data/arvo/38870/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:38943",
+      "project": "gdbm",
+      "language": "c",
+      "level1": [
+        "data/arvo/38943/repo-vul.tar.gz",
+        "data/arvo/38943/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3938",
+      "project": "yara",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3938/repo-vul.tar.gz",
+        "data/arvo/3938/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3940",
+      "project": "proj4",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3940/repo-vul.tar.gz",
+        "data/arvo/3940/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:3956",
+      "project": "curl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/3956/repo-vul.tar.gz",
+        "data/arvo/3956/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:40087",
+      "project": "ndpi",
+      "language": "c++",
+      "level1": [
+        "data/arvo/40087/repo-vul.tar.gz",
+        "data/arvo/40087/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:41073",
+      "project": "opensips",
+      "language": "c",
+      "level1": [
+        "data/arvo/41073/repo-vul.tar.gz",
+        "data/arvo/41073/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:41143",
+      "project": "arrow",
+      "language": "c++",
+      "level1": [
+        "data/arvo/41143/repo-vul.tar.gz",
+        "data/arvo/41143/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:41235",
+      "project": "libjxl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/41235/repo-vul.tar.gz",
+        "data/arvo/41235/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:41356",
+      "project": "geos",
+      "language": "c++",
+      "level1": [
+        "data/arvo/41356/repo-vul.tar.gz",
+        "data/arvo/41356/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42123",
+      "project": "tinygltf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42123/repo-vul.tar.gz",
+        "data/arvo/42123/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42268",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42268/repo-vul.tar.gz",
+        "data/arvo/42268/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42560",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42560/repo-vul.tar.gz",
+        "data/arvo/42560/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42613",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42613/repo-vul.tar.gz",
+        "data/arvo/42613/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42616",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42616/repo-vul.tar.gz",
+        "data/arvo/42616/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42633",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42633/repo-vul.tar.gz",
+        "data/arvo/42633/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:42639",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/42639/repo-vul.tar.gz",
+        "data/arvo/42639/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:4322",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/4322/repo-vul.tar.gz",
+        "data/arvo/4322/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:43365",
+      "project": "zstd",
+      "language": "c++",
+      "level1": [
+        "data/arvo/43365/repo-vul.tar.gz",
+        "data/arvo/43365/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:43372",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/43372/repo-vul.tar.gz",
+        "data/arvo/43372/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:43408",
+      "project": "pcapplusplus",
+      "language": "c++",
+      "level1": [
+        "data/arvo/43408/repo-vul.tar.gz",
+        "data/arvo/43408/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:43434",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/43434/repo-vul.tar.gz",
+        "data/arvo/43434/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44008",
+      "project": "leptonica",
+      "language": "c++",
+      "level1": [
+        "data/arvo/44008/repo-vul.tar.gz",
+        "data/arvo/44008/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44199",
+      "project": "libplist",
+      "language": "c++",
+      "level1": [
+        "data/arvo/44199/repo-vul.tar.gz",
+        "data/arvo/44199/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44258",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/44258/repo-vul.tar.gz",
+        "data/arvo/44258/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44574",
+      "project": "libplist",
+      "language": "c++",
+      "level1": [
+        "data/arvo/44574/repo-vul.tar.gz",
+        "data/arvo/44574/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44766",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/44766/repo-vul.tar.gz",
+        "data/arvo/44766/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:4492",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/4492/repo-vul.tar.gz",
+        "data/arvo/4492/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:44953",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/44953/repo-vul.tar.gz",
+        "data/arvo/44953/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:45222",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/45222/repo-vul.tar.gz",
+        "data/arvo/45222/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:45552",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/45552/repo-vul.tar.gz",
+        "data/arvo/45552/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46224",
+      "project": "libraw",
+      "language": "c++",
+      "level1": [
+        "data/arvo/46224/repo-vul.tar.gz",
+        "data/arvo/46224/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46244",
+      "project": "libraw",
+      "language": "c++",
+      "level1": [
+        "data/arvo/46244/repo-vul.tar.gz",
+        "data/arvo/46244/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46516",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/46516/repo-vul.tar.gz",
+        "data/arvo/46516/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46679",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/46679/repo-vul.tar.gz",
+        "data/arvo/46679/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46779",
+      "project": "sleuthkit",
+      "language": "c++",
+      "level1": [
+        "data/arvo/46779/repo-vul.tar.gz",
+        "data/arvo/46779/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:46847",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/46847/repo-vul.tar.gz",
+        "data/arvo/46847/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:47157",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/47157/repo-vul.tar.gz",
+        "data/arvo/47157/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:47730",
+      "project": "ndpi",
+      "language": "c++",
+      "level1": [
+        "data/arvo/47730/repo-vul.tar.gz",
+        "data/arvo/47730/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:47947",
+      "project": "igraph",
+      "language": "c",
+      "level1": [
+        "data/arvo/47947/repo-vul.tar.gz",
+        "data/arvo/47947/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:4822",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/4822/repo-vul.tar.gz",
+        "data/arvo/4822/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49045",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49045/repo-vul.tar.gz",
+        "data/arvo/49045/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49187",
+      "project": "harfbuzz",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49187/repo-vul.tar.gz",
+        "data/arvo/49187/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49259",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49259/repo-vul.tar.gz",
+        "data/arvo/49259/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49269",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49269/repo-vul.tar.gz",
+        "data/arvo/49269/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49386",
+      "project": "lcms",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49386/repo-vul.tar.gz",
+        "data/arvo/49386/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49495",
+      "project": "lcms",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49495/repo-vul.tar.gz",
+        "data/arvo/49495/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:49528",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/49528/repo-vul.tar.gz",
+        "data/arvo/49528/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:50629",
+      "project": "exiv2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/50629/repo-vul.tar.gz",
+        "data/arvo/50629/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:50656",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/50656/repo-vul.tar.gz",
+        "data/arvo/50656/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:50834",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/50834/repo-vul.tar.gz",
+        "data/arvo/50834/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:50847",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/50847/repo-vul.tar.gz",
+        "data/arvo/50847/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:509",
+      "project": "freetype2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/509/repo-vul.tar.gz",
+        "data/arvo/509/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:51124",
+      "project": "hunspell",
+      "language": "c++",
+      "level1": [
+        "data/arvo/51124/repo-vul.tar.gz",
+        "data/arvo/51124/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:51418",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/51418/repo-vul.tar.gz",
+        "data/arvo/51418/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:51603",
+      "project": "file",
+      "language": "c++",
+      "level1": [
+        "data/arvo/51603/repo-vul.tar.gz",
+        "data/arvo/51603/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:51618",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/51618/repo-vul.tar.gz",
+        "data/arvo/51618/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:51757",
+      "project": "mongoose",
+      "language": "c++",
+      "level1": [
+        "data/arvo/51757/repo-vul.tar.gz",
+        "data/arvo/51757/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:52102",
+      "project": "mapserver",
+      "language": "c++",
+      "level1": [
+        "data/arvo/52102/repo-vul.tar.gz",
+        "data/arvo/52102/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:52175",
+      "project": "mapserver",
+      "language": "c++",
+      "level1": [
+        "data/arvo/52175/repo-vul.tar.gz",
+        "data/arvo/52175/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:52317",
+      "project": "hunspell",
+      "language": "c++",
+      "level1": [
+        "data/arvo/52317/repo-vul.tar.gz",
+        "data/arvo/52317/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:52986",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/52986/repo-vul.tar.gz",
+        "data/arvo/52986/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53052",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/53052/repo-vul.tar.gz",
+        "data/arvo/53052/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53483",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/53483/repo-vul.tar.gz",
+        "data/arvo/53483/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53499",
+      "project": "libjpeg-turbo",
+      "language": "c",
+      "level1": [
+        "data/arvo/53499/repo-vul.tar.gz",
+        "data/arvo/53499/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53618",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/53618/repo-vul.tar.gz",
+        "data/arvo/53618/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53711",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/53711/repo-vul.tar.gz",
+        "data/arvo/53711/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:53952",
+      "project": "samba",
+      "language": "c",
+      "level1": [
+        "data/arvo/53952/repo-vul.tar.gz",
+        "data/arvo/53952/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:5429",
+      "project": "imagemagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/5429/repo-vul.tar.gz",
+        "data/arvo/5429/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:54839",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/54839/repo-vul.tar.gz",
+        "data/arvo/54839/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:54972",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/54972/repo-vul.tar.gz",
+        "data/arvo/54972/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:55282",
+      "project": "util-linux",
+      "language": "c",
+      "level1": [
+        "data/arvo/55282/repo-vul.tar.gz",
+        "data/arvo/55282/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:55413",
+      "project": "libjpeg-turbo",
+      "language": "c",
+      "level1": [
+        "data/arvo/55413/repo-vul.tar.gz",
+        "data/arvo/55413/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:55587",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/55587/repo-vul.tar.gz",
+        "data/arvo/55587/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:55820",
+      "project": "mosquitto",
+      "language": "c",
+      "level1": [
+        "data/arvo/55820/repo-vul.tar.gz",
+        "data/arvo/55820/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56076",
+      "project": "hdf5",
+      "language": "c",
+      "level1": [
+        "data/arvo/56076/repo-vul.tar.gz",
+        "data/arvo/56076/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56150",
+      "project": "serenity",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56150/repo-vul.tar.gz",
+        "data/arvo/56150/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56179",
+      "project": "elfutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56179/repo-vul.tar.gz",
+        "data/arvo/56179/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56213",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56213/repo-vul.tar.gz",
+        "data/arvo/56213/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:5625",
+      "project": "skia",
+      "language": "c++",
+      "level1": [
+        "data/arvo/5625/repo-vul.tar.gz",
+        "data/arvo/5625/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56277",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56277/repo-vul.tar.gz",
+        "data/arvo/56277/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56454",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/56454/repo-vul.tar.gz",
+        "data/arvo/56454/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56917",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56917/repo-vul.tar.gz",
+        "data/arvo/56917/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56936",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56936/repo-vul.tar.gz",
+        "data/arvo/56936/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:56990",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/56990/repo-vul.tar.gz",
+        "data/arvo/56990/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57001",
+      "project": "assimp",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57001/repo-vul.tar.gz",
+        "data/arvo/57001/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57002",
+      "project": "mosquitto",
+      "language": "c",
+      "level1": [
+        "data/arvo/57002/repo-vul.tar.gz",
+        "data/arvo/57002/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57025",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57025/repo-vul.tar.gz",
+        "data/arvo/57025/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57037",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57037/repo-vul.tar.gz",
+        "data/arvo/57037/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57234",
+      "project": "libxslt",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57234/repo-vul.tar.gz",
+        "data/arvo/57234/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57442",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/57442/repo-vul.tar.gz",
+        "data/arvo/57442/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57570",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57570/repo-vul.tar.gz",
+        "data/arvo/57570/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57608",
+      "project": "samba",
+      "language": "c",
+      "level1": [
+        "data/arvo/57608/repo-vul.tar.gz",
+        "data/arvo/57608/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57672",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57672/repo-vul.tar.gz",
+        "data/arvo/57672/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57879",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57879/repo-vul.tar.gz",
+        "data/arvo/57879/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57880",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/57880/repo-vul.tar.gz",
+        "data/arvo/57880/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:57887",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/57887/repo-vul.tar.gz",
+        "data/arvo/57887/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:58287",
+      "project": "faad2",
+      "language": "c",
+      "level1": [
+        "data/arvo/58287/repo-vul.tar.gz",
+        "data/arvo/58287/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:58405",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/arvo/58405/repo-vul.tar.gz",
+        "data/arvo/58405/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:5843",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/5843/repo-vul.tar.gz",
+        "data/arvo/5843/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:5865",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/5865/repo-vul.tar.gz",
+        "data/arvo/5865/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:58701",
+      "project": "hdf5",
+      "language": "c",
+      "level1": [
+        "data/arvo/58701/repo-vul.tar.gz",
+        "data/arvo/58701/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59091",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/59091/repo-vul.tar.gz",
+        "data/arvo/59091/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:5921",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/5921/repo-vul.tar.gz",
+        "data/arvo/5921/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59418",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/59418/repo-vul.tar.gz",
+        "data/arvo/59418/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59457",
+      "project": "openexr",
+      "language": "c++",
+      "level1": [
+        "data/arvo/59457/repo-vul.tar.gz",
+        "data/arvo/59457/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59576",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/59576/repo-vul.tar.gz",
+        "data/arvo/59576/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59591",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/59591/repo-vul.tar.gz",
+        "data/arvo/59591/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59602",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/59602/repo-vul.tar.gz",
+        "data/arvo/59602/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59775",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/59775/repo-vul.tar.gz",
+        "data/arvo/59775/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59814",
+      "project": "libheif",
+      "language": "c++",
+      "level1": [
+        "data/arvo/59814/repo-vul.tar.gz",
+        "data/arvo/59814/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59827",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/arvo/59827/repo-vul.tar.gz",
+        "data/arvo/59827/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:59950",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/59950/repo-vul.tar.gz",
+        "data/arvo/59950/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60037",
+      "project": "ntopng",
+      "language": "c++",
+      "level1": [
+        "data/arvo/60037/repo-vul.tar.gz",
+        "data/arvo/60037/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60090",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/60090/repo-vul.tar.gz",
+        "data/arvo/60090/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60372",
+      "project": "libjpeg-turbo",
+      "language": "c",
+      "level1": [
+        "data/arvo/60372/repo-vul.tar.gz",
+        "data/arvo/60372/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60605",
+      "project": "ndpi",
+      "language": "c++",
+      "level1": [
+        "data/arvo/60605/repo-vul.tar.gz",
+        "data/arvo/60605/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60766",
+      "project": "libjpeg-turbo",
+      "language": "c",
+      "level1": [
+        "data/arvo/60766/repo-vul.tar.gz",
+        "data/arvo/60766/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:60769",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/60769/repo-vul.tar.gz",
+        "data/arvo/60769/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61617",
+      "project": "gpsd",
+      "language": "c",
+      "level1": [
+        "data/arvo/61617/repo-vul.tar.gz",
+        "data/arvo/61617/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61675",
+      "project": "exiv2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/61675/repo-vul.tar.gz",
+        "data/arvo/61675/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61718",
+      "project": "libheif",
+      "language": "c++",
+      "level1": [
+        "data/arvo/61718/repo-vul.tar.gz",
+        "data/arvo/61718/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61750",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/61750/repo-vul.tar.gz",
+        "data/arvo/61750/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61778",
+      "project": "binutils",
+      "language": "c++",
+      "level1": [
+        "data/arvo/61778/repo-vul.tar.gz",
+        "data/arvo/61778/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:61908",
+      "project": "curl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/61908/repo-vul.tar.gz",
+        "data/arvo/61908/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:62290",
+      "project": "libavc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/62290/repo-vul.tar.gz",
+        "data/arvo/62290/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:62356",
+      "project": "zeek",
+      "language": "c++",
+      "level1": [
+        "data/arvo/62356/repo-vul.tar.gz",
+        "data/arvo/62356/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:62388",
+      "project": "libxaac",
+      "language": "c++",
+      "level1": [
+        "data/arvo/62388/repo-vul.tar.gz",
+        "data/arvo/62388/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:62547",
+      "project": "libdwarf",
+      "language": "c",
+      "level1": [
+        "data/arvo/62547/repo-vul.tar.gz",
+        "data/arvo/62547/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:63057",
+      "project": "libredwg",
+      "language": "c",
+      "level1": [
+        "data/arvo/63057/repo-vul.tar.gz",
+        "data/arvo/63057/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:63357",
+      "project": "serenity",
+      "language": "c++",
+      "level1": [
+        "data/arvo/63357/repo-vul.tar.gz",
+        "data/arvo/63357/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:63587",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/63587/repo-vul.tar.gz",
+        "data/arvo/63587/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:64215",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/arvo/64215/repo-vul.tar.gz",
+        "data/arvo/64215/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:64529",
+      "project": "radare2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/64529/repo-vul.tar.gz",
+        "data/arvo/64529/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:6483",
+      "project": "curl",
+      "language": "c++",
+      "level1": [
+        "data/arvo/6483/repo-vul.tar.gz",
+        "data/arvo/6483/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:6501",
+      "project": "skia",
+      "language": "c++",
+      "level1": [
+        "data/arvo/6501/repo-vul.tar.gz",
+        "data/arvo/6501/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65212",
+      "project": "libssh2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/65212/repo-vul.tar.gz",
+        "data/arvo/65212/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65383",
+      "project": "htslib",
+      "language": "c++",
+      "level1": [
+        "data/arvo/65383/repo-vul.tar.gz",
+        "data/arvo/65383/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65486",
+      "project": "icu",
+      "language": "c++",
+      "level1": [
+        "data/arvo/65486/repo-vul.tar.gz",
+        "data/arvo/65486/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65650",
+      "project": "upx",
+      "language": "c++",
+      "level1": [
+        "data/arvo/65650/repo-vul.tar.gz",
+        "data/arvo/65650/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65879",
+      "project": "serenity",
+      "language": "c++",
+      "level1": [
+        "data/arvo/65879/repo-vul.tar.gz",
+        "data/arvo/65879/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:65985",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/65985/repo-vul.tar.gz",
+        "data/arvo/65985/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:66005",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/66005/repo-vul.tar.gz",
+        "data/arvo/66005/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:66108",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/66108/repo-vul.tar.gz",
+        "data/arvo/66108/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:66154",
+      "project": "libxml2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/66154/repo-vul.tar.gz",
+        "data/arvo/66154/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:66279",
+      "project": "leptonica",
+      "language": "c++",
+      "level1": [
+        "data/arvo/66279/repo-vul.tar.gz",
+        "data/arvo/66279/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:66349",
+      "project": "gpac",
+      "language": "c",
+      "level1": [
+        "data/arvo/66349/repo-vul.tar.gz",
+        "data/arvo/66349/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:6955",
+      "project": "skia",
+      "language": "c++",
+      "level1": [
+        "data/arvo/6955/repo-vul.tar.gz",
+        "data/arvo/6955/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:6993",
+      "project": "gdal",
+      "language": "c++",
+      "level1": [
+        "data/arvo/6993/repo-vul.tar.gz",
+        "data/arvo/6993/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:7189",
+      "project": "skcms",
+      "language": "c++",
+      "level1": [
+        "data/arvo/7189/repo-vul.tar.gz",
+        "data/arvo/7189/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:7201",
+      "project": "skia",
+      "language": "c++",
+      "level1": [
+        "data/arvo/7201/repo-vul.tar.gz",
+        "data/arvo/7201/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:7318",
+      "project": "gdal",
+      "language": "c++",
+      "level1": [
+        "data/arvo/7318/repo-vul.tar.gz",
+        "data/arvo/7318/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:759",
+      "project": "freetype2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/759/repo-vul.tar.gz",
+        "data/arvo/759/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:8505",
+      "project": "poppler",
+      "language": "c++",
+      "level1": [
+        "data/arvo/8505/repo-vul.tar.gz",
+        "data/arvo/8505/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:8933",
+      "project": "freetype2",
+      "language": "c++",
+      "level1": [
+        "data/arvo/8933/repo-vul.tar.gz",
+        "data/arvo/8933/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:9180",
+      "project": "librawspeed",
+      "language": "c++",
+      "level1": [
+        "data/arvo/9180/repo-vul.tar.gz",
+        "data/arvo/9180/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:919",
+      "project": "ots",
+      "language": "c++",
+      "level1": [
+        "data/arvo/919/repo-vul.tar.gz",
+        "data/arvo/919/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:9230",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/arvo/9230/repo-vul.tar.gz",
+        "data/arvo/9230/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:9357",
+      "project": "graphicsmagick",
+      "language": "c++",
+      "level1": [
+        "data/arvo/9357/repo-vul.tar.gz",
+        "data/arvo/9357/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:9445",
+      "project": "openvswitch",
+      "language": "c++",
+      "level1": [
+        "data/arvo/9445/repo-vul.tar.gz",
+        "data/arvo/9445/description.txt"
+      ]
+    },
+    {
+      "id": "arvo:9970",
+      "project": "mupdf",
+      "language": "c++",
+      "level1": [
+        "data/arvo/9970/repo-vul.tar.gz",
+        "data/arvo/9970/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:368076871",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/368076871/repo-vul.tar.gz",
+        "data/oss-fuzz/368076871/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:370689421",
+      "project": "wt",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/370689421/repo-vul.tar.gz",
+        "data/oss-fuzz/370689421/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:377642312",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/377642312/repo-vul.tar.gz",
+        "data/oss-fuzz/377642312/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:377977949",
+      "project": "qpdf",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/377977949/repo-vul.tar.gz",
+        "data/oss-fuzz/377977949/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:382816119",
+      "project": "libwebp",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/382816119/repo-vul.tar.gz",
+        "data/oss-fuzz/382816119/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:383825642",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/383825642/repo-vul.tar.gz",
+        "data/oss-fuzz/383825642/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:386128938",
+      "project": "mruby",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/386128938/repo-vul.tar.gz",
+        "data/oss-fuzz/386128938/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42535494",
+      "project": "wireshark",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42535494/repo-vul.tar.gz",
+        "data/oss-fuzz/42535494/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42535637",
+      "project": "libxaac",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42535637/repo-vul.tar.gz",
+        "data/oss-fuzz/42535637/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42536108",
+      "project": "miniz",
+      "language": "c",
+      "level1": [
+        "data/oss-fuzz/42536108/repo-vul.tar.gz",
+        "data/oss-fuzz/42536108/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42536363",
+      "project": "unit",
+      "language": "c",
+      "level1": [
+        "data/oss-fuzz/42536363/repo-vul.tar.gz",
+        "data/oss-fuzz/42536363/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42536650",
+      "project": "htslib",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42536650/repo-vul.tar.gz",
+        "data/oss-fuzz/42536650/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537128",
+      "project": "libtpms",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537128/repo-vul.tar.gz",
+        "data/oss-fuzz/42537128/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537407",
+      "project": "wasmtime",
+      "language": "rust",
+      "level1": [
+        "data/oss-fuzz/42537407/repo-vul.tar.gz",
+        "data/oss-fuzz/42537407/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537496",
+      "project": "ghostscript",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537496/repo-vul.tar.gz",
+        "data/oss-fuzz/42537496/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537564",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537564/repo-vul.tar.gz",
+        "data/oss-fuzz/42537564/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537576",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537576/repo-vul.tar.gz",
+        "data/oss-fuzz/42537576/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537616",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537616/repo-vul.tar.gz",
+        "data/oss-fuzz/42537616/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537635",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537635/repo-vul.tar.gz",
+        "data/oss-fuzz/42537635/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537670",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537670/repo-vul.tar.gz",
+        "data/oss-fuzz/42537670/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537683",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537683/repo-vul.tar.gz",
+        "data/oss-fuzz/42537683/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537687",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537687/repo-vul.tar.gz",
+        "data/oss-fuzz/42537687/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537734",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537734/repo-vul.tar.gz",
+        "data/oss-fuzz/42537734/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537757",
+      "project": "opensc",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537757/repo-vul.tar.gz",
+        "data/oss-fuzz/42537757/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537769",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537769/repo-vul.tar.gz",
+        "data/oss-fuzz/42537769/description.txt"
+      ]
+    },
+    {
+      "id": "oss-fuzz:42537827",
+      "project": "ffmpeg",
+      "language": "c++",
+      "level1": [
+        "data/oss-fuzz/42537827/repo-vul.tar.gz",
+        "data/oss-fuzz/42537827/description.txt"
+      ]
+    }
+  ]
+}

@@ -17,4 +17,8 @@ def benchmark_plugin(name: str) -> BenchmarkPlugin:
         from agent_benchmark.benchmarks.aider_polyglot import AiderPolyglot
 
         return AiderPolyglot()
+    if name in {"cybergym_300", "cybergym_smoke"}:
+        from agent_benchmark.benchmarks.cybergym import CyberGym
+
+        return CyberGym(name)
     raise ConfigurationError(f"benchmark plugin is not registered: {name}")
