@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 from agent_benchmark.benchmarks.base import BenchmarkPlugin
@@ -15,6 +17,23 @@ CYBERGYM_REVISION = "7656b71d07da6694e262f9c34ea994cd4849c0eb"
 AGENT_EXAMPLES_REVISION = "6660f3f5a0193e7f142f23f998677429edb3d18c"
 DATASET_REVISION = "bde190ded494e52bc684b66073b436c9d992c7c6"
 BINARY_DATA_REVISION = "11ab39bd443379e3f710049eca2f5be3a3eae793"
+
+# Poetry configuration for the isolated OpenHands 3.12 build.  Forcing an in-project
+# virtualenv keeps OpenHands' dependencies out of the engine's 3.14 environment.
+OPENHANDS_BUILD_ENV = {
+    "POETRY_VIRTUALENVS_CREATE": "true",
+    "POETRY_VIRTUALENVS_IN_PROJECT": "true",
+    "POETRY_NO_INTERACTION": "1",
+}
+
+
+def _isolated_poetry(command: list[str]) -> list[str]:
+    """Run a Poetry-driven command with the engine's active virtualenv stripped.
+
+    ``run_logged`` merges over ``os.environ`` and therefore cannot unset variables, so
+    the engine's ``VIRTUAL_ENV``/``POETRY_ACTIVE`` are cleared with an ``env -u`` prefix.
+    """
+    return ["env", "-u", "VIRTUAL_ENV", "-u", "POETRY_ACTIVE", *command]
 
 
 def _ids(run_dir: Path, spec: ResolvedSpec) -> list[str]:
@@ -68,6 +87,11 @@ class CyberGym(BenchmarkPlugin):
 
         root = cache_root / "cybergym"
         root.mkdir(parents=True, exist_ok=True)
+        log = run_dir / "logs" / "prepare.log"
+        # Ensure the OpenHands sandbox image is cached locally before anything else.  This
+        # runs outside the provenance short-circuit because the agent container starts on
+        # an internal, network-less Docker network and can never pull it itself.
+        self._prepare_runtime_image(str(settings["runtime_image"]), log)
         provenance = root / "provenance.json"
         expected = {
             "cybergym_revision": CYBERGYM_REVISION,
@@ -86,7 +110,6 @@ class CyberGym(BenchmarkPlugin):
         examples.mkdir(parents=True, exist_ok=True)
         # The actual large-data acquisition is intentionally explicit and pinned.  These
         # commands are idempotent and are run on the target VM, never inside agent containers.
-        log = run_dir / "logs" / "prepare.log"
         for directory, url, revision in (
             (source, "https://github.com/sunblaze-ucb/cybergym.git", CYBERGYM_REVISION),
             (
@@ -152,6 +175,26 @@ class CyberGym(BenchmarkPlugin):
         marker.write_text(json.dumps(expected, indent=2) + "\n")
 
     @staticmethod
+    def _prepare_runtime_image(runtime_image: str, log: Path) -> None:
+        # The pinned OpenHands runtime registry host (docker.all-hands.dev) no longer
+        # resolves in public DNS.  The byte-identical image is published on ghcr.io, so
+        # pull it from there and retag it to the pinned name.  The agent's sandbox then
+        # finds the image locally and never attempts a pull over its network-less runtime.
+        present = subprocess.run(
+            ["docker", "image", "inspect", runtime_image],
+            capture_output=True,
+            text=True,
+        )
+        if present.returncode == 0:
+            return
+        _, _, repo_tag = runtime_image.partition("/")
+        if not repo_tag:
+            raise StageError(f"unexpected runtime image reference: {runtime_image!r}")
+        mirror = f"ghcr.io/{repo_tag}"
+        run_logged(["docker", "pull", mirror], cwd=Path.cwd(), log_path=log)
+        run_logged(["docker", "tag", mirror, runtime_image], cwd=Path.cwd(), log_path=log)
+
+    @staticmethod
     def _prepare_binary_data(root: Path, log: Path) -> None:
         binary = root / "cybergym-server-data"
         marker = binary / ".ready"
@@ -178,9 +221,17 @@ class CyberGym(BenchmarkPlugin):
         marker = agent_dir / ".agent-bench-ready"
         if marker.is_file():
             return
+        repo = agent_dir / "openhands-repo"
+        # The marker is only written once `make build` succeeds, so reaching here means a
+        # previous attempt either never ran or failed partway through.  A failed build can
+        # leave a partially-populated (and possibly 3.14-contaminated) in-project venv
+        # behind; remove it so every rebuild starts from a clean 3.12 environment.
+        stale_venv = repo / ".venv"
+        if stale_venv.exists():
+            shutil.rmtree(stale_venv)
         run_logged(
             ["uv", "python", "install", "3.12"],
-            cwd=agent_dir / "openhands-repo",
+            cwd=repo,
             log_path=log,
         )
         run_logged(
@@ -190,23 +241,32 @@ class CyberGym(BenchmarkPlugin):
                 "python_bin=$(uv python find 3.12) && "
                 'sudo ln -sf "$python_bin" /usr/local/bin/python3.12',
             ],
-            cwd=agent_dir / "openhands-repo",
+            cwd=repo,
             log_path=log,
         )
+        # Every Poetry-driven step (including the ones the Makefile nests inside
+        # `make build`) must run with the engine's Python 3.14 virtualenv stripped from
+        # the environment.  Poetry 1.8 gives an activated VIRTUAL_ENV precedence over the
+        # interpreter chosen by `poetry env use`, so leaving it set makes the nested
+        # `poetry install` build native wheels (torch, greenlet, ...) against 3.14.  We
+        # also pin an in-project 3.12 virtualenv so Poetry cannot reuse the engine's.
         run_logged(
-            ["env", "-u", "VIRTUAL_ENV", "poetry", "env", "use", "/usr/local/bin/python3.12"],
-            cwd=agent_dir / "openhands-repo",
+            _isolated_poetry(["poetry", "env", "use", "/usr/local/bin/python3.12"]),
+            cwd=repo,
             log_path=log,
+            env=OPENHANDS_BUILD_ENV,
         )
         run_logged(
-            ["env", "-u", "VIRTUAL_ENV", "poetry", "install", "--no-interaction"],
-            cwd=agent_dir / "openhands-repo",
+            _isolated_poetry(["poetry", "install", "--no-interaction"]),
+            cwd=repo,
             log_path=log,
+            env=OPENHANDS_BUILD_ENV,
         )
         run_logged(
-            ["make", "build", "INSTALL_PLAYWRIGHT=false"],
-            cwd=agent_dir / "openhands-repo",
+            _isolated_poetry(["make", "build", "INSTALL_PLAYWRIGHT=false"]),
+            cwd=repo,
             log_path=log,
+            env=OPENHANDS_BUILD_ENV,
         )
         marker.write_text("ready\n")
 
