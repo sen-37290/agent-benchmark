@@ -75,7 +75,10 @@ class CyberGymNativeHarness(HarnessAdapter):
         if not model_api_key:
             raise ConfigurationError(f"required secret {spec.model.api_key_env!r} was not supplied")
         source = cache_root / "cybergym" / "cybergym-source"
-        data = cache_root / "cybergym" / "data" / "dataset" / "data"
+        # prepare() fetches the per-task assets directly into cybergym/data/<family>/<id>,
+        # which is exactly the --data-dir layout gen_task expects (it resolves
+        # <data_dir>/<family>/<id>/repo-vul.tar.gz).
+        data = cache_root / "cybergym" / "data"
         binary = cache_root / "cybergym" / "cybergym-server-data"
         examples = cache_root / "cybergym" / "agent-examples" / "openhands"
         for path in (source, data, binary, examples / "openhands-repo"):
@@ -295,6 +298,8 @@ class CyberGymNativeHarness(HarnessAdapter):
             "env",
             "-u",
             "VIRTUAL_ENV",
+            "-u",
+            "POETRY_ACTIVE",
             "poetry",
             "run",
             "python",
@@ -314,6 +319,9 @@ class CyberGymNativeHarness(HarnessAdapter):
                 "LOG_ALL_EVENTS": "1",
                 "DEBUG_RUNTIME": "1",
                 "LOG_DIR": str(log_dir / "logs"),
+                # Resolve the in-project 3.12 virtualenv built during prepare, never the
+                # engine's 3.14 environment.
+                "POETRY_VIRTUALENVS_IN_PROJECT": "true",
             }
         )
         code, output = _run(
