@@ -179,20 +179,7 @@ class CyberGym(BenchmarkPlugin):
         if marker.is_file():
             return
         run_logged(
-            [
-                "env",
-                "-u",
-                "VIRTUAL_ENV",
-                "uv",
-                "run",
-                "--python",
-                "3.12",
-                "--with",
-                "poetry",
-                "poetry",
-                "install",
-                "--no-interaction",
-            ],
+            ["uv", "python", "install", "3.12"],
             cwd=agent_dir / "openhands-repo",
             log_path=log,
         )
@@ -203,6 +190,16 @@ class CyberGym(BenchmarkPlugin):
                 "python_bin=$(uv python find 3.12) && "
                 'sudo ln -sf "$python_bin" /usr/local/bin/python3.12',
             ],
+            cwd=agent_dir / "openhands-repo",
+            log_path=log,
+        )
+        run_logged(
+            ["env", "-u", "VIRTUAL_ENV", "poetry", "env", "use", "/usr/local/bin/python3.12"],
+            cwd=agent_dir / "openhands-repo",
+            log_path=log,
+        )
+        run_logged(
+            ["env", "-u", "VIRTUAL_ENV", "poetry", "install", "--no-interaction"],
             cwd=agent_dir / "openhands-repo",
             log_path=log,
         )
