@@ -24,6 +24,8 @@ class TaskResult(BaseModel):
     input_tokens: int | None = None
     output_tokens: int | None = None
     cached_tokens: int | None = None
+    cache_creation_tokens: int | None = None
+    llm_requests: int | None = None
     duration_seconds: float | None = None
     error_type: str | None = None
     raw_artifacts: list[str] = Field(default_factory=list)
@@ -49,6 +51,8 @@ def write_results(run_dir: Path, results: list[TaskResult]) -> None:
         "input_tokens",
         "output_tokens",
         "cached_tokens",
+        "cache_creation_tokens",
+        "llm_requests",
         "duration_seconds",
         "error_type",
     ]
@@ -70,6 +74,8 @@ def write_results(run_dir: Path, results: list[TaskResult]) -> None:
                     "input_tokens": result.input_tokens,
                     "output_tokens": result.output_tokens,
                     "cached_tokens": result.cached_tokens,
+                    "cache_creation_tokens": result.cache_creation_tokens,
+                    "llm_requests": result.llm_requests,
                     "duration_seconds": result.duration_seconds,
                     "error_type": result.error_type,
                 }
@@ -121,6 +127,17 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
         "retry_cost_complete": all(result.retry_cost_complete for result in results),
         "exhausted_retry_count": sum(result.retry_exhausted for result in results),
     }
+    for field, key in (
+        ("input_tokens", "avg_input_tokens"),
+        ("output_tokens", "avg_output_tokens"),
+        ("cached_tokens", "avg_cache_read_tokens"),
+        ("cache_creation_tokens", "avg_cache_creation_tokens"),
+        ("llm_requests", "avg_llm_requests"),
+    ):
+        values = [
+            getattr(result, field) for result in results if getattr(result, field) is not None
+        ]
+        summary[key] = sum(values) / len(values) if values else None
     if has_reward_metric:
         summary["mean_reward"] = sum(rewards) / len(results)
         summary["accuracy"] = len(resolved) / len(results) if results else None
@@ -217,6 +234,7 @@ def write_report(spec: ResolvedSpec, run_dir: Path, results: list[TaskResult]) -
         f"{aider_lines}"
         f"{reasoning_lines}"
         f"- Measured generation cost: {cost_text}\n"
+        f"- Average LLM requests: {summary['avg_llm_requests'] or 'n/a'}\n"
         f"- Measured retry overhead: {overhead_text}\n"
         f"- Measured billed cost (all attempts): {billed_text}\n"
         f"- Retried tasks: {summary['retried_task_count']}\n"

@@ -20,6 +20,7 @@ terminalbench = [
   "harbor==0.21.0",
   "mini-swe-agent==2.4.5",
 ]
+cybergym = []
 
 [project.scripts]
 agent-bench = "agent_benchmark.cli:main"
