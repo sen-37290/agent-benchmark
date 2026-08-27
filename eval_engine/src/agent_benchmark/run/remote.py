@@ -181,6 +181,11 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
                 raise ConfigurationError(f"unsafe dependency extra: {dependency_extra!r}")
             sync += f" --extra {shlex.quote(dependency_extra)}"
         self._ssh(f"cd {shlex.quote(str(self.remote_source))} && {sync}")
+        if dependency_extra == "cybergym":
+            self._ssh(
+                f"cd {shlex.quote(str(self.remote_source))} && "
+                "uv python install 3.12 && printf '3.12\\n' > .python-version"
+            )
 
     def run_worker(self, stage: str) -> None:
         command = (
