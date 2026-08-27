@@ -292,6 +292,9 @@ class CyberGymNativeHarness(HarnessAdapter):
         invocation = agent_adapter("openhands").invocation(spec, run_dir, model_api_key)
         openhands = examples / "openhands-repo"
         command = [
+            "env",
+            "-u",
+            "VIRTUAL_ENV",
             "poetry",
             "run",
             "python",
@@ -356,8 +359,8 @@ class CyberGymNativeHarness(HarnessAdapter):
         effort = spec.model.reasoning_effort or "max"
         budget = f"\nmax_budget_per_task = {spec.budget.per_task_usd}\n"
         docker_kwargs = (
-            'docker_runtime_kwargs = {auto_remove = true, '
-            f'network = {json.dumps(network)}, labels = '
+            "docker_runtime_kwargs = {auto_remove = true, "
+            f"network = {json.dumps(network)}, labels = "
             f'{{"agent-benchmark.run-id" = {json.dumps(spec.run_id)}}}}}'
         )
         lines = [
