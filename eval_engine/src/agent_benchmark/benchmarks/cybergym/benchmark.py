@@ -180,6 +180,9 @@ class CyberGym(BenchmarkPlugin):
             return
         run_logged(
             [
+                "env",
+                "-u",
+                "VIRTUAL_ENV",
                 "uv",
                 "run",
                 "--python",
@@ -197,7 +200,7 @@ class CyberGym(BenchmarkPlugin):
             [
                 "sh",
                 "-c",
-                'python_bin=$(uv python find 3.12) && '
+                "python_bin=$(uv python find 3.12) && "
                 'sudo ln -sf "$python_bin" /usr/local/bin/python3.12',
             ],
             cwd=agent_dir / "openhands-repo",
