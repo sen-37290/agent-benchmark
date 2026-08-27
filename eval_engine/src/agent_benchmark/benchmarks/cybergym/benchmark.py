@@ -194,6 +194,16 @@ class CyberGym(BenchmarkPlugin):
             log_path=log,
         )
         run_logged(
+            [
+                "sh",
+                "-c",
+                'python_bin=$(uv python find 3.12) && '
+                'sudo ln -sf "$python_bin" /usr/local/bin/python3.12',
+            ],
+            cwd=agent_dir / "openhands-repo",
+            log_path=log,
+        )
+        run_logged(
             ["make", "build", "INSTALL_PLAYWRIGHT=false"],
             cwd=agent_dir / "openhands-repo",
             log_path=log,
