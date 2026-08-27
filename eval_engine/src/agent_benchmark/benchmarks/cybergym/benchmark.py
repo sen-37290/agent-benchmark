@@ -179,7 +179,17 @@ class CyberGym(BenchmarkPlugin):
         if marker.is_file():
             return
         run_logged(
-            ["poetry", "install", "--no-interaction"],
+            [
+                "uv",
+                "run",
+                "--python",
+                "3.12",
+                "--with",
+                "poetry",
+                "poetry",
+                "install",
+                "--no-interaction",
+            ],
             cwd=agent_dir / "openhands-repo",
             log_path=log,
         )
