@@ -79,7 +79,7 @@ class CyberGymNativeHarness(HarnessAdapter):
         # which is exactly the --data-dir layout gen_task expects (it resolves
         # <data_dir>/<family>/<id>/repo-vul.tar.gz).
         data = cache_root / "cybergym" / "data"
-        binary = cache_root / "cybergym" / "cybergym-server-data"
+        binary = self._resolve_binary_dir(cache_root / "cybergym" / "cybergym-server-data")
         examples = cache_root / "cybergym" / "agent-examples" / "openhands"
         for path in (source, data, binary, examples / "openhands-repo"):
             if not path.exists():
@@ -169,6 +169,11 @@ class CyberGymNativeHarness(HarnessAdapter):
                 except subprocess.TimeoutExpired:
                     server.kill()
                     server.wait()
+            # OpenHands' auto_remove only deletes a runtime container once it stops, which
+            # never happens when the agent process crashes (e.g. a provider BadRequest).
+            # Force-remove anything labelled with this run before removing the network,
+            # otherwise the containers stay up and the network removal fails silently.
+            self._remove_run_containers(spec.run_id)
             self._network_remove(network)
 
     # A fully ``--internal`` network would isolate the agent from the internet, but Docker
@@ -216,6 +221,28 @@ class CyberGymNativeHarness(HarnessAdapter):
         if not configs or not configs[0].get("Gateway"):
             raise StageError("CyberGym internal network has no gateway")
         return str(configs[0]["Gateway"])
+
+    @staticmethod
+    def _resolve_binary_dir(binary: Path) -> Path:
+        # The server runs each PoC against <binary_dir>/<family>/<id>/vul/out. The published
+        # 7z archive nests everything under an inner cybergym-server-data/ directory, so the
+        # real root is one level deeper than the extraction target. Resolve whichever layout
+        # actually contains the task families so the server never 500s on a missing binary.
+        for candidate in (binary, binary / "cybergym-server-data"):
+            if (candidate / "arvo").is_dir() or (candidate / "oss-fuzz").is_dir():
+                return candidate
+        raise StageError(f"CyberGym binary data has no arvo/oss-fuzz families under {binary}")
+
+    @staticmethod
+    def _remove_run_containers(run_id: str) -> None:
+        result = subprocess.run(
+            ["docker", "ps", "-aq", "--filter", f"label=agent-benchmark.run-id={run_id}"],
+            capture_output=True,
+            text=True,
+        )
+        ids = result.stdout.split()
+        if ids:
+            subprocess.run(["docker", "rm", "-f", *ids], capture_output=True, text=True)
 
     @staticmethod
     def _network_remove(network: str) -> None:
@@ -303,6 +330,10 @@ class CyberGymNativeHarness(HarnessAdapter):
         config_path.write_text(self._config_toml(workspace, log_dir, network, spec))
         invocation = agent_adapter("openhands").invocation(spec, run_dir, model_api_key)
         openhands = examples / "openhands-repo"
+        # Launch OpenHands through our bootstrap so the resolved OpenRouter provider pin
+        # actually reaches the request body; OpenHands strips extra_body and LLMConfig
+        # forbids extra fields, so the config file cannot carry it (see the bootstrap).
+        bootstrap = Path(__file__).with_name("openhands_provider_pin.py")
         command = [
             "env",
             "-u",
@@ -312,8 +343,7 @@ class CyberGymNativeHarness(HarnessAdapter):
             "poetry",
             "run",
             "python",
-            "-m",
-            "openhands.core.main",
+            str(bootstrap),
             "--config-file",
             str(config_path),
             "--file",
@@ -333,13 +363,29 @@ class CyberGymNativeHarness(HarnessAdapter):
                 "POETRY_VIRTUALENVS_IN_PROJECT": "true",
             }
         )
-        code, output = _run(
-            command,
-            cwd=openhands,
-            log=log_dir / "openhands.log",
-            env=process_env,
-            timeout=int(invocation.kwargs["timeout"]),
-        )
+        provider_pin = self._provider_pin(spec)
+        if provider_pin is not None:
+            process_env["CYBERGYM_OPENROUTER_PROVIDER"] = json.dumps(provider_pin)
+        # A hard provider pin (only: [z-ai], allow_fallbacks off) removes OpenRouter's
+        # cross-provider fallback, so a transient upstream error (HTTP 5xx, an unparseable
+        # response) aborts the OpenHands agent outright with no PoC. Re-run the agent on the
+        # same task/workspace a few times before accepting that. A genuine miss -- the agent
+        # finishes cleanly without a PoC -- does not match and is never retried.
+        retries = int(spec.benchmark.settings.get("provider_error_retries", 2))
+        attempts = 0
+        for attempt in range(1, retries + 2):
+            attempts = attempt
+            code, output = _run(
+                command,
+                cwd=openhands,
+                log=log_dir / "openhands.log",
+                env=process_env,
+                timeout=invocation.kwargs["timeout"],  # None => no wall-clock limit
+            )
+            if final_path.is_file() or attempt > retries or not _transient_llm_error(output):
+                break
+            # Keep the aborted attempt's log, then retry from a clean agent run.
+            (log_dir / "openhands.log").replace(log_dir / f"openhands.error-attempt{attempt}.log")
         if final_path.is_file() and final_path.stat().st_size <= MAX_FILE_SIZE:
             shutil.copy2(final_path, log_dir / "final.poc")
         grade = self._grade_final(
@@ -356,6 +402,7 @@ class CyberGymNativeHarness(HarnessAdapter):
             {
                 "duration_seconds": time.monotonic() - started,
                 "agent_exit_code": code,
+                "agent_attempts": attempts,
                 "raw_artifacts": [
                     str(path.relative_to(run_dir)) for path in log_dir.rglob("*") if path.is_file()
                 ],
@@ -366,6 +413,24 @@ class CyberGymNativeHarness(HarnessAdapter):
         return grade
 
     @staticmethod
+    def _provider_pin(spec: ResolvedSpec) -> dict | None:
+        """Return the OpenRouter provider routing block to inject, or None.
+
+        The loader records the resolved pin at model.model_kwargs.provider (set whenever
+        --provider-route/--byok is used). It only reaches OpenRouter through the bootstrap
+        launcher, so surface it here. Force allow_fallbacks off so a single-provider `only`
+        list is a hard pin rather than a preference OpenRouter may route around.
+        """
+        if spec.model.api != "openrouter":
+            return None
+        provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
+        if not isinstance(provider, dict) or not provider:
+            return None
+        pinned = dict(provider)
+        pinned.setdefault("allow_fallbacks", False)
+        return pinned
+
+    @staticmethod
     def _config_toml(workspace: Path, log_dir: Path, network: str, spec: ResolvedSpec) -> str:
         model = spec.model.model_id
         if spec.model.api == "openrouter":
@@ -374,7 +439,6 @@ class CyberGymNativeHarness(HarnessAdapter):
         else:
             base_url = ""
         effort = spec.model.reasoning_effort or "max"
-        budget = f"\nmax_budget_per_task = {spec.budget.per_task_usd}\n"
         docker_kwargs = (
             "docker_runtime_kwargs = {auto_remove = true, "
             f"network = {json.dumps(network)}, labels = "
@@ -387,13 +451,14 @@ class CyberGymNativeHarness(HarnessAdapter):
             f"file_store_path = {json.dumps(str(log_dir / 'file'))}",
             f"save_trajectory_path = {json.dumps(str(log_dir / 'trajectory.json'))}",
             "run_as_openhands = false",
-            budget.strip(),
             "[llm]",
             f"model = {json.dumps(model)}",
             f"base_url = {json.dumps(base_url)}",
-            "max_output_tokens = 2048",
+            # No artificial output cap: use the model's own maximum so a reasoning model's
+            # thinking tokens can't exhaust the budget before it emits its tool call.
+            "max_output_tokens = 131072",
+            "log_completions = true",
             f"reasoning_effort = {json.dumps(effort)}",
-            "temperature = 0.0",
             "[sandbox]",
             'runtime_container_image = "docker.all-hands.dev/all-hands-ai/runtime:0.33-nikolaik"',
             'runtime_binding_address = "127.0.0.1"',
@@ -469,6 +534,17 @@ class CyberGymNativeHarness(HarnessAdapter):
                     ).fetchone()[0]
                 )
         return result
+
+
+def _transient_llm_error(output: str) -> bool:
+    """Whether an OpenHands run aborted on a transient provider-side LLM failure.
+
+    OpenHands sets this status when a completion ultimately fails on a transient upstream
+    condition (HTTP 5xx, connection reset, an unparseable response) after its own in-call
+    retries. Auth and context-length failures raise different statuses and are deliberately
+    not matched, since re-running would not help.
+    """
+    return "STATUS$ERROR_LLM_SERVICE_UNAVAILABLE" in output
 
 
 def _json_from_output(output: str) -> dict:
