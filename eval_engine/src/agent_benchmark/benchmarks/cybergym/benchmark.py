@@ -92,6 +92,9 @@ class CyberGym(BenchmarkPlugin):
         # runs outside the provenance short-circuit because the agent container starts on
         # an internal, network-less Docker network and can never pull it itself.
         self._prepare_runtime_image(str(settings["runtime_image"]), log)
+        # The CyberGym server runs every submitted PoC inside this runner image; if it is
+        # absent, /submit-vul fails with ImageNotFound -> HTTP 500 and nothing can be graded.
+        self._prepare_runner_image(log)
         provenance = root / "provenance.json"
         expected = {
             "cybergym_revision": CYBERGYM_REVISION,
@@ -193,6 +196,21 @@ class CyberGym(BenchmarkPlugin):
         mirror = f"ghcr.io/{repo_tag}"
         run_logged(["docker", "pull", mirror], cwd=Path.cwd(), log_path=log)
         run_logged(["docker", "tag", mirror, runtime_image], cwd=Path.cwd(), log_path=log)
+
+    # DEFAULT_RUNNER_IMAGE in cybergym.server.server_utils; published on Docker Hub. Every
+    # PoC (arvo tasks and any oss-fuzz task without a per-task runner) runs inside it.
+    RUNNER_IMAGE = "cybergym/oss-fuzz-base-runner:latest"
+
+    @classmethod
+    def _prepare_runner_image(cls, log: Path) -> None:
+        present = subprocess.run(
+            ["docker", "image", "inspect", cls.RUNNER_IMAGE],
+            capture_output=True,
+            text=True,
+        )
+        if present.returncode == 0:
+            return
+        run_logged(["docker", "pull", cls.RUNNER_IMAGE], cwd=Path.cwd(), log_path=log)
 
     @staticmethod
     def _prepare_binary_data(root: Path, log: Path) -> None:
