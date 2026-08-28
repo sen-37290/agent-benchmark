@@ -22,8 +22,10 @@ class OpenHandsAdapter(AgentAdapter):
         elif spec.model.api != "anthropic":
             raise ConfigurationError(f"unsupported OpenHands transport: {spec.model.api}")
         kwargs: dict[str, object] = {
-            "max_iter": 100,
-            "timeout": 1200,
+            # No iteration or wall-clock limit: run until the agent finishes or the
+            # provider (OpenRouter) key's own quota stops it. timeout=None => no deadline.
+            "max_iter": 100_000_000,
+            "timeout": None,
             "max_output_tokens": 2048,
             "reasoning_effort": spec.model.reasoning_effort,
             "difficulty": "level1",
