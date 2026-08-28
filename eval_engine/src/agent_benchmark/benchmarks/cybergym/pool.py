@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from importlib.resources import files
 from pathlib import Path
@@ -37,7 +38,15 @@ def catalog(kind: str) -> dict[str, object]:
 def create_pool(kind: str, output_path: Path, sampling: str | None, size: int | None) -> None:
     source = catalog(kind)
     tasks = sorted(source["tasks"], key=lambda task: task["id"])
-    if sampling is None and size is None:
+    pin = os.environ.get("CYBERGYM_PIN_INSTANCE")
+    if pin:
+        # Escape hatch for single-task experiments: pin an exact instance id, bypassing
+        # sampling. Only activates when the env var is set, so normal runs are unaffected.
+        selected = [task for task in tasks if task["id"] == pin]
+        if not selected:
+            raise StageError(f"pinned instance {pin!r} is not in CyberGym catalog {kind}")
+        strategy = "pinned"
+    elif sampling is None and size is None:
         strategy = "full"
         selected = tasks
     else:
