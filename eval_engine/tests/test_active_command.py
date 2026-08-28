@@ -45,9 +45,12 @@ def test_active_run_id_reads_primary_vm_lease(monkeypatch) -> None:
 
     monkeypatch.setenv("AGENT_BENCH_SSH_HOST", "test-vm")
     assert SSHBackend.active_run_id(target_profile("primary")) == "test-active-run-123"
+    from agent_benchmark.run.remote import SSH_OPTS
+
     assert calls == [
         [
             "ssh",
+            *SSH_OPTS,
             "test-vm",
             "if [ -f /tmp/agent-benchmark/cache/leases/active/owner ]; then "
             "cat /tmp/agent-benchmark/cache/leases/active/owner; fi",
@@ -87,7 +90,8 @@ targets:
 
     assert result.exit_code == 0, result.output
     assert result.output == "no active run\n"
-    assert calls[0][:2] == ["ssh", "test-vm-2"]
+    assert calls[0][0] == "ssh"
+    assert "test-vm-2" in calls[0]
 
 
 def test_active_rejects_primary_and_backup_together() -> None:

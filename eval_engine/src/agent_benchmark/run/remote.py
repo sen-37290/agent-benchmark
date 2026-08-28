@@ -13,6 +13,17 @@ from agent_benchmark.config.schema import ResolvedSpec, TargetSpec
 from agent_benchmark.exceptions import ConfigurationError, IntegrityError, StageError
 
 SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{5,127}$")
+# Keepalive so a stalled TCP connection fails within ~1 minute instead of hanging the
+# pipeline indefinitely (a silent rsync/ssh stall once wedged a run for hours).
+SSH_OPTS = (
+    "-o",
+    "ServerAliveInterval=15",
+    "-o",
+    "ServerAliveCountMax=4",
+    "-o",
+    "ConnectTimeout=30",
+)
+RSYNC_RSH = "ssh " + " ".join(SSH_OPTS)
 SOURCE_RSYNC_EXCLUDES = (
     "/.venv/",
     "/.git/",
@@ -63,7 +74,7 @@ class SSHBackend:
     ) -> subprocess.CompletedProcess[str]:
         remote = command if isinstance(command, str) else " ".join(shlex.quote(x) for x in command)
         result = subprocess.run(
-            ["ssh", host, remote],
+            ["ssh", *SSH_OPTS, host, remote],
             input=input_text,
             text=True,
             capture_output=capture,
@@ -140,6 +151,8 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             [
                 "rsync",
                 "-az",
+                "-e",
+                RSYNC_RSH,
                 "--delete",
                 *excludes,
                 f"{self.project_root}/",
@@ -155,6 +168,8 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             [
                 "rsync",
                 "-az",
+                "-e",
+                RSYNC_RSH,
                 f"{local_run / 'inputs'}/",
                 f"{self.host}:{self.remote_run}/inputs/",
             ],
@@ -202,7 +217,7 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             target.mkdir(parents=True, exist_ok=True)
             source = f"{self.host}:{self.remote_run}/{directory}/"
             result = subprocess.run(
-                ["rsync", "-az", "--delete", source, f"{target}/"],
+                ["rsync", "-az", "-e", RSYNC_RSH, "--delete", source, f"{target}/"],
                 text=True,
                 check=False,
             )
@@ -210,7 +225,9 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
                 raise StageError(f"artifact transfer failed for {directory}")
         manifest_source = f"{self.host}:{self.remote_run}/artifact-manifest.json"
         result = subprocess.run(
-            ["rsync", "-az", manifest_source, f"{local_run}/"], text=True, check=False
+            ["rsync", "-az", "-e", RSYNC_RSH, manifest_source, f"{local_run}/"],
+            text=True,
+            check=False,
         )
         if result.returncode:
             raise StageError("artifact manifest transfer failed")
@@ -363,7 +380,7 @@ print(
 
     def _rsync_file(self, source: Path, destination: PurePosixPath) -> None:
         result = subprocess.run(
-            ["rsync", "-az", str(source), f"{self.host}:{destination}"],
+            ["rsync", "-az", "-e", RSYNC_RSH, str(source), f"{self.host}:{destination}"],
             text=True,
             check=False,
         )
