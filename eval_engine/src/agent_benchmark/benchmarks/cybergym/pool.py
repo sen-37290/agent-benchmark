@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 from importlib.resources import files
 from pathlib import Path
 
@@ -35,11 +36,46 @@ def catalog(kind: str) -> dict[str, object]:
     return payload
 
 
+def _read_pin_instances(value: str) -> list[str]:
+    """Parse CYBERGYM_PIN_INSTANCES: a path to a JSON file ({"instance_ids": [...]}) or to a
+    plain list file, or an inline comma/whitespace-separated list of instance ids."""
+    text = value
+    path = Path(value)
+    if path.is_file():
+        text = path.read_text()
+        stripped = text.strip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            data = json.loads(stripped)
+            ids = data["instance_ids"] if isinstance(data, dict) else data
+            return [str(i) for i in ids]
+    ids = [tok for tok in re.split(r"[,\s]+", text) if tok]
+    return ids
+
+
 def create_pool(kind: str, output_path: Path, sampling: str | None, size: int | None) -> None:
     source = catalog(kind)
     tasks = sorted(source["tasks"], key=lambda task: task["id"])
+    pins = os.environ.get("CYBERGYM_PIN_INSTANCES")
     pin = os.environ.get("CYBERGYM_PIN_INSTANCE")
-    if pin:
+    if pins:
+        # Escape hatch for subset re-runs: pin an explicit set of instance ids, bypassing
+        # sampling and the profile size. Only activates when the env var is set, so normal
+        # runs are unaffected. Lets a partial re-run reuse the full catalog's prepared cache.
+        wanted = _read_pin_instances(pins)
+        if not wanted:
+            raise StageError("CYBERGYM_PIN_INSTANCES resolved to an empty instance list")
+        if len(wanted) != len(set(wanted)):
+            raise StageError("CYBERGYM_PIN_INSTANCES contains duplicate instance ids")
+        known = {task["id"] for task in tasks}
+        missing = [i for i in wanted if i not in known]
+        if missing:
+            raise StageError(
+                f"pinned instances not in CyberGym catalog {kind}: {', '.join(sorted(missing))}"
+            )
+        wanted_set = set(wanted)
+        selected = [task for task in tasks if task["id"] in wanted_set]
+        strategy = "pinned-subset"
+    elif pin:
         # Escape hatch for single-task experiments: pin an exact instance id, bypassing
         # sampling. Only activates when the env var is set, so normal runs are unaffected.
         selected = [task for task in tasks if task["id"] == pin]
@@ -64,7 +100,7 @@ def create_pool(kind: str, output_path: Path, sampling: str | None, size: int | 
         "dataset_id": source["dataset_id"],
         "dataset_revision": source["dataset_revision"],
         "sampling": strategy,
-        "seed": SAMPLING_SEED if strategy != "full" else None,
+        "seed": SAMPLING_SEED if strategy == "random" else None,
         "n": len(selected),
         "instance_ids": [task["id"] for task in selected],
     }
