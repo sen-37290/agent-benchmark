@@ -1,4 +1,5 @@
-"""OpenHands launcher that pins the OpenRouter upstream provider.
+"""OpenHands launcher that pins the OpenRouter upstream provider, repairs Friendli's
+known malformed tool-call format, and falls back to a second provider if repair fails.
 
 CyberGym runs the pinned official OpenHands example, which builds the LiteLLM request
 itself and strips ``extra_body`` for every non-``litellm_proxy`` model (see
@@ -12,33 +13,160 @@ differently, which is exactly the flakiness we need to remove.
 
 This launcher patches the one stable LiteLLM seam that always runs for OpenRouter chat
 completions -- ``OpenrouterConfig.transform_request``, which returns the final request
-body dict -- to inject the ``provider`` block read from ``CYBERGYM_OPENROUTER_PROVIDER``,
-then hands control to ``openhands.core.main`` exactly as ``python -m`` would. Patching a
-class method (looked up at call time) is immune to OpenHands binding ``litellm.completion``
-by reference at import.
+body dict -- to inject a ``provider`` block, then hands control to ``openhands.core.main``
+exactly as ``python -m`` would. Patching a class method (looked up at call time) is immune
+to OpenHands binding ``litellm.completion`` by reference at import.
+
+Repairing the malformed tool call
+---------------------------------
+Friendli intermittently serves GLM-5.3 tool calls as ``<tool_call>function=NAME>`` instead
+of OpenHands' required ``<function=NAME>`` -- a guided-generation artefact that drops the
+leading ``<`` and inserts a ``<tool_call>`` wrapper (and also drops the closing
+``</function>``). Friendli returns HTTP 200 with ``finish_reason: stop`` for these, so
+OpenRouter treats them as a success and never fails over; the defect is only visible in the
+response *content*. OpenHands' non-native parser (``<function=([^>]+)>...</function>``)
+cannot read it, so the response yields no action, and three such non-actions trip the stuck
+detector and abort the task with no PoC.
+
+Because the malformation is deterministic, we repair it in place: we rewrite
+``<tool_call>function=`` to ``<function=`` and restore the closing tag, then hand the
+corrected content back to OpenHands' unmodified pipeline. This keeps the Friendli response
+we already paid for -- no second API call -- and uses the (cheaper/faster but unstable)
+Friendli route maximally.
+
+Recovery (malformed and empty responses)
+-----------------------------------------
+Two primary-provider failure modes are recovered, both via an optional fallback provider
+configured through ``CYBERGYM_OPENROUTER_FALLBACK_PROVIDER`` (e.g. ``{"only": ["z-ai"]}``):
+
+* *Unrepairable tool call* -- content that clearly means a tool call but is not the known
+  repairable malformation. We re-issue the identical completion on the fallback provider.
+* *Empty/errored response* -- Friendli intermittently ends a completion with
+  ``finish_reason=error`` after emitting only reasoning tokens, leaving empty content and no
+  tool call. OpenHands would turn this into an empty message and, after three in a row, abort
+  the task with ``AgentStuckInLoopError``. We first re-roll the primary once (the failure is
+  transient, so it usually succeeds and stays on the preferred provider), then fall back.
+
+At most three upstream calls per completion (primary, one primary re-roll, one fallback), so
+there is no loop and the extra cost is bounded.
 
 If ``CYBERGYM_OPENROUTER_PROVIDER`` is unset this is a transparent passthrough, so the
-harness can always launch through it.
+harness can always launch through it. Repair and fallback install only for OpenRouter runs.
 """
 
 from __future__ import annotations
 
+import contextvars
 import json
 import os
+import re
 import runpy
 import sys
 
+# Per-completion provider override. ``transform_request`` injects whatever this holds,
+# defaulting to the primary pin. The fallback path sets it for the retry call only.
+_current_provider: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "cybergym_openrouter_provider", default=None
+)
 
-def _install_provider_pin() -> None:
-    raw = os.environ.get("CYBERGYM_OPENROUTER_PROVIDER")
+# A well-formed OpenHands non-native tool call. If this matches, the response is fine.
+_WELL_FORMED_FUNCTION = re.compile(r"<function=[^>]+>")
+
+
+def _load_provider(env_name: str) -> dict | None:
+    raw = os.environ.get(env_name)
     if not raw:
-        return
+        return None
     try:
         provider = json.loads(raw)
     except ValueError:
-        return
+        return None
     if not isinstance(provider, dict) or not provider:
-        return
+        return None
+    return provider
+
+
+def _log(message: str) -> None:
+    print(f"[cybergym-provider-pin] {message}", file=sys.stderr, flush=True)
+
+
+def _response_message(resp: object):
+    """The assistant message object of a completion, or None if not inspectable.
+
+    None means "do not touch" (e.g. native ``tool_calls`` already present, or an
+    unexpected response shape).
+    """
+    try:
+        message = resp.choices[0].message  # type: ignore[attr-defined]
+    except (AttributeError, IndexError, TypeError):
+        return None
+    if getattr(message, "tool_calls", None):
+        return None
+    return message
+
+
+def _repair_malformed_tool_call(content: str) -> str | None:
+    """Repair Friendli's known malformed tool call, or None if it is not that case.
+
+    The artefact is ``<tool_call>function=NAME>`` (the ``<`` of ``<function=`` dropped and a
+    ``<tool_call>`` wrapper inserted), usually also missing the trailing ``</function>``.
+    """
+    if "<tool_call>function=" not in content:
+        return None
+    repaired = content.replace("<tool_call>function=", "<function=")
+    # Restore the closing tag OpenHands' regex requires (mirrors its own _fix_stopword).
+    if "<function=" in repaired and "</function>" not in repaired:
+        repaired = repaired.rstrip() + "\n</function>"
+    return repaired
+
+
+def _intends_tool_call(content: str) -> bool:
+    """Whether content clearly meant a tool call OpenHands' parser cannot read."""
+    if _WELL_FORMED_FUNCTION.search(content):
+        return False
+    if "<tool_call>" in content:
+        return True
+    return "function=" in content and "<parameter=" in content
+
+
+def _classify_and_repair(resp: object) -> str:
+    """Classify a completion, repairing a malformed tool call in place when possible.
+
+    Returns one of:
+    * ``"ok"``      -- native tool_calls present, a well-formed/repaired ``<function=>`` call,
+                       or legitimate non-empty assistant text (a final answer).
+    * ``"empty"``   -- no tool call and no content. The primary (Friendli) intermittently ends
+                       a completion with ``finish_reason=error`` after emitting only reasoning
+                       tokens, yielding empty content; OpenHands would turn this into an empty
+                       message and, after three in a row, abort with AgentStuckInLoopError.
+    * ``"unrepairable"`` -- content clearly intends a tool call this layer cannot repair.
+    """
+    message = _response_message(resp)
+    if message is None:
+        return "ok"  # native tool_calls already present
+    content = getattr(message, "content", None) or ""
+    if _WELL_FORMED_FUNCTION.search(content):
+        return "ok"
+    repaired = _repair_malformed_tool_call(content)
+    if repaired is not None and _WELL_FORMED_FUNCTION.search(repaired):
+        try:
+            message.content = repaired
+            _log("repaired malformed tool call in place (kept primary provider)")
+            return "ok"
+        except Exception as exc:  # pragma: no cover - defensive
+            _log(f"could not rewrite repaired content ({exc!r}); recovering")
+    if not content.strip():
+        return "empty"
+    if _intends_tool_call(content):
+        return "unrepairable"
+    return "ok"  # legitimate non-empty final answer / plain text
+
+
+def _install_provider_pin() -> dict | None:
+    """Patch ``transform_request`` to inject the current provider block. Returns primary."""
+    primary = _load_provider("CYBERGYM_OPENROUTER_PROVIDER")
+    if primary is None:
+        return None
 
     # Import triggers the full LiteLLM import chain; safe at normal runtime (unlike site
     # initialisation). OpenHands' later ``import litellm`` reuses this cached module.
@@ -49,10 +177,63 @@ def _install_provider_pin() -> None:
     def transform_request(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         body = original(self, *args, **kwargs)
         if isinstance(body, dict):
-            body["provider"] = provider
+            body["provider"] = _current_provider.get() or primary
         return body
 
     OpenrouterConfig.transform_request = transform_request  # type: ignore[assignment]
+    return primary
+
+
+def _install_completion_repair(primary: dict) -> None:
+    """Wrap ``litellm.completion`` to repair malformed tool calls and, if that fails,
+    retry on the fallback provider.
+
+    Must run before ``openhands.llm.llm`` is imported: it binds ``from litellm import
+    completion`` at import time, so we replace the module attribute first and OpenHands then
+    binds our wrapper. ``runpy.run_module`` (which imports OpenHands) runs after this.
+    """
+    import litellm
+
+    fallback = _load_provider("CYBERGYM_OPENROUTER_FALLBACK_PROVIDER")
+    if fallback == primary:
+        fallback = None
+
+    original_completion = litellm.completion
+
+    def completion_with_recovery(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # Streaming is disabled in this harness, so ``resp`` is always a full response.
+        resp = original_completion(*args, **kwargs)
+        outcome = _classify_and_repair(resp)  # repairs a malformed tool call in place
+        if outcome == "ok":
+            return resp
+
+        # An empty/errored response (no tool call, no content) is usually a transient
+        # Friendli interruption mid-reasoning. Re-roll the primary once before spending a
+        # fallback call -- the failure is random, so a re-roll usually succeeds and keeps the
+        # request on the preferred provider.
+        if outcome == "empty":
+            _log("primary returned an empty/errored response; re-rolling primary once")
+            resp = original_completion(*args, **kwargs)
+            outcome = _classify_and_repair(resp)
+            if outcome == "ok":
+                return resp
+
+        # Still unusable (empty after the re-roll, or a tool call this layer cannot repair):
+        # re-issue the identical request on the fallback provider if one is configured.
+        if fallback is not None:
+            _log(
+                f"recovering unusable response (reason={outcome}) on fallback provider "
+                f"{json.dumps(fallback)}"
+            )
+            token = _current_provider.set(fallback)
+            try:
+                resp = original_completion(*args, **kwargs)
+            finally:
+                _current_provider.reset(token)
+            _classify_and_repair(resp)  # repair a (rare) malformed fallback response in place
+        return resp
+
+    litellm.completion = completion_with_recovery  # type: ignore[assignment]
 
 
 def _install_waiting_poll_stuck_fix() -> None:
@@ -98,7 +279,9 @@ def _install_waiting_poll_stuck_fix() -> None:
 
 def main() -> None:
     _install_waiting_poll_stuck_fix()
-    _install_provider_pin()
+    primary = _install_provider_pin()
+    if primary is not None:
+        _install_completion_repair(primary)
     # Mirror ``python -m openhands.core.main``: the working directory is the OpenHands
     # repo, and ``-m`` puts the cwd on sys.path[0]. run_controller reads its arguments
     # from sys.argv, which already carries everything after this script's path.
