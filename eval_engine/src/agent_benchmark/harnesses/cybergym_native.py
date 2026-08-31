@@ -366,6 +366,9 @@ class CyberGymNativeHarness(HarnessAdapter):
         provider_pin = self._provider_pin(spec)
         if provider_pin is not None:
             process_env["CYBERGYM_OPENROUTER_PROVIDER"] = json.dumps(provider_pin)
+            fallback_pin = self._fallback_provider_pin(spec, provider_pin)
+            if fallback_pin is not None:
+                process_env["CYBERGYM_OPENROUTER_FALLBACK_PROVIDER"] = json.dumps(fallback_pin)
         # A hard provider pin (only: [z-ai], allow_fallbacks off) removes OpenRouter's
         # cross-provider fallback, so a transient upstream error (HTTP 5xx, an unparseable
         # response) aborts the OpenHands agent outright with no PoC. Re-run the agent on the
@@ -429,6 +432,25 @@ class CyberGymNativeHarness(HarnessAdapter):
         pinned = dict(provider)
         pinned.setdefault("allow_fallbacks", False)
         return pinned
+
+    @staticmethod
+    def _fallback_provider_pin(spec: ResolvedSpec, primary: dict) -> dict | None:
+        """Return the OpenRouter provider block to retry on when the primary emits a
+        tool call the agent cannot parse, or None to disable fallback.
+
+        Friendli intermittently serves GLM-5.3 tool calls in a malformed format; the
+        bootstrap repairs the known case in place, but a fallback provider is retried when
+        repair cannot recover a parseable call. Only Friendli is known to misbehave, so the
+        fallback is enabled only when the primary hard-pins Friendli. The fallback route
+        defaults to the stable z-ai upstream and can be overridden per benchmark via the
+        ``provider_fallback_route`` setting (set it to an empty string to disable).
+        """
+        if primary.get("only") != ["friendli"]:
+            return None
+        route = spec.benchmark.settings.get("provider_fallback_route", "z-ai")
+        if not route:
+            return None
+        return {"only": [route], "allow_fallbacks": False}
 
     @staticmethod
     def _config_toml(workspace: Path, log_dir: Path, network: str, spec: ResolvedSpec) -> str:
