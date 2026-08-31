@@ -55,7 +55,49 @@ def _install_provider_pin() -> None:
     OpenrouterConfig.transform_request = transform_request  # type: ignore[assignment]
 
 
+def _install_waiting_poll_stuck_fix() -> None:
+    """Stop the loop detector from killing an agent that is legitimately *waiting* on a
+    still-running command.
+
+    The sandbox bash session hands control back after a soft timeout with a prompt telling
+    the model to "send empty command '' to wait longer" (see NO_CHANGE_TIMEOUT_SECONDS).
+    The model does exactly that, gets the identical "no new output" observation each time,
+    and after four such identical action/observation pairs scenario 1 of the stuck detector
+    (``_is_stuck_repeating_action_observation``) raises ``AgentStuckInLoopError`` -- aborting
+    the task with no PoC. Following the prompt's own advice must not count as a loop.
+
+    We leave the detector fully intact for every genuine repeated-action loop and exempt
+    only the narrow "empty ``is_input`` poll" case. This is a belt-and-braces guard: raising
+    NO_CHANGE_TIMEOUT_SECONDS already lets slow commands finish in one turn so the model
+    rarely has to poll at all. Duck-typed on the action so it survives OpenHands drift.
+    """
+    try:
+        from openhands.controller.stuck import StuckDetector
+    except Exception as exc:  # pragma: no cover - version-drift guard
+        _log(f"waiting-poll stuck fix skipped (import failed: {exc!r})")
+        return
+
+    original = StuckDetector._is_stuck_repeating_action_observation
+
+    def _is_waiting_poll(action: object) -> bool:
+        # A blank command sent with is_input=true is "press Enter to keep waiting", not a
+        # real action; a genuine stuck loop repeats a content-bearing command instead.
+        if not getattr(action, "is_input", False):
+            return False
+        command = getattr(action, "command", None)
+        return isinstance(command, str) and command.strip() == ""
+
+    def patched(self, last_actions, last_observations):  # type: ignore[no-untyped-def]
+        if len(last_actions) == 4 and all(_is_waiting_poll(a) for a in last_actions):
+            return False
+        return original(self, last_actions, last_observations)
+
+    StuckDetector._is_stuck_repeating_action_observation = patched  # type: ignore[assignment]
+    _log("installed stuck-detector exemption for empty is_input waiting polls")
+
+
 def main() -> None:
+    _install_waiting_poll_stuck_fix()
     _install_provider_pin()
     # Mirror ``python -m openhands.core.main``: the working directory is the OpenHands
     # repo, and ``-m`` puts the cwd on sys.path[0]. run_controller reads its arguments
