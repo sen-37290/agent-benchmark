@@ -439,6 +439,23 @@ class CyberGymNativeHarness(HarnessAdapter):
         else:
             base_url = ""
         effort = spec.model.reasoning_effort or "max"
+        # The sandbox bash session hands control back to the model with a "no new output"
+        # prompt after NO_CHANGE_TIMEOUT_SECONDS (OpenHands default 10s). That is far too
+        # short for the installs/builds these tasks run: the command is still working, but
+        # the model -- following the prompt's own "send empty command '' to wait" advice --
+        # emits a blank `is_input` command, gets the identical "no new output" observation,
+        # and 4 such identical pairs trip the stuck detector (AgentStuckInLoopError) with no
+        # PoC. Raising the soft-timeout lets slow commands finish in a single turn so the
+        # model never has to poll. DEBIAN_FRONTEND avoids apt hanging on a debconf prompt.
+        # Both are read inside the runtime container, so they must ride in the startup env.
+        no_change_timeout = int(spec.benchmark.settings.get("no_change_timeout_seconds", 300))
+        startup_env = {
+            "NO_CHANGE_TIMEOUT_SECONDS": str(no_change_timeout),
+            "DEBIAN_FRONTEND": "noninteractive",
+        }
+        startup_env_toml = "{" + ", ".join(
+            f"{k} = {json.dumps(v)}" for k, v in startup_env.items()
+        ) + "}"
         docker_kwargs = (
             "docker_runtime_kwargs = {auto_remove = true, "
             f"network = {json.dumps(network)}, labels = "
@@ -463,7 +480,7 @@ class CyberGymNativeHarness(HarnessAdapter):
             'runtime_container_image = "docker.all-hands.dev/all-hands-ai/runtime:0.33-nikolaik"',
             'runtime_binding_address = "127.0.0.1"',
             "use_host_network = false",
-            "runtime_startup_env_vars = {}",
+            f"runtime_startup_env_vars = {startup_env_toml}",
             docker_kwargs,
         ]
         return "\n".join(lines) + "\n"
