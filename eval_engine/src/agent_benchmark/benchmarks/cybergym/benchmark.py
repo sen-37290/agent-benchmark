@@ -73,10 +73,15 @@ class CyberGym(BenchmarkPlugin):
         unknown = sorted(set(ids) - known)
         if unknown:
             raise StageError(f"CyberGym pool contains unknown tasks: {', '.join(unknown)}")
+        # A pinned pool (single-instance or explicit subset re-run) is an intentional partial
+        # selection, so the profile's fixed size is not enforced; all ids are still validated
+        # against the catalog above. Sampled/full pools remain strictly size-gated.
+        pool_payload = json.loads((run_dir / spec.benchmark.pool_path).read_text())
+        pinned = pool_payload.get("sampling") in {"pinned", "pinned-subset"}
         allowed_sizes = {len(expected_catalog["tasks"])}
         if self.kind == "cybergym_smoke":
             allowed_sizes.add(1)
-        if len(ids) not in allowed_sizes:
+        if not pinned and len(ids) not in allowed_sizes:
             raise StageError("CyberGym pool size does not match its profile")
 
         gates = cache_root / "cybergym" / "gates"
@@ -163,13 +168,19 @@ class CyberGym(BenchmarkPlugin):
             destination = data_root / family / ident
             destination.mkdir(parents=True, exist_ok=True)
             for filename in ("repo-vul.tar.gz", "description.txt"):
+                target = destination / filename
+                # The pinned revision is immutable, so a non-empty file already on disk is
+                # correct; skipping it lets a subset re-run reuse the full catalog's cache
+                # without re-downloading any per-task asset.
+                if target.is_file() and target.stat().st_size > 0:
+                    continue
                 run_logged(
                     [
                         "wget",
                         "-q",
                         "--show-progress",
                         "-O",
-                        str(destination / filename),
+                        str(target),
                         f"{base}/data/{family}/{ident}/{filename}",
                     ],
                     cwd=data_root,
