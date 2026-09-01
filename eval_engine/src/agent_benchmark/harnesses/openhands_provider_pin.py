@@ -278,10 +278,17 @@ def _install_waiting_poll_stuck_fix() -> None:
 
 
 def main() -> None:
-    _install_waiting_poll_stuck_fix()
+    # ORDER MATTERS: install the provider pin and the completion repair BEFORE anything
+    # imports OpenHands. ``_install_completion_repair`` replaces ``litellm.completion``, and
+    # ``openhands.llm.llm`` binds ``from litellm import completion`` by reference at import
+    # time (line ~18) -- so the repair must be in place before that import runs, or the
+    # wrapper is bypassed and Friendli's malformed tool calls reach the agent unrepaired.
+    # ``_install_waiting_poll_stuck_fix`` imports ``openhands.controller.stuck`` (which pulls
+    # in ``openhands.llm.llm``), so it MUST come last, after the completion repair is live.
     primary = _install_provider_pin()
     if primary is not None:
         _install_completion_repair(primary)
+    _install_waiting_poll_stuck_fix()
     # Mirror ``python -m openhands.core.main``: the working directory is the OpenHands
     # repo, and ``-m`` puts the cwd on sys.path[0]. run_controller reads its arguments
     # from sys.argv, which already carries everything after this script's path.
