@@ -33,6 +33,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_SOL_SWE_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
     # per-task cap comes from the benchmark profile and is locked at the official $3.
 
@@ -44,6 +45,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_TERRA_SWE_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
 
   - label: sen-gpt-5-6-luna-swe-bench
@@ -54,6 +56,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_LUNA_SWE_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
 
   - label: sen-fable-5-1-swe-bench
@@ -64,6 +67,7 @@ experiments:
     provider: anthropic
     api_key_from: SEN_FABLE_5_1_SWE_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
 
   # ---- Terminal-Bench 2.1 (89 tasks, Harbor + Terminus 2) ----
@@ -75,6 +79,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     per_task_cap_usd: 5
     workers: 12
 
@@ -86,6 +91,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_TERRA_TERMINAL_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     per_task_cap_usd: 5
     workers: 12
 
@@ -97,6 +103,7 @@ experiments:
     provider: openai
     api_key_from: SEN_GPT_5_6_LUNA_TERMINAL_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     per_task_cap_usd: 5
     workers: 12
 
@@ -108,6 +115,7 @@ experiments:
     provider: anthropic
     api_key_from: SEN_FABLE_5_1_TERMINAL_BENCH
     experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     per_task_cap_usd: 5
     workers: 12
 
