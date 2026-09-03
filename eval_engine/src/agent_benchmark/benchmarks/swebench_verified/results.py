@@ -74,18 +74,35 @@ def duration(result: dict[str, Any]) -> float | None:
         return None
 
 
+def _native_response(message: dict[str, Any]) -> dict[str, Any] | None:
+    """The raw provider response carried by one trajectory message.
+
+    mini-swe-agent stores it in two places depending on the model class:
+    `litellm` (chat completions) nests it under `extra.response`, while
+    `litellm_response` (the OpenAI Responses API) makes the response *be* the
+    message and leaves `extra` holding only actions/cost. Reading just the
+    first shape silently drops all usage for Responses-API runs.
+    """
+    response = message.get("extra", {}).get("response")
+    if isinstance(response, dict):
+        return response
+    if message.get("object") == "response":
+        return message
+    return None
+
+
 def _native_usage(trajectory: dict[str, Any]) -> tuple[int | None, int | None, int | None]:
     input_tokens = output_tokens = cached_tokens = None
     for message in trajectory.get("messages", []):
-        response = message.get("extra", {}).get("response")
-        if not isinstance(response, dict):
+        response = _native_response(message)
+        if response is None:
             continue
         usage = response.get("usage")
         if not isinstance(usage, dict):
             continue
         prompt = usage.get("prompt_tokens", usage.get("input_tokens"))
         completion = usage.get("completion_tokens", usage.get("output_tokens"))
-        details = usage.get("prompt_tokens_details") or {}
+        details = usage.get("prompt_tokens_details") or usage.get("input_tokens_details") or {}
         cached = details.get("cached_tokens") if isinstance(details, dict) else None
         if cached is None:
             cached = usage.get("cache_read_input_tokens")
@@ -101,8 +118,12 @@ def _native_usage(trajectory: dict[str, Any]) -> tuple[int | None, int | None, i
 def _native_reasoning_audit(trajectory: dict[str, Any]) -> dict[str, Any]:
     responses: list[dict[str, Any]] = []
     for message in trajectory.get("messages", []):
-        response = message.get("extra", {}).get("response")
-        if message.get("role") == "assistant" and isinstance(response, dict):
+        response = _native_response(message)
+        if response is None:
+            continue
+        # Chat completions tag the carrier message as the assistant turn; a
+        # Responses-API message is itself the assistant response and has no role.
+        if message.get("role") == "assistant" or response is message:
             responses.append(response)
     reasoning = 0
     reasoning_details = 0

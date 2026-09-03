@@ -93,6 +93,12 @@ fi
 # Omitting both means the full benchmark, which is what a real experiment wants. Setting them
 # runs a small canary over the identical code path -- the only honest way to validate a VM,
 # transport and key before committing the full budget.
+EFFORT_ARGS=()
+if [ -n "${REASONING_EFFORT:-}" ]; then
+  EFFORT_ARGS=(--reasoning-effort "$REASONING_EFFORT")
+  log "reasoning effort: $REASONING_EFFORT"
+fi
+
 SCOPE_ARGS=()
 if [ -n "${SAMPLING:-}" ] && [ -n "${SIZE:-}" ]; then
   SCOPE_ARGS=(--sampling "$SAMPLING" --size "$SIZE")
@@ -110,7 +116,7 @@ uv run agent-bench plan \
   --budget-usd "$EXPERIMENT_CAP_USD" \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
-  "${PER_TASK_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
   > "$STATE_DIR/$LABEL.resolved.yaml" || exit $?
 log "resolved spec: $STATE_DIR/$LABEL.resolved.yaml"
 
@@ -129,7 +135,7 @@ uv run agent-bench run \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   --no-cleanup \
-  "${PER_TASK_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
   >> "$RUN_LOG" 2>&1 &
 RUN_PID=$!
 log "pid $RUN_PID"

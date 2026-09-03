@@ -69,6 +69,7 @@ class Experiment:
     experiment_cap_usd: float
     workers: int
     per_task_cap_usd: float | None
+    reasoning_effort: str | None
     project: str
     zone: str
     remote_root: str
@@ -97,6 +98,7 @@ def load_experiments() -> list[Experiment]:
                 per_task_cap_usd=(
                     float(row["per_task_cap_usd"]) if row.get("per_task_cap_usd") else None
                 ),
+                reasoning_effort=row.get("reasoning_effort") or None,
                 project=defaults["project"],
                 zone=defaults["zone"],
                 remote_root=defaults["remote_root"],
@@ -402,6 +404,7 @@ def cmd_env(args: argparse.Namespace) -> int:
             f"{experiment.per_task_cap_usd:g}" if experiment.per_task_cap_usd else ""
         ),
         "FLEET_WORKERS": str(experiment.workers),
+        "FLEET_REASONING_EFFORT": experiment.reasoning_effort or "",
         "FLEET_REMOTE_ROOT": experiment.remote_root,
         "FLEET_SSH_USER": experiment.ssh_user,
         "FLEET_DEPENDENCY_EXTRA": experiment.dependency_extra,
