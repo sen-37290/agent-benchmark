@@ -48,10 +48,17 @@ fi
 docker compose version
 
 log "uv"
-if ! command -v uv >/dev/null; then
+# Always resolve the real binary in ~/.local/bin, never whatever `command -v uv` finds. On a
+# re-run that would resolve to /usr/local/bin/uv, and the symlink below would then point at
+# itself -- silently breaking uv on an already-working VM.
+UV_BIN="$HOME/.local/bin/uv"
+if [ ! -x "$UV_BIN" ]; then
   curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
-UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
+if [ ! -x "$UV_BIN" ]; then
+  echo "FATAL: uv did not install at $UV_BIN" >&2
+  exit 1
+fi
 sudo ln -sf "$UV_BIN" /usr/local/bin/uv
 
 if [ "$PROFILE" = "cybergym" ]; then
