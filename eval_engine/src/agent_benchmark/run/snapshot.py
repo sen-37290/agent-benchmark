@@ -182,6 +182,21 @@ _LIVE_READERS = {
 }
 
 
+def _artifact_root(spec, run_dir: Path) -> Path:
+    """Where this run's harness artifacts currently live.
+
+    Before the collect stage they exist only in the execution workspace; afterwards the run bundle
+    holds a verified copy. Prefer the bundle once it has artifacts so a finished run is read from
+    its authoritative location.
+    """
+    if (run_dir / "artifacts").is_dir() and any((run_dir / "artifacts").iterdir()):
+        return run_dir
+    workspace = Path(spec.target.remote_root) / spec.run_id
+    if (workspace / "artifacts").is_dir():
+        return workspace
+    return run_dir
+
+
 def _last_task(run_dir: Path, known: dict[str, str]) -> str | None:
     """The most recently finished task.
 
@@ -240,7 +255,12 @@ def build(store: RunStore) -> Snapshot:
         statuses, cost, cost_complete, resolved = from_results
     else:
         reader = _LIVE_READERS.get(spec.benchmark.harness)
-        statuses, cost, cost_complete, resolved = reader(run_dir) if reader else ({}, 0.0, True, 0)
+        # Harness artifacts are written into the execution workspace and only land in the run
+        # bundle when the collect stage runs. Read the workspace too, or a run in progress reports
+        # 0 done and $0.00 for its whole duration -- which is most of its life. The controller is
+        # co-located with its executor, so that path is readable from here.
+        root = _artifact_root(spec, run_dir)
+        statuses, cost, cost_complete, resolved = reader(root) if reader else ({}, 0.0, True, 0)
 
     known = {task_id: status for task_id, status in statuses.items() if task_id in set(ids)}
     failed = sum(1 for status in known.values() if status == "error")
@@ -278,7 +298,7 @@ def build(store: RunStore) -> Snapshot:
         per_task_cap_usd=spec.budget.per_task_usd,
         experiment_cap_usd=cap,
         pct_budget=round(100 * cost / cap, 1) if cap else None,
-        last_task=_last_task(run_dir, known),
+        last_task=_last_task(_artifact_root(spec, run_dir), known),
         stopped_reason=stop_reason(run_dir),
         cancelled=state.cancelled,
         results_path=str(run_dir),

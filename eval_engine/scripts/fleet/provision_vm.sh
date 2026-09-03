@@ -47,6 +47,18 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 docker compose version
 
+log "docker hub authentication"
+# SWE-bench pulls one image per task (500 of them, ~1GB each). Anonymous pulls hit Docker Hub's
+# unauthenticated rate limit almost immediately -- observed as `docker run` exiting 125 with
+# "toomanyrequests", which failed 401 of 500 tasks on a fresh VM. Credentials are passed in the
+# environment by deploy_experiment.sh and never written anywhere but docker's own config.
+if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+  printf '%s' "$DOCKERHUB_TOKEN" | docker login --username "$DOCKERHUB_USERNAME" --password-stdin \
+    && echo "docker hub: authenticated as $DOCKERHUB_USERNAME"
+else
+  echo "docker hub: NO CREDENTIALS -- pulls will be rate-limited" >&2
+fi
+
 log "uv"
 # Always resolve the real binary in ~/.local/bin, never whatever `command -v uv` finds. On a
 # re-run that would resolve to /usr/local/bin/uv, and the symlink below would then point at
