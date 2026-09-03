@@ -57,7 +57,16 @@ if [ "$PROVISION" = "1" ]; then
   case "$FLEET_BENCHMARK" in cybergym*) profile=cybergym ;; esac
   ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$FLEET_REMOTE_ROOT'"
   scp "${SSH_OPTS[@]}" "$HERE/provision_vm.sh" "$SSH_TARGET:/tmp/provision_vm.sh" >/dev/null
-  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "bash /tmp/provision_vm.sh $profile"
+  # Forward Docker Hub credentials over stdin so `docker login` can lift the anonymous pull
+  # limit. Piped, never in argv.
+  DH_USER="$(sed -n 's/^DOCKERHUB_USERNAME=//p' "$REPO_ROOT/.env" | tr -d '"'"'"'"' | head -1)"
+  DH_TOKEN="$(sed -n 's/^DOCKERHUB_TOKEN=//p' "$REPO_ROOT/.env" | tr -d '"'"'"'"' | head -1)"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s <<EOF
+export DOCKERHUB_USERNAME='$DH_USER'
+export DOCKERHUB_TOKEN='$DH_TOKEN'
+bash /tmp/provision_vm.sh $profile
+EOF
+  unset DH_USER DH_TOKEN
 fi
 
 say "syncing the repo"

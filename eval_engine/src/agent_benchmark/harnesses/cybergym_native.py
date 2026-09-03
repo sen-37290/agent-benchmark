@@ -626,6 +626,12 @@ class CyberGymNativeHarness(HarnessAdapter):
             "max_output_tokens = 131072",
             "log_completions = true",
         ]
+        if spec.model.api == "openai":
+            # gpt-5.6 rejects function tools combined with reasoning on /v1/chat/completions,
+            # which is the only endpoint OpenHands speaks. Disabling native tool calling makes it
+            # emit the <function=...> text format instead -- the format this bootstrap already
+            # parses and repairs -- so the model keeps its reasoning.
+            lines.append("native_tool_calling = false")
         if effort is not None:
             lines.append(f"reasoning_effort = {json.dumps(effort)}")
         lines += [

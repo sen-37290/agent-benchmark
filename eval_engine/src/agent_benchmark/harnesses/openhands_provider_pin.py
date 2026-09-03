@@ -185,6 +185,52 @@ def _install_provider_pin() -> dict | None:
     return primary
 
 
+#: Request parameters a provider may reject outright. OpenHands sends `temperature` from its
+#: LLMConfig default (0.0) on every call and offers no way to omit it, so a model that has
+#: deprecated the parameter fails every single request.
+_DROPPABLE_PARAMS = ("temperature", "top_p", "top_k")
+
+
+def _unsupported_param(message: str) -> str | None:
+    """The request parameter a 400 is complaining about, if it is one we can safely drop."""
+    lowered = message.lower()
+    for name in _DROPPABLE_PARAMS:
+        if name in lowered and (
+            "deprecated" in lowered or "not supported" in lowered or "unsupported" in lowered
+        ):
+            return name
+    return None
+
+
+def _install_unsupported_param_retry() -> None:
+    """Retry a request once without a parameter the provider has rejected.
+
+    claude-fable-5-1 returns ``400 invalid_request_error: `temperature` is deprecated for this
+    model``. OpenHands always sends temperature, so before this every CyberGym task died on its
+    first LLM call -- 200+ tasks "completed" in minutes with no PoC and no spend.
+
+    Dropping the parameter and retrying is preferable to hardcoding a per-model list: it adapts to
+    whatever the provider deprecates next, and only ever triggers on a request the provider has
+    already refused (so nothing was billed).
+    """
+    import litellm
+
+    original_completion = litellm.completion
+
+    def completion_without_rejected_params(*args, **kwargs):  # type: ignore[no-untyped-def]
+        try:
+            return original_completion(*args, **kwargs)
+        except Exception as error:
+            name = _unsupported_param(str(error))
+            if name is None or name not in kwargs:
+                raise
+            _log(f"provider rejected {name!r}; retrying without it")
+            retry_kwargs = {key: value for key, value in kwargs.items() if key != name}
+            return original_completion(*args, **retry_kwargs)
+
+    litellm.completion = completion_without_rejected_params  # type: ignore[assignment]
+
+
 def _install_cost_guard() -> bool:
     """Meter every LLM call and stop the task at its per-task dollar limit.
 
@@ -329,6 +375,9 @@ def main() -> None:
     # The cost guard goes on first so the repair/fallback wrapper sits outside it and every
     # physical request -- original, re-roll and fallback -- is metered exactly once. It is
     # installed for every transport, not just OpenRouter.
+    # Innermost first: the param-drop retry must wrap the real API call, so a request the
+    # provider refuses is re-issued before the cost meter or the repair layer ever see it.
+    _install_unsupported_param_retry()
     _install_cost_guard()
     primary = _install_provider_pin()
     if primary is not None:
