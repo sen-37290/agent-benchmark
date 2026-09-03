@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import signal
 import tempfile
 import uuid
 from datetime import UTC, datetime
@@ -23,6 +25,8 @@ from agent_benchmark.exceptions import AgentBenchError
 from agent_benchmark.run.pipeline import Pipeline
 from agent_benchmark.run.remote import SSHBackend
 from agent_benchmark.run.result import read_results, write_report, write_results
+from agent_benchmark.run.snapshot import build as build_snapshot
+from agent_benchmark.run.stop import REASON_OPERATOR, request_stop
 from agent_benchmark.run.store import RunStore
 from agent_benchmark.run.worker import create_manifest, run_stage
 
@@ -86,6 +90,26 @@ def _request(
         error_retries=error_retries,
         target=target,
     )
+
+
+def _install_stop_handlers(run_dir: Path) -> None:
+    """Turn SIGTERM/SIGINT into a cooperative stop rather than an abrupt death.
+
+    `systemctl stop` sends SIGTERM and Ctrl-C sends SIGINT. Neither is caught by the pipeline's
+    `except Exception`, so before this the process simply vanished: `state.json` was left stuck
+    at `running` and in-flight work was abandoned. Recording a stop lets the harnesses drain and
+    the controller's exit trap finalize.
+    """
+
+    def handle(signum: int, _frame: object) -> None:
+        name = signal.Signals(signum).name
+        request_stop(run_dir, REASON_OPERATOR, f"received {name}")
+        typer.echo(f"\n{name} received: winding down, no new tasks will start", err=True)
+
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        # Signals can only be installed on the main thread; ignore it elsewhere (e.g. tests).
+        with contextlib.suppress(ValueError):
+            signal.signal(signum, handle)
 
 
 def _selected_target(primary: bool, backup: str | None) -> str:
@@ -335,8 +359,54 @@ def run(
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")
     typer.echo(f"run ID: {store.run_id}")
+    _install_stop_handlers(store.path)
     Pipeline(store, PROJECT_ROOT).run()
     typer.echo(f"completed: {store.run_id}")
+
+
+@app.command()
+def snapshot(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Print a small JSON progress/cost summary for one run.
+
+    Designed to be cheap enough for the fleet monitor to poll over SSH: it derives task counts
+    and spend from the artifacts the harnesses already write, so it stays accurate during the
+    execute stage where `state.json` alone only says "running".
+    """
+    typer.echo(build_snapshot(RunStore(runs_root, run_id)).to_json())
+
+
+@app.command()
+def finalize(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Grade, collect, normalize and report whatever finished, however the run ended.
+
+    Use this after a run is stopped at its cost cap, interrupted, or killed. It never cleans up
+    and never deletes anything; it only turns the artifacts already on disk into graded results
+    and a report.
+    """
+    store = RunStore(runs_root, run_id)
+    Pipeline(store, PROJECT_ROOT).finalize()
+    typer.echo(f"finalized: {store.run_id}")
+
+
+@app.command()
+def stop(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Ask a run to wind down cleanly: start no new tasks, then grade and report.
+
+    This is the safe counterpart to `cancel`. Nothing in flight is killed and nothing is
+    deleted, so use it whenever an experiment should end early.
+    """
+    store = RunStore(runs_root, run_id)
+    request_stop(store.path, REASON_OPERATOR, "requested via `agent-bench stop`")
+    typer.echo(f"stop requested: {store.run_id}")
 
 
 @app.command()

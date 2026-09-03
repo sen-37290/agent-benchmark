@@ -48,6 +48,27 @@ class Pipeline:
         self._stage(StageName.REPORT, self._report)
         self._stage(StageName.CLEANUP, self.backend.cleanup, error_retries=retries)
 
+    def finalize(self) -> None:
+        """Grade, collect, normalize and report whatever exists, however the run ended.
+
+        This is what an experiment's exit trap calls. It re-runs the tail of the pipeline even
+        when those stages already ran or previously failed, so a run stopped at its cost cap, or
+        killed outright, still produces graded results and a report instead of leaving the
+        evidence stranded on the VM. Cleanup is never part of it.
+        """
+        for stage, action in (
+            (StageName.GRADE, lambda: self.backend.run_worker("grade")),
+            (StageName.COLLECT, lambda: self.backend.collect(self.store.path)),
+        ):
+            try:
+                self._stage(stage, action, force=True)
+            except StageError as error:
+                # Grading may legitimately fail (e.g. nothing ran at all). Keep going so the
+                # artifacts that do exist are still collected and reported.
+                print(f"[finalize] {stage.value} failed: {error}", flush=True)
+        self._stage(StageName.NORMALIZE, self._normalize, force=True)
+        self._stage(StageName.REPORT, self._report, force=True)
+
     def collect(self) -> None:
         self._stage(StageName.COLLECT, lambda: self.backend.collect(self.store.path), force=True)
 
