@@ -108,7 +108,8 @@ experiments:
   - label: sen-gpt-5-6-sol-cybergym-bench
     vm: sen-agent-cyber-bench-vm
     benchmark: cybergym-300-level1
-    model: gpt-5-6-sol
+    # gpt-5.6 hit OpenAI's cyber_policy mid-run; gpt-5.5 clears the same content in testing.
+    model: gpt-5-5
     provider: openai
     api_key_from: SEN_GPT_5_6_SOL_CYBERGYM_BENCH
     experiment_cap_usd: 5000
