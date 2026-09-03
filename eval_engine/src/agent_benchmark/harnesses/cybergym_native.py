@@ -20,6 +20,7 @@ from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.harnesses.cybergym_grades import append_grade, write_grades
+from agent_benchmark.harnesses.openhands_provider_pin import DROP_PARAMS_ENV
 from agent_benchmark.run.costguard import (
     COST_LIMIT_MARKER,
     LIMIT_ENV,
@@ -450,6 +451,10 @@ class CyberGymNativeHarness(HarnessAdapter):
                 LIMIT_ENV: f"{spec.budget.per_task_usd:.6f}",
                 USAGE_LOG_ENV: str(log_dir / "llm_usage.jsonl"),
                 TASK_ID_ENV: task_id,
+                # OpenHands always sends temperature from an LLMConfig default; current OpenAI
+                # and Anthropic models reject it outright, which killed every task on its first
+                # call. OpenRouter models accept it, so only strip it where it is refused.
+                DROP_PARAMS_ENV: ("temperature,top_p" if spec.model.api != "openrouter" else ""),
             }
         )
         provider_pin = self._provider_pin(spec)
