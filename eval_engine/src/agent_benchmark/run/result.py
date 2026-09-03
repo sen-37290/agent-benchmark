@@ -13,7 +13,9 @@ from agent_benchmark.config.schema import ResolvedSpec
 class TaskResult(BaseModel):
     run_id: str
     task_id: str
-    status: Literal["completed", "error", "missing"]
+    # "missing" means a result was expected but absent (a defect); "unrun" means the run was
+    # deliberately stopped before the task started, which is not a failure.
+    status: Literal["completed", "error", "missing", "unrun"]
     metrics: dict[str, float | int | bool | None] = Field(default_factory=dict)
     cost_usd: float | None = None
     attempt_count: int = 1

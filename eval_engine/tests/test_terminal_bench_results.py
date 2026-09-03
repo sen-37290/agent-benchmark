@@ -86,6 +86,10 @@ def test_grade_only_validates_inline_rewards(tmp_path: Path) -> None:
     summary = validate_and_summarize(spec, run_dir)
     assert summary == {
         "task_count": 3,
+        "attempted_count": 3,
+        "unrun_count": 0,
+        "unrun_task_ids": [],
+        "stop_reason": None,
         "successful_count": 1,
         "error_count": 1,
         "mean_reward": pytest.approx(1 / 3),

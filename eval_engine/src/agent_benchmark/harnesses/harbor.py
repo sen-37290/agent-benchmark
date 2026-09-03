@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 from pathlib import Path
@@ -20,6 +21,7 @@ from agent_benchmark.run.retry import (
     select_attempt,
     wait_before_attempt,
 )
+from agent_benchmark.run.stop import should_stop
 
 # Harbor is launched through the engine's bootstrap rather than its console script so a per-task
 # cost limit can be installed inside the process that issues the LLM calls. The bootstrap forwards
@@ -154,10 +156,13 @@ class HarborHarness(HarnessAdapter):
             redact_values=[api_key],
             budget_job_dir=output_dir,
             budget_usd=spec.budget.total_usd,
+            stop_dir=run_dir,
         )
 
         trial_results = sorted(output_dir.glob("*/*/result.json"))
-        if len(trial_results) != spec.benchmark.sample_size:
+        # A stop request (cost cap or operator) makes an incomplete pool the expected outcome;
+        # grading proceeds over the trials that finished.
+        if len(trial_results) != spec.benchmark.sample_size and not should_stop(run_dir):
             raise StageError(
                 "Harbor produced "
                 f"{len(trial_results)} trial results for {spec.benchmark.sample_size} tasks"
@@ -211,7 +216,9 @@ class HarborHarness(HarnessAdapter):
                 job_name=job_name,
                 engine_managed_retries=True,
             )
-            try:
+            # A failed round is recorded per task from its trial results below and retried on the
+            # next attempt; only a stop request ends the loop early.
+            with contextlib.suppress(StageError):
                 run_logged(
                     command,
                     cwd=run_dir,
@@ -220,10 +227,8 @@ class HarborHarness(HarnessAdapter):
                     redact_values=[api_key],
                     cost_reader=lambda: collected_cost(attempts_root),
                     budget_usd=spec.budget.total_usd,
+                    stop_dir=run_dir,
                 )
-            except StageError as error:
-                if "budget" in str(error).lower():
-                    raise
             by_id: dict[str, tuple[Path, dict[str, object]]] = {}
             for result_path in round_root.glob("*/*/result.json"):
                 result = json.loads(result_path.read_text())
@@ -270,6 +275,9 @@ class HarborHarness(HarnessAdapter):
                 if not error_type or not retryable:
                     select_attempt(manifest, task_id, attempt)
             save_manifest(run_dir, manifest)
+            if should_stop(run_dir):
+                # Cost cap or operator stop: keep this round's results, start no more.
+                break
 
         pending_tasks(manifest, max_attempts)
         save_manifest(run_dir, manifest)
@@ -278,7 +286,11 @@ class HarborHarness(HarnessAdapter):
         for task_id in ids:
             task = manifest["tasks"][task_id]
             selected = task["selected_attempt"]
-            item = next(entry for entry in task["attempts"] if entry["attempt"] == selected)
+            item = next((entry for entry in task["attempts"] if entry["attempt"] == selected), None)
+            if item is None:
+                # The run stopped before this task was attempted. Leave no result behind so
+                # normalize records it as unrun rather than inventing a failure.
+                continue
             source = run_dir / item["artifact"]
             destination = canonical_job / task_id
             if (source / "result.json").is_file():

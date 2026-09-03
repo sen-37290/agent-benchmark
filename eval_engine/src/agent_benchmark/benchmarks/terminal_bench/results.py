@@ -8,6 +8,7 @@ from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 from agent_benchmark.run.result import TaskResult
 from agent_benchmark.run.retry import attempt_costs, attempt_exhausted
+from agent_benchmark.run.stop import stop_reason
 
 
 def pool_ids(spec: ResolvedSpec, run_dir: Path) -> list[str]:
@@ -101,14 +102,19 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
             error_type=str(error_type) if error_type else None,
             raw_artifacts=[str(result_path.relative_to(run_dir))],
         )
+    # A task with no result is a defect *unless* the run was deliberately stopped before it
+    # started, in which case it never ran and must not be scored as a failure.
+    stopped = stop_reason(run_dir)
+    absent_status = "unrun" if stopped else "missing"
+    absent_error = None if stopped else "MissingTrialResult"
     results = [
         by_id.get(task_id)
         or TaskResult(
             run_id=spec.run_id,
             task_id=task_id,
-            status="missing",
+            status=absent_status,
             metrics={"reward": None, "resolved": False},
-            error_type="MissingTrialResult",
+            error_type=absent_error,
         )
         for task_id in expected
     ]
@@ -141,15 +147,27 @@ def validate_and_summarize(spec: ResolvedSpec, run_dir: Path) -> dict[str, objec
             raise StageError(f"Terminal-Bench result has no verifier reward: {identity}")
         else:
             rewards.append(reward)
+    unrun: set[str] = set()
     if seen != expected:
-        missing = ", ".join(sorted(expected - seen)[:3])
-        raise StageError(f"Terminal-Bench results are incomplete; missing: {missing}")
+        reason = stop_reason(run_dir)
+        if reason is None:
+            missing = ", ".join(sorted(expected - seen)[:3])
+            raise StageError(f"Terminal-Bench results are incomplete; missing: {missing}")
+        # Stopped on purpose (cost cap or operator). Summarise what ran and name the rest.
+        unrun = expected - seen
+    # Rates are over the tasks that actually ran, so a partial run is not reported as if the
+    # unrun tasks had all scored zero. task_count keeps the pool size for context.
+    scored = len(seen) or 1
     summary = {
         "task_count": len(expected),
+        "attempted_count": len(seen),
+        "unrun_count": len(unrun),
+        "unrun_task_ids": sorted(unrun),
+        "stop_reason": stop_reason(run_dir),
         "successful_count": sum(reward > 0 for reward in rewards),
         "error_count": len(errors),
-        "mean_reward": sum(rewards) / len(expected),
-        "accuracy": sum(reward > 0 for reward in rewards) / len(expected),
+        "mean_reward": sum(rewards) / scored,
+        "accuracy": sum(reward > 0 for reward in rewards) / scored,
     }
     (run_dir / "artifacts" / "terminal_bench_summary.json").write_text(
         json.dumps(summary, indent=2) + "\n"
