@@ -21,6 +21,18 @@ from agent_benchmark.run.retry import (
     wait_before_attempt,
 )
 
+# Harbor is launched through the engine's bootstrap rather than its console script so a per-task
+# cost limit can be installed inside the process that issues the LLM calls. The bootstrap forwards
+# every argument to Harbor's own CLI, so the command line is otherwise unchanged.
+# The bootstrap is passed by path, not with `python -m`: Harbor's own `-m <model>` flag would
+# otherwise be ambiguous with the interpreter's, for us and for anything parsing the command.
+_HARBOR_LAUNCHER = (
+    "uv",
+    "run",
+    "python",
+    str(Path(__file__).with_name("harbor_cost_guard.py")),
+)
+
 
 def harbor_job_dir(spec: ResolvedSpec, run_dir: Path) -> Path:
     return run_dir / "artifacts" / "harbor_jobs" / spec.run_id
@@ -51,12 +63,12 @@ def build_command(
     job_name = job_name or spec.run_id
     job_dir = output_dir / job_name
     if (job_dir / "config.json").is_file():
-        return ["uv", "run", "harbor", "job", "resume", "-p", str(job_dir)]
+        return [*_HARBOR_LAUNCHER, "job", "resume", "-p", str(job_dir)]
 
     invocation = invocation or agent_adapter(spec.model.subject_agent).invocation(
         spec, run_dir, api_key
     )
-    command = ["uv", "run", "harbor", "run"]
+    command = [*_HARBOR_LAUNCHER, "run"]
     dataset_source = spec.benchmark.settings.get("dataset_source", "local")
     if dataset_source == "package":
         pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())

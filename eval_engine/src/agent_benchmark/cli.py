@@ -61,8 +61,14 @@ def _request(
     no_timeout: bool,
     error_retries: int | None,
     target: str,
+    label: str | None = None,
+    api_key_from: str | None = None,
+    no_cleanup: bool = False,
 ) -> UserRequest:
     return UserRequest(
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
         benchmark=benchmark,
         sampling=sampling,
         size=size,
@@ -98,14 +104,15 @@ def _selected_target(primary: bool, backup: str | None) -> str:
     return name
 
 
-def _new_run_id(benchmark: str, model: str) -> str:
+def _new_run_id(benchmark: str, model: str, label: str | None = None) -> str:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    slug = f"{benchmark}-{model}".replace("_", "-")
+    slug = label.strip() if label else f"{benchmark}-{model}"
+    slug = slug.replace("_", "-")
     return f"{timestamp}-{slug}-{uuid.uuid4().hex[:8]}"
 
 
 def _create_run(request: UserRequest, runs_root: Path, pools_root: Path | None = None) -> RunStore:
-    run_id = _new_run_id(request.benchmark, request.model)
+    run_id = _new_run_id(request.benchmark, request.model, request.label)
     pool_path = (pools_root or (PROJECT_ROOT / "pools")) / f"{run_id}.json"
     benchmark_plugin(benchmark_plugin_name(request.benchmark)).create_pool(
         pool_path, request.sampling, request.size
@@ -167,6 +174,34 @@ def plan(
     backup: Annotated[
         str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
     ] = None,
+    label: Annotated[
+        str | None,
+        typer.Option(
+            "--label",
+            metavar="NAME",
+            help=(
+                "Experiment name; prefixes the run ID and identifies the run to the fleet monitor."
+            ),
+        ),
+    ] = None,
+    api_key_from: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key-from",
+            metavar="ENVVAR",
+            help=(
+                "Read this experiment's API key from ENVVAR instead of the model profile's "
+                "default variable. The subject agent still receives the canonical provider name."
+            ),
+        ),
+    ] = None,
+    no_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "--no-cleanup",
+            help="Retain the remote run workspace instead of removing it after a successful run.",
+        ),
+    ] = False,
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
     request = _request(
@@ -186,8 +221,11 @@ def plan(
         no_timeout,
         error_retries,
         _selected_target(primary, backup),
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
     )
-    run_id = _new_run_id(benchmark, model)
+    run_id = _new_run_id(benchmark, model, label)
     with tempfile.TemporaryDirectory(prefix="agent-bench-plan-") as temporary:
         pool_path = Path(temporary) / "pool.json"
         benchmark_plugin(benchmark_plugin_name(benchmark)).create_pool(pool_path, sampling, size)
@@ -242,6 +280,34 @@ def run(
     backup: Annotated[
         str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
     ] = None,
+    label: Annotated[
+        str | None,
+        typer.Option(
+            "--label",
+            metavar="NAME",
+            help=(
+                "Experiment name; prefixes the run ID and identifies the run to the fleet monitor."
+            ),
+        ),
+    ] = None,
+    api_key_from: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key-from",
+            metavar="ENVVAR",
+            help=(
+                "Read this experiment's API key from ENVVAR instead of the model profile's "
+                "default variable. The subject agent still receives the canonical provider name."
+            ),
+        ),
+    ] = None,
+    no_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "--no-cleanup",
+            help="Retain the remote run workspace instead of removing it after a successful run.",
+        ),
+    ] = False,
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:
     """Create and execute a complete benchmark run."""
@@ -262,6 +328,9 @@ def run(
         no_timeout,
         error_retries,
         _selected_target(primary, backup),
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
     )
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")
