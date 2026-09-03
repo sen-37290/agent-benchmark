@@ -93,6 +93,13 @@ fi
 # Omitting both means the full benchmark, which is what a real experiment wants. Setting them
 # runs a small canary over the identical code path -- the only honest way to validate a VM,
 # transport and key before committing the full budget.
+BUDGET_ARGS=(--budget-usd "$EXPERIMENT_CAP_USD")
+if [ "${NO_BUDGET_LIMIT:-0}" = "1" ]; then
+  # Experiment-level cost cap disabled by request; the per-task cap still applies.
+  BUDGET_ARGS=(--no-budget-limit)
+  log "experiment cost cap DISABLED (per-task cap still enforced)"
+fi
+
 EFFORT_ARGS=()
 if [ -n "${REASONING_EFFORT:-}" ]; then
   EFFORT_ARGS=(--reasoning-effort "$REASONING_EFFORT")
@@ -113,7 +120,7 @@ uv run agent-bench plan \
   --model "$MODEL" \
   --provider "$PROVIDER" \
   --workers "$WORKERS" \
-  --budget-usd "$EXPERIMENT_CAP_USD" \
+  "${BUDGET_ARGS[@]}" \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
@@ -131,7 +138,7 @@ uv run agent-bench run \
   --model "$MODEL" \
   --provider "$PROVIDER" \
   --workers "$WORKERS" \
-  --budget-usd "$EXPERIMENT_CAP_USD" \
+  "${BUDGET_ARGS[@]}" \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   --no-cleanup \
