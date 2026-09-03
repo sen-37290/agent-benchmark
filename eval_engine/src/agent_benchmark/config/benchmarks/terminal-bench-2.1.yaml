@@ -5,6 +5,7 @@ grading: harbor-inline-verifier
 default_agent: terminus-2
 per_task_cost_limit_usd: 5.0
 settings:
+  enforce_per_task_cost_limit: false  # no per-task cost cap on Terminal-Bench
   dependency_extra: terminalbench
   harbor_version: 0.21.0
   dataset_source: package
