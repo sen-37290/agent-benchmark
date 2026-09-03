@@ -164,7 +164,7 @@ ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo systemctl daemon-reload"
 
 if [ "$START" = "1" ]; then
   say "starting"
-  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo systemctl start 'agent-bench@$LABEL'"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo systemctl restart 'agent-bench@$LABEL'"
   sleep 3
   ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "systemctl is-active 'agent-bench@$LABEL' || true"
   cat <<EOF
