@@ -134,23 +134,32 @@ uv run agent-bench run \
 RUN_PID=$!
 log "pid $RUN_PID"
 
-# One loop does both jobs: capture the run ID as soon as the CLI prints it, and keep the status
-# file fresh so the monitor's poll is a single cheap `cat` of a few hundred bytes.
-while kill -0 "$RUN_PID" 2>/dev/null; do
-  if [ ! -s "$RUN_ID_FILE" ]; then
-    # The CLI prints `created: <run-id>` before any remote work begins. Capturing it early
-    # matters: without it the exit trap has nothing to finalize if the run dies during deploy.
-    grep -m1 '^created: ' "$RUN_LOG" 2>/dev/null | sed 's/^created: //' > "$RUN_ID_FILE.tmp" || true
-    if [ -s "$RUN_ID_FILE.tmp" ]; then
-      mv "$RUN_ID_FILE.tmp" "$RUN_ID_FILE"
-      log "run id: $(cat "$RUN_ID_FILE")"
-    else
-      rm -f "$RUN_ID_FILE.tmp"
-    fi
+capture_run_id() {
+  # The CLI prints `created: <run-id>` before any remote work begins. Capture it promptly: the
+  # exit trap has nothing to finalize without it, and a short run can finish inside one poll.
+  [ -s "$RUN_ID_FILE" ] && return 0
+  grep -m1 '^created: ' "$RUN_LOG" 2>/dev/null | sed 's/^created: //' > "$RUN_ID_FILE.tmp" || true
+  if [ -s "$RUN_ID_FILE.tmp" ]; then
+    mv "$RUN_ID_FILE.tmp" "$RUN_ID_FILE"
+    log "run id: $(cat "$RUN_ID_FILE")"
+  else
+    rm -f "$RUN_ID_FILE.tmp"
   fi
-  write_status
-  sleep 30
+}
+
+# Poll the run ID every 2s but refresh the status file only every 30s: the ID must be captured
+# quickly (a canary can finish in seconds), while a snapshot is comparatively expensive.
+elapsed=0
+while kill -0 "$RUN_PID" 2>/dev/null; do
+  capture_run_id
+  if [ $((elapsed % 30)) -eq 0 ]; then
+    write_status
+  fi
+  sleep 2
+  elapsed=$((elapsed + 2))
 done
 
+# Final chance, for a run that finished between polls.
+capture_run_id
 wait "$RUN_PID"
 exit $?

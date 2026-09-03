@@ -13,6 +13,8 @@ set -euo pipefail
 
 PROFILE="${1:-base}"
 NODE_MAJOR=22
+# Matches the plugin already installed on the original working VM.
+COMPOSE_VERSION=5.1.4
 POETRY_VERSION=2.4.1
 PYTHON_VERSION=3.12
 
@@ -30,6 +32,20 @@ sudo systemctl enable --now docker
 # The docker group only takes effect in a NEW login session, which the deploy step's fresh ssh
 # connection provides.
 sudo usermod -aG docker "$USER"
+
+log "docker compose v2 plugin"
+# Debian's docker.io package ships Docker Engine WITHOUT the Compose v2 plugin, so `docker
+# compose` does not exist and Harbor fails every task at environment startup with
+# "unknown flag: --project-name" (return code 125). Install the plugin binary the same way the
+# original working VM has it, pinned to the same version.
+COMPOSE_PLUGIN_DIR=/usr/local/lib/docker/cli-plugins
+if ! docker compose version >/dev/null 2>&1; then
+  sudo mkdir -p "$COMPOSE_PLUGIN_DIR"
+  sudo curl -fsSL -o "$COMPOSE_PLUGIN_DIR/docker-compose" \
+    "https://github.com/docker/compose/releases/download/v${COMPOSE_VERSION}/docker-compose-linux-x86_64"
+  sudo chmod +x "$COMPOSE_PLUGIN_DIR/docker-compose"
+fi
+docker compose version
 
 log "uv"
 if ! command -v uv >/dev/null; then
@@ -81,5 +97,8 @@ fi
 # Confirm the docker group is actually usable in a fresh session, not just assigned.
 sg docker -c 'docker run --rm hello-world >/dev/null 2>&1' && echo "docker run: OK" \
   || echo "docker run: NOT YET (log out and back in, then re-check)"
+# Harbor drives `docker compose`, so a working engine alone is not enough.
+sg docker -c 'docker compose version >/dev/null 2>&1' && echo "docker compose: OK" \
+  || echo "docker compose: MISSING (Harbor tasks would all fail at environment startup)"
 
 log "provisioned"
