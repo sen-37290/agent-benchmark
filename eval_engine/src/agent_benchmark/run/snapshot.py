@@ -147,8 +147,19 @@ def _from_mini_swe_agent(run_dir: Path) -> tuple[dict[str, str], float, bool, in
     statuses: dict[str, str] = {}
     cost = 0.0
     resolved = 0
-    root = run_dir / "artifacts" / "minisweagent_swebench"
-    for path in root.glob("**/*.traj.json") if root.exists() else ():
+    # During a run the trajectories live under the per-attempt retry directories; the canonical
+    # minisweagent_swebench/ tree is only populated at the very end of execute. Read both, or a
+    # 500-task run shows 0 done for hours. Later attempts win, matching attempt selection.
+    seen_paths: dict[str, Path] = {}
+    for root in (
+        run_dir / "artifacts" / "retry_attempts" / "mini_swe_agent_native",
+        run_dir / "artifacts" / "minisweagent_swebench",
+    ):
+        if not root.exists():
+            continue
+        for path in sorted(root.glob("**/*.traj.json")):
+            seen_paths[path.name] = path
+    for path in seen_paths.values():
         try:
             raw = json.loads(path.read_text())
         except (OSError, ValueError):

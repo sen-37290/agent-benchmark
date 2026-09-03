@@ -74,6 +74,27 @@ def _read_usage_ledger(path: Path) -> dict[str, object]:
     }
 
 
+def _drop_params(spec: ResolvedSpec) -> str:
+    """Request parameters to strip for this transport, as a comma-separated list.
+
+    OpenHands sends these from its own config defaults with no way to omit them, and a model that
+    refuses one fails every single request. OpenRouter models accept them all and were used this
+    way by previous experiments, so nothing is stripped there.
+
+    * ``temperature``/``top_p`` -- current OpenAI and Anthropic models reject them outright.
+    * ``stop`` -- gpt-5.6 rejects it ("Unsupported parameter: 'stop' is not supported with this
+      model"). OpenHands uses stop sequences to terminate its non-native tool-call format; without
+      them the model may write past the closing tag, which its regex parser tolerates because it
+      matches the first complete ``<function=...></function>`` block.
+    """
+    if spec.model.api == "openrouter":
+        return ""
+    names = ["temperature", "top_p"]
+    if spec.model.api == "openai":
+        names.append("stop")
+    return ",".join(names)
+
+
 def _max_output_tokens(spec: ResolvedSpec) -> int:
     """The output-token ceiling to request, taken from the model profile.
 
@@ -469,7 +490,7 @@ class CyberGymNativeHarness(HarnessAdapter):
                 # OpenHands always sends temperature from an LLMConfig default; current OpenAI
                 # and Anthropic models reject it outright, which killed every task on its first
                 # call. OpenRouter models accept it, so only strip it where it is refused.
-                DROP_PARAMS_ENV: ("temperature,top_p" if spec.model.api != "openrouter" else ""),
+                DROP_PARAMS_ENV: _drop_params(spec),
             }
         )
         provider_pin = self._provider_pin(spec)
