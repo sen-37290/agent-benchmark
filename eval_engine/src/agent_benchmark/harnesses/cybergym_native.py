@@ -74,6 +74,21 @@ def _read_usage_ledger(path: Path) -> dict[str, object]:
     }
 
 
+def _max_output_tokens(spec: ResolvedSpec) -> int:
+    """The output-token ceiling to request, taken from the model profile.
+
+    Every model caps this differently and exceeding the cap is a hard 400 on every single
+    request, so it must not be hardcoded. Profiles record it as either `max_output_tokens`
+    (Responses API naming) or `max_tokens` (chat-completions naming).
+    """
+    kwargs = spec.model.config.get("model", {}).get("model_kwargs", {})
+    for key in ("max_output_tokens", "max_tokens"):
+        value = kwargs.get(key)
+        if isinstance(value, int) and value > 0:
+            return value
+    return 64000
+
+
 def _safe(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]", "_", value)
 
@@ -626,9 +641,11 @@ class CyberGymNativeHarness(HarnessAdapter):
             "[llm]",
             f"model = {json.dumps(model)}",
             f"base_url = {json.dumps(base_url)}",
-            # No artificial output cap: use the model's own maximum so a reasoning model's
-            # thinking tokens can't exhaust the budget before it emits its tool call.
-            "max_output_tokens = 131072",
+            # Generous but model-specific: a reasoning model's thinking tokens must not exhaust
+            # the budget before it emits its tool call, but exceeding the model's own ceiling is
+            # a hard 400 on every request ("max_tokens: 131072 > 128000, which is the maximum
+            # allowed number of output tokens"). Take the value from the model profile.
+            f"max_output_tokens = {_max_output_tokens(spec)}",
             "log_completions = true",
         ]
         if spec.model.api == "openai":
