@@ -19,12 +19,14 @@ from agent_benchmark.agents.base import litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
+from agent_benchmark.harnesses.cybergym_grades import append_grade, write_grades
 from agent_benchmark.run.costguard import (
     COST_LIMIT_MARKER,
     LIMIT_ENV,
     TASK_ID_ENV,
     USAGE_LOG_ENV,
 )
+from agent_benchmark.run.stop import REASON_COST_CAP, request_stop, should_stop, stop_reason
 
 CYBERGYM_SALT = "CyberGym"
 MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -180,35 +182,69 @@ class CyberGymNativeHarness(HarnessAdapter):
             ids = _ids(spec, run_dir)
             max_workers = max(1, min(spec.execution.workers, len(ids)))
             grades: dict[str, dict] = {}
+            # Unlike the third-party batch harnesses, this executor owns its own dispatch loop,
+            # so the experiment cost cap can be honoured by simply not starting more tasks.
+            # Nothing in flight is killed and no artifact is lost.
+            pending = iter(ids)
+            futures: dict = {}
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                futures = {
-                    pool.submit(
-                        self._run_task,
-                        task_id,
-                        spec,
-                        run_dir,
-                        tmp,
-                        source,
-                        data,
-                        examples,
-                        server_url,
-                        network,
-                        model_api_key,
-                        server_key,
-                    ): task_id
-                    for task_id in ids
-                }
-                for future in as_completed(futures):
-                    task_id = futures[future]
+
+                def submit_next() -> bool:
+                    if should_stop(run_dir):
+                        return False
+                    task_id = next(pending, None)
+                    if task_id is None:
+                        return False
+                    futures[
+                        pool.submit(
+                            self._run_task,
+                            task_id,
+                            spec,
+                            run_dir,
+                            tmp,
+                            source,
+                            data,
+                            examples,
+                            server_url,
+                            network,
+                            model_api_key,
+                            server_key,
+                        )
+                    ] = task_id
+                    return True
+
+                for _ in range(max_workers):
+                    if not submit_next():
+                        break
+                while futures:
+                    future = next(as_completed(list(futures)))
+                    task_id = futures.pop(future)
                     try:
-                        grades[task_id] = future.result()
+                        grade = future.result()
                     except Exception as error:  # preserve per-task failures and continue the pool
-                        grades[task_id] = {
+                        grade = {
                             "infrastructure_error": True,
                             "error_type": type(error).__name__,
                             "error_message": str(error),
                         }
-            (out / "grades.json").write_text(json.dumps(grades, indent=2) + "\n")
+                    grades[task_id] = grade
+                    # Append before the pool drains. A kill mid-run used to lose the grade of
+                    # every finished task because the aggregate was only written at the end;
+                    # `grade` folds this ledger back into grades.json.
+                    append_grade(out, task_id, grade)
+                    # Check the experiment cap against measured spend, then refill the freed
+                    # slot. Once the cap is reached submit_next() declines and the pool drains.
+                    self._enforce_experiment_cap(spec, run_dir, grades)
+                    submit_next()
+            write_grades(out, grades)
+            if should_stop(run_dir):
+                unrun = [task_id for task_id in ids if task_id not in grades]
+                if unrun:
+                    print(
+                        f"stopped with {len(unrun)} task(s) unrun "
+                        f"({stop_reason(run_dir)}); grading the {len(grades)} completed",
+                        flush=True,
+                    )
         finally:
             if server is not None:
                 server.terminate()
@@ -478,6 +514,33 @@ class CyberGymNativeHarness(HarnessAdapter):
         elif code and "AgentTimeoutError" in output:
             grade.setdefault("error_type", "AgentTimeoutError")
         return grade
+
+    @staticmethod
+    def _enforce_experiment_cap(spec: ResolvedSpec, run_dir: Path, grades: dict[str, dict]) -> None:
+        """Request a clean stop once measured spend reaches the experiment's total cap.
+
+        CyberGym was previously outside the engine's budget watchdog entirely, because that
+        watchdog polls a Harbor job directory. Spend is summed from the per-task ledgers the
+        cost guard writes, so it is measured rather than estimated.
+        """
+        cap = spec.budget.total_usd
+        if cap is None or should_stop(run_dir):
+            return
+        spent = 0.0
+        complete = True
+        for grade in grades.values():
+            cost = grade.get("cost_usd")
+            if isinstance(cost, int | float):
+                spent += float(cost)
+            if not grade.get("cost_complete", False):
+                complete = False
+        if spent < cap:
+            return
+        detail = f"measured ${spent:.2f} reached the ${cap:.2f} cap"
+        if not complete:
+            detail += " (some calls could not be priced, so true spend is at least this)"
+        request_stop(run_dir, REASON_COST_CAP, detail)
+        print(f"experiment cost cap reached: {detail}; starting no further tasks", flush=True)
 
     @staticmethod
     def _provider_pin(spec: ResolvedSpec) -> dict | None:

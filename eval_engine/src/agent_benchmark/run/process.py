@@ -11,6 +11,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from agent_benchmark.exceptions import StageError
+from agent_benchmark.run.stop import REASON_COST_CAP, request_stop
 
 
 def collected_cost(job_dir: Path) -> float:
@@ -55,6 +56,7 @@ def run_logged(
     cost_reader: Callable[[], float] | None = None,
     budget_usd: float | None = None,
     poll_seconds: float = 5.0,
+    stop_dir: Path | None = None,
 ) -> None:
     """Run a command and stream redacted output to both the terminal and a durable log."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,6 +133,17 @@ def run_logged(
         reader.join(timeout=1)
         returncode = process.wait()
     if budget_tripped:
-        raise StageError(f"total generation budget reached (${budget_usd:.2f})")
+        if stop_dir is None:
+            raise StageError(f"total generation budget reached (${budget_usd:.2f})")
+        # Reaching the experiment's cost cap is a planned stop, not a failure. Record it and
+        # return normally so the pipeline still grades and reports the tasks that finished --
+        # raising here used to discard the whole run's report.
+        request_stop(
+            stop_dir,
+            REASON_COST_CAP,
+            f"measured ${measured_cost(cost_reader, budget_job_dir):.4f} "
+            f"reached the ${budget_usd:.2f} cap",
+        )
+        return
     if returncode:
         raise StageError(f"command failed with exit code {returncode}; see {log_path}")
