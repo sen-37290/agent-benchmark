@@ -59,30 +59,35 @@ class Pipeline:
         killed outright, still produces graded results and a report instead of leaving the
         evidence stranded on the VM. Cleanup is never part of it.
         """
-        # Mirror the stop marker first: a SIGTERM-driven stop is recorded on the controller
-        # side, and the remote grade stage must know the pool is partial by design.
-        try:
-            self.backend.sync_stop(self.store.path)
-        except StageError as error:
-            print(f"[finalize] could not sync the stop marker: {error}", flush=True)
-        for stage, action in (
-            (StageName.GRADE, lambda: self.backend.run_worker("grade")),
-            (StageName.COLLECT, lambda: self.backend.collect(self.store.path)),
+        # Every step here is best-effort and independent: finalize runs when a run has already
+        # ended badly, so no single failure may prevent the remaining steps. Catching only
+        # StageError was not enough -- collect raises IntegrityError when a log file is still
+        # being flushed as the manifest is hashed, which skipped report AND the lease release.
+        for label, action in (
+            ("sync-stop", lambda: self.backend.sync_stop(self.store.path)),
+            ("grade", lambda: self._stage(StageName.GRADE, self._grade, force=True)),
+            ("collect", lambda: self._stage(StageName.COLLECT, self._collect, force=True)),
+            ("normalize", lambda: self._stage(StageName.NORMALIZE, self._normalize, force=True)),
+            ("report", lambda: self._stage(StageName.REPORT, self._report, force=True)),
         ):
             try:
-                self._stage(stage, action, force=True)
-            except StageError as error:
-                # Grading may legitimately fail (e.g. nothing ran at all). Keep going so the
-                # artifacts that do exist are still collected and reported.
-                print(f"[finalize] {stage.value} failed: {error}", flush=True)
-        self._stage(StageName.NORMALIZE, self._normalize, force=True)
-        self._stage(StageName.REPORT, self._report, force=True)
-        # Finalize is the definitive end of a run, so free the VM for the next one. The
+                action()
+            except Exception as error:
+                # e.g. grading a run where nothing completed, or collecting a workspace still
+                # being written to. The artifacts stay on the VM either way.
+                print(f"[finalize] {label} failed: {type(error).__name__}: {error}", flush=True)
+        # Finalize is the definitive end of a run, so always free the VM for the next one. The
         # workspace and every artifact are retained; only the lease is released.
         try:
             self.backend.release_lease()
-        except StageError as error:
+        except Exception as error:
             print(f"[finalize] could not release the VM lease: {error}", flush=True)
+
+    def _grade(self) -> None:
+        self.backend.run_worker("grade")
+
+    def _collect(self) -> None:
+        self.backend.collect(self.store.path)
 
     def collect(self) -> None:
         self._stage(StageName.COLLECT, lambda: self.backend.collect(self.store.path), force=True)
