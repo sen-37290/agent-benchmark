@@ -29,7 +29,7 @@ experiments:
     vm: sen-agent-bench-vm
     benchmark: swebench-verified
     model: gpt-5-6-sol
-    reasoning_effort: xhigh
+    reasoning_effort: max
     provider: openai
     api_key_from: SEN_GPT_5_6_SOL_SWE_BENCH
     experiment_cap_usd: 500
@@ -41,7 +41,7 @@ experiments:
     vm: sen-gpt-5-6-terra-swe-bench
     benchmark: swebench-verified
     model: gpt-5-6-terra
-    reasoning_effort: xhigh
+    reasoning_effort: max
     provider: openai
     api_key_from: SEN_GPT_5_6_TERRA_SWE_BENCH
     experiment_cap_usd: 500
@@ -52,7 +52,7 @@ experiments:
     vm: sen-gpt-5-6-luna-swe-bench
     benchmark: swebench-verified
     model: gpt-5-6-luna
-    reasoning_effort: xhigh
+    reasoning_effort: max
     provider: openai
     api_key_from: SEN_GPT_5_6_LUNA_SWE_BENCH
     experiment_cap_usd: 500
