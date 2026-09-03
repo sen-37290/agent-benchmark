@@ -35,10 +35,11 @@ class Terminus2Adapter(AgentAdapter):
         environment = {spec.model.api_key_env: api_key}
         # Terminus 2 has no dollar limit of its own, so the engine's cost guard enforces one inside
         # the Harbor process. It reads the limit from the environment; see harbor_cost_guard.
-        process_environment = {
-            **environment,
-            LIMIT_ENV: f"{spec.budget.per_task_usd:.6f}",
-        }
+        # A benchmark may opt out of the per-task cap entirely (Terminal-Bench does), in which case
+        # the limit env var is omitted and the guard installs nothing.
+        process_environment = dict(environment)
+        if spec.benchmark.settings.get("enforce_per_task_cost_limit", True):
+            process_environment[LIMIT_ENV] = f"{spec.budget.per_task_usd:.6f}"
         return AgentInvocation(
             model_name=model_name,
             kwargs=kwargs,
