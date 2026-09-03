@@ -202,6 +202,7 @@ def resolve(
         "openrouter": ("openrouter", None),
         "friendli": ("openrouter", "friendli"),
         "anthropic": ("anthropic", None),
+        "openai": ("openai", None),
     }
     supported_providers = set(model.get("supported_providers", [model["api"]]))
     if request.provider not in supported_providers:
@@ -269,6 +270,7 @@ def resolve(
 
     return ResolvedSpec(
         run_id=run_id,
+        label=request.label,
         benchmark=BenchmarkSpec(
             profile=request.benchmark,
             plugin=benchmark["plugin"],
@@ -290,6 +292,7 @@ def resolve(
             provider=request.provider,
             api=model["api"],
             api_key_env=model["api_key_env"],
+            api_key_source_env=request.api_key_from or model["api_key_env"],
             effort_path=model["effort_path"],
             reasoning_effort=request.reasoning_effort,
             provider_route=provider_route,
@@ -305,6 +308,7 @@ def resolve(
                 if request.error_retries is not None
                 else int(benchmark.get("settings", {}).get("error_retries", 0))
             ),
+            no_cleanup=request.no_cleanup,
         ),
         budget=BudgetSpec(
             total_usd=None if request.no_budget_limit else request.budget_usd,

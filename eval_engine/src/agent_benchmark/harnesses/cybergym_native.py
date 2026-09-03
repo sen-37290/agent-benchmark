@@ -15,12 +15,60 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from agent_benchmark.agents import agent_adapter
+from agent_benchmark.agents.base import litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
+from agent_benchmark.run.costguard import (
+    COST_LIMIT_MARKER,
+    LIMIT_ENV,
+    TASK_ID_ENV,
+    USAGE_LOG_ENV,
+)
 
 CYBERGYM_SALT = "CyberGym"
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+#: Recorded on a task the engine stopped for exhausting its per-task dollar limit.
+COST_LIMIT_ERROR_TYPE = "CostLimitExceeded"
+
+
+def _read_usage_ledger(path: Path) -> dict[str, object]:
+    """Summarise a task's ``llm_usage.jsonl`` into result fields.
+
+    CyberGym previously reported no cost at all. ``cost_complete`` is False when any priced call
+    was missing from LiteLLM's price table, so a partial total is never mistaken for the truth.
+    """
+    if not path.is_file():
+        return {"cost_usd": None, "llm_requests": 0, "cost_complete": False}
+    cost = 0.0
+    requests = 0
+    unpriced = 0
+    input_tokens = 0
+    output_tokens = 0
+    for line in path.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        requests += 1
+        value = record.get("cost_usd")
+        if isinstance(value, int | float):
+            cost += float(value)
+        else:
+            unpriced += 1
+        input_tokens += int(record.get("input_tokens") or 0)
+        output_tokens += int(record.get("output_tokens") or 0)
+    return {
+        "cost_usd": round(cost, 6) if requests else None,
+        "llm_requests": requests,
+        "input_tokens": input_tokens or None,
+        "output_tokens": output_tokens or None,
+        "cost_complete": requests > 0 and unpriced == 0,
+    }
 
 
 def _safe(value: str) -> str:
@@ -361,6 +409,11 @@ class CyberGymNativeHarness(HarnessAdapter):
                 # Resolve the in-project 3.12 virtualenv built during prepare, never the
                 # engine's 3.14 environment.
                 "POETRY_VIRTUALENVS_IN_PROJECT": "true",
+                # OpenHands enforces no dollar limit of its own and records no cost, so the
+                # bootstrap meters every LiteLLM call against this ceiling and writes the ledger.
+                LIMIT_ENV: f"{spec.budget.per_task_usd:.6f}",
+                USAGE_LOG_ENV: str(log_dir / "llm_usage.jsonl"),
+                TASK_ID_ENV: task_id,
             }
         )
         provider_pin = self._provider_pin(spec)
@@ -385,6 +438,10 @@ class CyberGymNativeHarness(HarnessAdapter):
                 env=process_env,
                 timeout=invocation.kwargs["timeout"],  # None => no wall-clock limit
             )
+            # A cost-limit stop is a deliberate terminal state, never a transient failure: retrying
+            # would spend the limit again on the same task.
+            if COST_LIMIT_MARKER in output:
+                break
             if final_path.is_file() or attempt > retries or not _transient_llm_error(output):
                 break
             # Keep the aborted attempt's log, then retry from a clean agent run.
@@ -401,17 +458,24 @@ class CyberGymNativeHarness(HarnessAdapter):
             task_id,
             server_key,
         )
+        usage = _read_usage_ledger(log_dir / "llm_usage.jsonl")
         grade.update(
             {
                 "duration_seconds": time.monotonic() - started,
                 "agent_exit_code": code,
                 "agent_attempts": attempts,
+                **usage,
                 "raw_artifacts": [
                     str(path.relative_to(run_dir)) for path in log_dir.rglob("*") if path.is_file()
                 ],
             }
         )
-        if code and "AgentTimeoutError" in output:
+        if COST_LIMIT_MARKER in output:
+            # The task stopped because it exhausted its own budget. Everything produced up to that
+            # point is kept and graded; only this task ends.
+            grade["error_type"] = COST_LIMIT_ERROR_TYPE
+            grade["terminal_reason"] = COST_LIMIT_ERROR_TYPE
+        elif code and "AgentTimeoutError" in output:
             grade.setdefault("error_type", "AgentTimeoutError")
         return grade
 
@@ -454,13 +518,14 @@ class CyberGymNativeHarness(HarnessAdapter):
 
     @staticmethod
     def _config_toml(workspace: Path, log_dir: Path, network: str, spec: ResolvedSpec) -> str:
-        model = spec.model.model_id
-        if spec.model.api == "openrouter":
-            model = f"openrouter/{model}"
-            base_url = "https://openrouter.ai/api/v1"
-        else:
-            base_url = ""
-        effort = spec.model.reasoning_effort or "max"
+        model = litellm_model_name(spec)
+        base_url = {
+            "openrouter": "https://openrouter.ai/api/v1",
+            "openai": "https://api.openai.com/v1",
+        }.get(spec.model.api, "")
+        # An unset effort means "use the provider default" and must not be silently promoted to
+        # a concrete value here.
+        effort = spec.model.reasoning_effort
         # The sandbox bash session hands control back to the model with a "no new output"
         # prompt after NO_CHANGE_TIMEOUT_SECONDS (OpenHands default 10s). That is far too
         # short for the installs/builds these tasks run: the command is still working, but
@@ -475,9 +540,9 @@ class CyberGymNativeHarness(HarnessAdapter):
             "NO_CHANGE_TIMEOUT_SECONDS": str(no_change_timeout),
             "DEBIAN_FRONTEND": "noninteractive",
         }
-        startup_env_toml = "{" + ", ".join(
-            f"{k} = {json.dumps(v)}" for k, v in startup_env.items()
-        ) + "}"
+        startup_env_toml = (
+            "{" + ", ".join(f"{k} = {json.dumps(v)}" for k, v in startup_env.items()) + "}"
+        )
         docker_kwargs = (
             "docker_runtime_kwargs = {auto_remove = true, "
             f"network = {json.dumps(network)}, labels = "
@@ -497,7 +562,10 @@ class CyberGymNativeHarness(HarnessAdapter):
             # thinking tokens can't exhaust the budget before it emits its tool call.
             "max_output_tokens = 131072",
             "log_completions = true",
-            f"reasoning_effort = {json.dumps(effort)}",
+        ]
+        if effort is not None:
+            lines.append(f"reasoning_effort = {json.dumps(effort)}")
+        lines += [
             "[sandbox]",
             'runtime_container_image = "docker.all-hands.dev/all-hands-ai/runtime:0.33-nikolaik"',
             'runtime_binding_address = "127.0.0.1"',

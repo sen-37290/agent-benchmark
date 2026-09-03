@@ -62,6 +62,7 @@ import os
 import re
 import runpy
 import sys
+from pathlib import Path
 
 # Per-completion provider override. ``transform_request`` injects whatever this holds,
 # defaulting to the primary pin. The fallback path sets it for the retry call only.
@@ -184,6 +185,46 @@ def _install_provider_pin() -> dict | None:
     return primary
 
 
+def _install_cost_guard() -> bool:
+    """Meter every LLM call and stop the task at its per-task dollar limit.
+
+    OpenHands has no cost ceiling of its own (``max_iter`` is deliberately unbounded for this
+    benchmark), and CyberGym results carried no cost at all before this. Wrapping
+    ``litellm.completion`` gives both: a per-call usage ledger and the limit.
+
+    Install this BEFORE the provider pin so the repair/fallback wrapper ends up outside it --
+    then each physical request, including re-rolls and fallback retries, is metered exactly once.
+    """
+    import litellm
+
+    # This script runs under OpenHands' own Poetry venv, where agent_benchmark is not installed.
+    # The engine's src/ directory is two levels above this file; add it so the shared meter can be
+    # imported without vendoring a second copy of the pricing logic.
+    engine_src = str(Path(__file__).resolve().parents[2])
+    if engine_src not in sys.path:
+        sys.path.insert(0, engine_src)
+    from agent_benchmark.run.costguard import CostMeter
+
+    meter = CostMeter()
+    if meter.limit_usd <= 0 and meter.usage_log is None:
+        return False
+
+    original_completion = litellm.completion
+
+    def completion_with_meter(*args, **kwargs):  # type: ignore[no-untyped-def]
+        # Refuse the call outright once the limit is reached, so a task cannot exceed it by one
+        # more request. The raised error ends this task only; the harness records COST_LIMIT.
+        meter.enforce()
+        resp = original_completion(*args, **kwargs)
+        meter.record_and_enforce(resp, kwargs.get("model"))
+        return resp
+
+    litellm.completion = completion_with_meter  # type: ignore[assignment]
+    limit = f"${meter.limit_usd:.2f}" if meter.limit_usd > 0 else "disabled"
+    _log(f"cost guard installed (per-task limit {limit}, ledger {meter.usage_log})")
+    return True
+
+
 def _install_completion_repair(primary: dict) -> None:
     """Wrap ``litellm.completion`` to repair malformed tool calls and, if that fails,
     retry on the fallback provider.
@@ -285,6 +326,10 @@ def main() -> None:
     # wrapper is bypassed and Friendli's malformed tool calls reach the agent unrepaired.
     # ``_install_waiting_poll_stuck_fix`` imports ``openhands.controller.stuck`` (which pulls
     # in ``openhands.llm.llm``), so it MUST come last, after the completion repair is live.
+    # The cost guard goes on first so the repair/fallback wrapper sits outside it and every
+    # physical request -- original, re-roll and fallback -- is metered exactly once. It is
+    # installed for every transport, not just OpenRouter.
+    _install_cost_guard()
     primary = _install_provider_pin()
     if primary is not None:
         _install_completion_repair(primary)

@@ -179,10 +179,14 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
         if result.returncode:
             raise StageError("failed to transfer run inputs")
 
+        # The subject agent always reads the canonical provider variable; the orchestrator may be
+        # told to source the value from a per-experiment variable so concurrent runs can each use
+        # their own key.
         key_name = self.spec.model.api_key_env
-        key = os.environ.get(key_name, "")
+        source_name = self.spec.model.api_key_source_env or key_name
+        key = os.environ.get(source_name, "")
         if not key:
-            raise ConfigurationError(f"set {key_name} before running the experiment")
+            raise ConfigurationError(f"set {source_name} before running the experiment")
         secrets = json.dumps({key_name: key})
         self._ssh(
             f"umask 077; cat > {shlex.quote(str(self.remote_run / 'secrets.json'))}",
@@ -245,6 +249,10 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
                 raise IntegrityError(f"collected artifact failed verification: {relative}")
 
     def cleanup(self) -> None:
+        if self._retain_workspace():
+            # Still release the lease so the VM can accept the next run; keep every artifact.
+            self._release_lease()
+            return
         # Use Python and resolved absolute paths rather than a recursive shell command. The guard
         # refuses broad roots even if a target profile is misconfigured.
         script = (
@@ -256,6 +264,19 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             "shutil.rmtree(target,ignore_errors=True); "
         )
         self._ssh(["python3", "-c", script])
+        self._release_lease()
+
+    def _retain_workspace(self) -> bool:
+        """True when this run's remote artifacts must never be deleted.
+
+        Set by --no-cleanup on the run, or globally by AGENT_BENCH_NEVER_CLEANUP=1 so that an
+        accidental `cancel` cannot destroy a long experiment's evidence.
+        """
+        if self.spec.execution.no_cleanup:
+            return True
+        return os.environ.get("AGENT_BENCH_NEVER_CLEANUP", "").strip() not in {"", "0", "false"}
+
+    def _release_lease(self) -> None:
         release_script = (
             f"import pathlib,shutil; shutil.rmtree(pathlib.Path({str(self.remote_lease)!r}))"
         )
@@ -278,6 +299,7 @@ import subprocess
 import time
 
 run_id = {self.spec.run_id!r}
+retain_workspace = {self._retain_workspace()!r}
 root = pathlib.Path({str(PurePosixPath(self.spec.target.remote_root))!r}).resolve()
 target = pathlib.Path({str(self.remote_run)!r}).resolve()
 lease = pathlib.Path({str(self.remote_lease)!r}).resolve()
@@ -362,7 +384,8 @@ for resource, remove_command in (
         if labels.get("com.docker.compose.project") in projects:
             subprocess.run([*remove_command, resource_id], check=False)
 
-shutil.rmtree(target, ignore_errors=True)
+if not retain_workspace:
+    shutil.rmtree(target, ignore_errors=True)
 owner_path = lease / "owner"
 try:
     owner = owner_path.read_text().strip()
@@ -373,7 +396,8 @@ if owner == run_id:
 
 print(
     f"cancelled {{run_id}}: processes stopped, "
-    f"containers={{len(owned_containers)}}, compose_projects={{len(projects)}}"
+    f"containers={{len(owned_containers)}}, compose_projects={{len(projects)}}, "
+    f"workspace={{'retained' if retain_workspace else 'removed'}}"
 )
 """
         self._ssh("python3 -", input_text=script)

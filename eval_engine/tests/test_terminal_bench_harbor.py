@@ -41,7 +41,10 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
     pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())
 
-    assert command[:4] == ["uv", "run", "harbor", "run"]
+    assert command[:3] == ["uv", "run", "python"]
+    # Harbor runs behind the engine's cost-guard bootstrap so a per-task dollar limit is enforced.
+    assert command[3].endswith("harbor_cost_guard.py")
+    assert command[4] == "run"
     assert command[command.index("-d") + 1] == spec.benchmark.dataset_id
     assert command[command.index("-a") + 1] == "terminus-2"
     assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
@@ -132,15 +135,10 @@ def test_resumes_existing_native_job(tmp_path: Path) -> None:
     job_dir.mkdir(parents=True)
     (job_dir / "config.json").write_text("{}")
 
-    assert build_command(spec, run_dir, tmp_path / "cache", "secret") == [
-        "uv",
-        "run",
-        "harbor",
-        "job",
-        "resume",
-        "-p",
-        str(job_dir),
-    ]
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+    assert command[:3] == ["uv", "run", "python"]
+    assert command[3].endswith("harbor_cost_guard.py")
+    assert command[4:] == ["job", "resume", "-p", str(job_dir)]
 
 
 @pytest.mark.parametrize(
