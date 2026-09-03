@@ -34,6 +34,9 @@ class Pipeline:
             error_retries=retries,
         )
         self._stage(StageName.EXECUTE, lambda: self.backend.run_worker("execute"))
+        # The budget watchdog records its stop inside the remote worker; grading and normalize
+        # both need to see it, or a deliberately partial pool reads as an incomplete one.
+        self.backend.sync_stop(self.store.path)
         self._stage(
             StageName.GRADE,
             lambda: self.backend.run_worker("grade"),
@@ -56,6 +59,12 @@ class Pipeline:
         killed outright, still produces graded results and a report instead of leaving the
         evidence stranded on the VM. Cleanup is never part of it.
         """
+        # Mirror the stop marker first: a SIGTERM-driven stop is recorded on the controller
+        # side, and the remote grade stage must know the pool is partial by design.
+        try:
+            self.backend.sync_stop(self.store.path)
+        except StageError as error:
+            print(f"[finalize] could not sync the stop marker: {error}", flush=True)
         for stage, action in (
             (StageName.GRADE, lambda: self.backend.run_worker("grade")),
             (StageName.COLLECT, lambda: self.backend.collect(self.store.path)),
@@ -68,6 +77,12 @@ class Pipeline:
                 print(f"[finalize] {stage.value} failed: {error}", flush=True)
         self._stage(StageName.NORMALIZE, self._normalize, force=True)
         self._stage(StageName.REPORT, self._report, force=True)
+        # Finalize is the definitive end of a run, so free the VM for the next one. The
+        # workspace and every artifact are retained; only the lease is released.
+        try:
+            self.backend.release_lease()
+        except StageError as error:
+            print(f"[finalize] could not release the VM lease: {error}", flush=True)
 
     def collect(self) -> None:
         self._stage(StageName.COLLECT, lambda: self.backend.collect(self.store.path), force=True)

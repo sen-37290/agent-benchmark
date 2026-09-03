@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import shutil
@@ -19,6 +20,7 @@ from agent_benchmark.run.retry import (
     select_attempt,
     wait_before_attempt,
 )
+from agent_benchmark.run.stop import should_stop
 
 VALID_TERMINAL_STATUSES = frozenset(
     {"Submitted", "LimitsExceeded", "TimeExceeded", "RepeatedFormatError"}
@@ -140,7 +142,9 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
             wait_before_attempt(attempt)
             round_dir = attempts_root / f"attempt-{attempt:02d}"
             round_dir.mkdir(parents=True, exist_ok=True)
-            try:
+            # A round failure is recorded per task from its trajectories below and retried on
+            # the next attempt; only a stop request ends the loop early.
+            with contextlib.suppress(StageError):
                 run_logged(
                     build_command(spec, run_dir, pending, round_dir),
                     cwd=run_dir,
@@ -149,10 +153,8 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
                     redact_values=[api_key],
                     cost_reader=lambda: collected_cost(attempts_root),
                     budget_usd=budget_usd,
+                    stop_dir=run_dir,
                 )
-            except StageError as error:
-                if "budget" in str(error).lower():
-                    raise
             predictions_path = round_dir / "preds.json"
             predictions = (
                 json.loads(predictions_path.read_text()) if predictions_path.is_file() else {}
@@ -191,6 +193,9 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
                 if status == "completed" or not retryable:
                     select_attempt(manifest, task_id, attempt)
             save_manifest(run_dir, manifest)
+            if should_stop(run_dir):
+                # Cost cap or operator stop: keep this round's results, start no more.
+                break
 
         pending_tasks(manifest, max_attempts)
         save_manifest(run_dir, manifest)
@@ -200,7 +205,12 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
         for task_id in ids:
             task = manifest["tasks"][task_id]
             selected = task["selected_attempt"]
-            item = next(entry for entry in task["attempts"] if entry["attempt"] == selected)
+            item = next((entry for entry in task["attempts"] if entry["attempt"] == selected), None)
+            if item is None:
+                # The run stopped before this task was attempted. Omit it entirely so the
+                # official grader scores only what actually ran, and normalize reports it
+                # as unrun rather than as an empty (failing) prediction.
+                continue
             source = run_dir / item["artifact"]
             source_task = source / task_id
             if source_task.is_dir():
