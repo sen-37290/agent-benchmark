@@ -19,6 +19,7 @@ from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 from agent_benchmark.run.process import run_logged
 from agent_benchmark.run.result import TaskResult
+from agent_benchmark.run.stop import stop_reason
 
 TEMPLATE_REQUIRED_FILES = (
     "task.toml",
@@ -179,8 +180,21 @@ class SwebenchVerified(BenchmarkPlugin):
             if not predictions_path.is_file():
                 raise StageError("official mini-swe-agent preds.json is missing")
             predictions = json.loads(predictions_path.read_text())
-            if set(predictions) != ids:
+            if set(predictions) - ids:
+                raise StageError(
+                    "official mini-swe-agent predictions include tasks not in the pool"
+                )
+            missing = ids - set(predictions)
+            if missing and stop_reason(run_dir) is None:
                 raise StageError("official mini-swe-agent predictions do not match the pool")
+            if missing:
+                # Stopped on purpose: grade the subset that ran. Scoring absent tasks as
+                # failures would misreport a partial experiment as a bad one.
+                print(
+                    f"grading a partial pool: {len(predictions)}/{len(ids)} predictions "
+                    f"(stop reason: {stop_reason(run_dir)})",
+                    flush=True,
+                )
         else:
             jobs = run_dir / "artifacts" / "harbor_jobs"
             predictions = {}

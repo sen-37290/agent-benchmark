@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from agent_benchmark.config.schema import ResolvedSpec, TargetSpec
 from agent_benchmark.exceptions import ConfigurationError, IntegrityError, StageError
+from agent_benchmark.run.stop import STOP_FILENAME, stop_path
 
 SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{5,127}$")
 # Keepalive so a stalled TCP connection fails within ~1 minute instead of hanging the
@@ -201,6 +202,31 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
             sync += f" --extra {shlex.quote(dependency_extra)}"
         self._ssh(f"cd {shlex.quote(str(self.remote_source))} && {sync}")
 
+    def sync_stop(self, local_run: Path) -> None:
+        """Mirror the cooperative stop marker between the controller and the run workspace.
+
+        The two live in different directories even when they are on the same machine, and each
+        side can be the one that records the stop: the CLI's signal handler writes it locally,
+        while the budget watchdog runs inside the remote worker and writes it there. Without
+        mirroring, the remote grade stage rejects a deliberately partial pool as "incomplete",
+        and local normalize scores unrun tasks as failures.
+        """
+        local = stop_path(local_run)
+        remote = self.remote_run / STOP_FILENAME
+        if local.is_file():
+            self._ssh(
+                f"umask 077; cat > {shlex.quote(str(remote))}",
+                input_text=local.read_text(),
+            )
+            return
+        result = self._ssh(
+            f"cat {shlex.quote(str(remote))} 2>/dev/null || true",
+            capture=True,
+        )
+        payload = result.stdout.strip()
+        if payload:
+            local.write_text(payload + "\n")
+
     def run_worker(self, stage: str) -> None:
         command = (
             f"cd {shlex.quote(str(self.remote_source))} && "
@@ -275,6 +301,15 @@ mkdir -p {shlex.quote(str(self.remote_run / "logs"))}
         if self.spec.execution.no_cleanup:
             return True
         return os.environ.get("AGENT_BENCH_NEVER_CLEANUP", "").strip() not in {"", "0", "false"}
+
+    def release_lease(self) -> None:
+        """Free the VM lease if this run holds it, without touching its artifacts.
+
+        A run that is stopped or that fails mid-execute never reaches cleanup, so before this
+        its lease stayed held and the next run on that VM died with "VM is leased by run: ..."
+        until someone removed the directory by hand.
+        """
+        self._release_lease()
 
     def _release_lease(self) -> None:
         release_script = (
