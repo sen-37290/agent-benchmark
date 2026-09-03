@@ -17,7 +17,16 @@ from __future__ import annotations
 import os
 import sys
 
-from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit
+# Running a file by path puts its own directory on sys.path[0]. This package has a sibling module
+# named harbor.py (the harness), which would then shadow the real `harbor` package and make
+# `from harbor.llms.chat import Chat` fail with "'harbor' is not a package". Drop that entry: the
+# engine itself is imported from the installed project, not from here.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [
+    entry for entry in sys.path if os.path.abspath(entry or os.getcwd()) != _HERE
+]
+
+from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit  # noqa: E402
 
 
 def install(limit_usd: float) -> bool:
