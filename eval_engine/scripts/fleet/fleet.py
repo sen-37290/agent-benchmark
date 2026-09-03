@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = ["pyyaml"]
+# ///
 """Monitor and control the ten concurrent experiments from a laptop.
 
 Each VM is an execution worker, not the source of truth. This tool polls every VM in parallel for

@@ -22,6 +22,9 @@ for arg in "$@"; do
   case "$arg" in
     --provision) PROVISION=1 ;;
     --no-start) START=0 ;;
+    # A canary runs the identical pipeline over a handful of tasks, to validate a VM,
+    # transport and key before committing the experiment's full budget.
+    --canary) CANARY_SAMPLING="${CANARY_SAMPLING:-category}"; CANARY_SIZE="${CANARY_SIZE:-2}" ;;
     *) echo "unknown option: $arg" >&2; exit 64 ;;
   esac
 done
@@ -69,7 +72,30 @@ rsync -az --delete \
   "$REPO_ROOT/" "$SSH_TARGET:$FLEET_REMOTE_ROOT/"
 
 say "installing dependencies"
-ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "cd '$FLEET_REMOTE_ROOT/eval_engine' && uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}"
+# Terminal-Bench depends on harbor, which lives in a PRIVATE GitHub repo, so a bare VM cannot
+# fetch it ("could not read Username for 'https://github.com'"). Forward a short-lived token
+# instead of installing credentials on the VM: it is passed over stdin (never in argv, never
+# written to disk) and reaches git through GIT_CONFIG_* env vars, which write no config file.
+# uv caches the built wheel, so later syncs on this VM need no token at all.
+GH_TOKEN_VALUE=""
+if command -v gh >/dev/null 2>&1; then
+  GH_TOKEN_VALUE="$(gh auth token 2>/dev/null || true)"
+fi
+if [ -z "$GH_TOKEN_VALUE" ]; then
+  GH_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+fi
+
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s <<EOF
+set -euo pipefail
+if [ -n "$GH_TOKEN_VALUE" ]; then
+  export GIT_CONFIG_COUNT=1
+  export GIT_CONFIG_KEY_0='url.https://x-access-token:$GH_TOKEN_VALUE@github.com/.insteadOf'
+  export GIT_CONFIG_VALUE_0='https://github.com/'
+fi
+cd '$FLEET_REMOTE_ROOT/eval_engine'
+uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}
+EOF
+unset GH_TOKEN_VALUE
 
 say "writing launch.env"
 # 0600, and run_experiment.sh deletes it as soon as it has been sourced, so the key does not sit
@@ -99,6 +125,8 @@ API_KEY_FROM=$FLEET_API_KEY_FROM
 EXPERIMENT_CAP_USD=$FLEET_EXPERIMENT_CAP_USD
 PER_TASK_CAP_USD=${FLEET_PER_TASK_CAP_USD:-}
 WORKERS=$FLEET_WORKERS
+SAMPLING=${CANARY_SAMPLING:-}
+SIZE=${CANARY_SIZE:-}
 CONTROLLER_DIR=$FLEET_REMOTE_ROOT
 AGENT_BENCH_SSH_HOST=localhost
 $FLEET_API_KEY_FROM=$API_KEY_VALUE
