@@ -93,6 +93,22 @@ fi
 # Omitting both means the full benchmark, which is what a real experiment wants. Setting them
 # runs a small canary over the identical code path -- the only honest way to validate a VM,
 # transport and key before committing the full budget.
+TIMEOUT_ARGS=()
+if [ "${NO_TIMEOUT:-0}" = "1" ]; then
+  TIMEOUT_ARGS=(--no-timeout)
+  log "Harbor agent-execution deadline DISABLED (--no-timeout)"
+fi
+
+# A subset re-run pins exact task ids via the benchmark's pin env var, so only the named tasks run
+# (e.g. redo the ones a prior run timed out on) instead of the whole benchmark.
+if [ -n "${PIN_INSTANCES:-}" ] && [ -f "${PIN_INSTANCES}" ]; then
+  case "$BENCHMARK" in
+    terminal-bench*) export TERMINAL_BENCH_PIN_INSTANCES="$PIN_INSTANCES" ;;
+    cybergym*)       export CYBERGYM_PIN_INSTANCES="$PIN_INSTANCES" ;;
+  esac
+  log "pinned subset: $(python3 -c "import json;print(len(json.load(open('$PIN_INSTANCES'))['instance_ids']))" 2>/dev/null) tasks from $PIN_INSTANCES"
+fi
+
 BUDGET_ARGS=(--budget-usd "$EXPERIMENT_CAP_USD")
 if [ "${NO_BUDGET_LIMIT:-0}" = "1" ]; then
   # Experiment-level cost cap disabled by request; the per-task cap still applies.
@@ -123,7 +139,7 @@ uv run agent-bench plan \
   "${BUDGET_ARGS[@]}" \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
-  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
   > "$STATE_DIR/$LABEL.resolved.yaml" || exit $?
 log "resolved spec: $STATE_DIR/$LABEL.resolved.yaml"
 
@@ -142,7 +158,7 @@ uv run agent-bench run \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   --no-cleanup \
-  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
   >> "$RUN_LOG" 2>&1 &
 RUN_PID=$!
 log "pid $RUN_PID"

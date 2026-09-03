@@ -106,6 +106,13 @@ uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}
 EOF
 unset GH_TOKEN_VALUE
 
+if [ -n "${PIN_FILE:-}" ]; then
+  REMOTE_PIN_PATH="$FLEET_REMOTE_ROOT/.fleet/$LABEL.pin.json"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$FLEET_REMOTE_ROOT/.fleet'"
+  scp "${SSH_OPTS[@]}" "$PIN_FILE" "$SSH_TARGET:$REMOTE_PIN_PATH" >/dev/null
+  say "pinned subset uploaded: $REMOTE_PIN_PATH ($(python3 -c "import json;print(len(json.load(open('$PIN_FILE'))['instance_ids']))" 2>/dev/null) tasks)"
+fi
+
 say "writing launch.env"
 # 0600, and run_experiment.sh deletes it as soon as it has been sourced, so the key does not sit
 # on disk for the life of the run. It is piped over stdin so it never appears in a process list.
@@ -136,6 +143,8 @@ PER_TASK_CAP_USD=${FLEET_PER_TASK_CAP_USD:-}
 WORKERS=$FLEET_WORKERS
 REASONING_EFFORT=${FLEET_REASONING_EFFORT:-}
 NO_BUDGET_LIMIT=${FLEET_NO_BUDGET_LIMIT:-0}
+NO_TIMEOUT=${NO_TIMEOUT:-0}
+PIN_INSTANCES=${REMOTE_PIN_PATH:-}
 SAMPLING=${CANARY_SAMPLING:-}
 SIZE=${CANARY_SIZE:-}
 CONTROLLER_DIR=$FLEET_REMOTE_ROOT
