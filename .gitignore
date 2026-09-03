@@ -24,3 +24,6 @@ usecase/.cache/
 usecase/.venv/
 usecase/graph/*
 !usecase/graph/.gitkeep
+
+# Local fleet monitor cache (last-known VM state; regenerated on every poll)
+eval_engine/scripts/fleet/.fleet-cache/
