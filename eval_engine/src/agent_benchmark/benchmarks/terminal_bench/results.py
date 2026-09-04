@@ -77,7 +77,24 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
         agent = raw.get("agent_result")
         agent = agent if isinstance(agent, dict) else {}
         error_type = exception.get("exception_type") if isinstance(exception, dict) else None
-        normalized_reward = 0.0 if exception else reward
+        # Verifier truth outranks the agent-phase status. Harbor runs the verifier against the
+        # container state even when the agent phase ended badly (a wall-clock timeout, most
+        # often), so a trial can hold a genuine reward of 1 alongside an exception. Forcing the
+        # reward to 0 whenever `exception_info` was set discarded four proven passes in the
+        # gpt-5.6-luna run -- path-tracing, path-tracing-reverse, regex-chess and
+        # sanitize-git-repo each verified 1.0 with zero failing tests and still scored 0.
+        #
+        # `status` stays "error", because the agent phase really did fail; the two are separate
+        # dimensions and only the reward is decided by the verifier. When no verifier ran (a
+        # per-task cost stop aborts the trial before verification) there is nothing to trust and
+        # an errored trial scores 0.
+        verifier_completed = reward is not None
+        if verifier_completed:
+            normalized_reward = reward
+        elif exception:
+            normalized_reward = 0.0
+        else:
+            normalized_reward = None
         attempt_count, manifest_final, overhead, cost_complete = attempt_costs(run_dir, identity)
         raw_final = _number(agent.get("cost_usd"))
         final_cost = manifest_final if manifest_final is not None else raw_final
@@ -87,7 +104,11 @@ def normalize(spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
             status="error" if exception else "completed",
             metrics={
                 "reward": normalized_reward,
-                "resolved": not exception and reward is not None and reward > 0,
+                "resolved": verifier_completed and reward > 0,
+                # Lets a reader tell "the agent failed but the artifact verified" from "the
+                # agent failed and nothing was ever verified" without opening the trial. The
+                # failure itself is already on TaskResult.error_type.
+                "verifier_completed": verifier_completed,
             },
             cost_usd=final_cost,
             attempt_count=attempt_count,
@@ -141,12 +162,14 @@ def validate_and_summarize(spec: ResolvedSpec, run_dir: Path) -> dict[str, objec
         verifier = raw.get("verifier_result")
         reward_map = verifier.get("rewards") if isinstance(verifier, dict) else None
         reward = _number(reward_map.get("reward")) if isinstance(reward_map, dict) else None
+        # Same split as normalize(): an agent-phase exception is counted as an error, but it
+        # does not suppress a reward the verifier actually produced.
         if exception:
             errors.append(identity)
-        elif reward is None:
-            raise StageError(f"Terminal-Bench result has no verifier reward: {identity}")
-        else:
+        if reward is not None:
             rewards.append(reward)
+        elif not exception:
+            raise StageError(f"Terminal-Bench result has no verifier reward: {identity}")
     unrun: set[str] = set()
     if seen != expected:
         reason = stop_reason(run_dir)
@@ -166,6 +189,9 @@ def validate_and_summarize(spec: ResolvedSpec, run_dir: Path) -> dict[str, objec
         "stop_reason": stop_reason(run_dir),
         "successful_count": sum(reward > 0 for reward in rewards),
         "error_count": len(errors),
+        # Trials the verifier actually scored. Below attempted_count when a cost stop or crash
+        # ended a trial before verification; those count as 0 in the rates below.
+        "verifier_scored_count": len(rewards),
         "mean_reward": sum(rewards) / scored,
         "accuracy": sum(reward > 0 for reward in rewards) / scored,
     }

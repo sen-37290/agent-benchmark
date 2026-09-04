@@ -71,6 +71,14 @@ class Experiment:
     per_task_cap_usd: float | None
     reasoning_effort: str | None
     no_budget_limit: bool
+    # Scale Harbor's per-task agent deadline (6 -> the 900/1800/3600s limits become 1.5/3/6h).
+    # Mutually exclusive with no_timeout, which removes the deadline altogether.
+    agent_timeout_multiplier: float | None
+    no_timeout: bool
+    # A subset re-run: path, relative to this directory, of a {"instance_ids": [...]} file
+    # naming exactly the tasks to run. Declared here rather than passed as a shell variable so
+    # the row alone says what the experiment covers.
+    pin_file: str | None
     project: str
     zone: str
     remote_root: str
@@ -101,6 +109,13 @@ def load_experiments() -> list[Experiment]:
                 ),
                 reasoning_effort=row.get("reasoning_effort") or None,
                 no_budget_limit=bool(row.get("no_budget_limit", False)),
+                agent_timeout_multiplier=(
+                    float(row["agent_timeout_multiplier"])
+                    if row.get("agent_timeout_multiplier")
+                    else None
+                ),
+                no_timeout=bool(row.get("no_timeout", False)),
+                pin_file=row.get("pin_file") or None,
                 project=defaults["project"],
                 zone=defaults["zone"],
                 remote_root=defaults["remote_root"],
@@ -374,14 +389,67 @@ def cmd_ssh(args: argparse.Namespace) -> int:
     return subprocess.call(command)
 
 
+def _terminate_escaped_executor(experiment: Experiment, grace: int) -> None:
+    """Kill the Harbor executor that `systemctl stop` cannot reach.
+
+    The engine drives execution through its SSH backend, so Harbor is launched by
+    `ssh localhost ...` and lands in sshd's own session scope -- NOT in the agent-bench@<label>
+    cgroup. Stopping the unit therefore kills only the controller: the executor survives,
+    reparented to init, and keeps starting containers and spending the API key with nothing
+    collecting its results. Worse, the controller is what refreshes the status file, so the
+    fleet table reports the abandoned run as $0.00 while it spends. That is not hypothetical --
+    a "stopped" run went on running for 20 unmonitored minutes and $129 that way, and the
+    trials it finished were never graded because finalize had already been and gone.
+
+    One experiment per VM is the fleet's design, so any surviving executor and any leftover
+    task container belongs to the run being stopped.
+    """
+    script = f"""
+set -u
+pids=$(pgrep -f harbor_cost_guard.py || true)
+if [ -z "$pids" ]; then
+  echo "no escaped executor"
+else
+  echo "escaped executor still running (pids: $pids); terminating"
+  kill -TERM $pids 2>/dev/null || true
+  for _ in $(seq 1 {grace}); do
+    sleep 1
+    pgrep -f harbor_cost_guard.py >/dev/null 2>&1 || break
+  done
+  remaining=$(pgrep -f harbor_cost_guard.py || true)
+  if [ -n "$remaining" ]; then
+    echo "still alive after {grace}s; sending SIGKILL"
+    kill -KILL $remaining 2>/dev/null || true
+  fi
+  echo "executor terminated"
+fi
+left=$(docker ps -q | wc -l)
+if [ "$left" -gt 0 ]; then
+  echo "removing $left leftover task container(s)"
+  docker ps -aq | xargs -r docker rm -f >/dev/null 2>&1 || true
+fi
+"""
+    subprocess.call(ssh_command(experiment, script))
+
+
 def cmd_stop(args: argparse.Namespace) -> int:
-    """Ask an experiment to wind down cleanly, then grade and report what finished."""
+    """Ask an experiment to wind down, then make sure it actually stopped."""
     experiment = find(args.label)
     unit = f"agent-bench@{experiment.label}"
     # SIGTERM via systemctl stop is caught by the CLI and recorded as a cooperative stop; the
-    # controller's exit trap then finalizes. Nothing in flight is killed and nothing is deleted.
+    # controller's exit trap then finalizes. It reaches the controller ONLY -- see
+    # _terminate_escaped_executor for why the executor has to be stopped separately.
     print(f"stopping {experiment.label} on {experiment.vm} (draining, then grading)...")
-    return subprocess.call(ssh_command(experiment, f"sudo systemctl stop {unit}"))
+    code = subprocess.call(ssh_command(experiment, f"sudo systemctl stop {unit}"))
+    _terminate_escaped_executor(experiment, args.grace)
+    print(
+        "\nStopped. Trials killed in flight leave no result.json, so if the executor had to be\n"
+        "terminated, re-finalize to grade whatever did complete:\n"
+        f"  {sys.argv[0]} ssh {experiment.label}\n"
+        "  cd ~/agent-benchmark/eval_engine && AGENT_BENCH_SSH_HOST=localhost \\\n"
+        "    uv run agent-bench finalize <run-id>"
+    )
+    return code
 
 
 def cmd_labels(args: argparse.Namespace) -> int:
@@ -408,6 +476,13 @@ def cmd_env(args: argparse.Namespace) -> int:
         "FLEET_WORKERS": str(experiment.workers),
         "FLEET_REASONING_EFFORT": experiment.reasoning_effort or "",
         "FLEET_NO_BUDGET_LIMIT": "1" if experiment.no_budget_limit else "0",
+        "FLEET_NO_TIMEOUT": "1" if experiment.no_timeout else "0",
+        "FLEET_AGENT_TIMEOUT_MULTIPLIER": (
+            f"{experiment.agent_timeout_multiplier:g}"
+            if experiment.agent_timeout_multiplier
+            else ""
+        ),
+        "FLEET_PIN_FILE": str(HERE / experiment.pin_file) if experiment.pin_file else "",
         "FLEET_REMOTE_ROOT": experiment.remote_root,
         "FLEET_SSH_USER": experiment.ssh_user,
         "FLEET_DEPENDENCY_EXTRA": experiment.dependency_extra,
@@ -444,6 +519,12 @@ def main() -> int:
 
     stop = sub.add_parser("stop", help="drain one experiment cleanly, then grade and report")
     stop.add_argument("label")
+    stop.add_argument(
+        "--grace",
+        type=int,
+        default=60,
+        help="seconds to let an escaped executor exit on SIGTERM before SIGKILL (default: 60)",
+    )
     stop.set_defaults(func=cmd_stop)
 
     sub.add_parser("labels", help="list experiment labels").set_defaults(func=cmd_labels)

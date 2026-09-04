@@ -1,0 +1,23 @@
+{
+  "_note": "Luna's 8 genuinely-unsolved timeouts from 20260903 gpt-5-6-luna-terminal-bench. NOT the full 12: path-tracing, path-tracing-reverse, regex-chess and sanitize-git-repo already hold verifier reward 1.0 and were lost only to the normalization bug fixed in benchmarks/terminal_bench/results.py. Re-running a proven pass can only lose it, so they are recovered by re-normalizing the archived run instead. Original cost of these 8: $1.61.",
+  "timeouts": [
+    "extract-moves-from-video",
+    "gcode-to-text",
+    "gpt2-codegolf",
+    "make-mips-interpreter",
+    "reshard-c4-data",
+    "schemelike-metacircular-eval",
+    "train-fasttext",
+    "winning-avg-corewars"
+  ],
+  "instance_ids": [
+    "extract-moves-from-video",
+    "gcode-to-text",
+    "gpt2-codegolf",
+    "make-mips-interpreter",
+    "reshard-c4-data",
+    "schemelike-metacircular-eval",
+    "train-fasttext",
+    "winning-avg-corewars"
+  ]
+}

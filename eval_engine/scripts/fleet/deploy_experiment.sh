@@ -73,10 +73,15 @@ say "syncing the repo"
 # The working branch is local-only, so `git clone` on the VM is not an option: transfer the tree
 # directly. `.env` and `.agent-bench/targets.local.yaml` are untracked but required, so they must
 # ride along. An ABSOLUTE destination is required -- a relative one has silently landed nothing.
+#
+# `.fleet` is excluded because it is VM-side controller state, not repo content: it does not
+# exist locally, so --delete would remove it and take the previous experiment's log, resolved
+# spec and pin file with it. That matters whenever experiments share a VM in sequence.
 rsync -az --delete \
   --exclude '.venv' --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.ruff_cache' \
   --exclude 'eval_engine/runs' --exclude 'eval_engine/pools' --exclude 'eval_engine/dist' \
   --exclude 'results' --exclude 'usecase' --exclude '.DS_Store' \
+  --exclude 'fable-verify' --exclude '.fleet' \
   -e "ssh ${SSH_OPTS[*]}" \
   "$REPO_ROOT/" "$SSH_TARGET:$FLEET_REMOTE_ROOT/"
 
@@ -106,7 +111,14 @@ uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}
 EOF
 unset GH_TOKEN_VALUE
 
-if [ -n "${PIN_FILE:-}" ]; then
+# The pinned subset comes from the experiment row; PIN_FILE in the environment still overrides
+# it for a one-off.
+PIN_FILE="${PIN_FILE:-${FLEET_PIN_FILE:-}}"
+if [ -n "$PIN_FILE" ]; then
+  if [ ! -f "$PIN_FILE" ]; then
+    echo "FATAL: pin file not found: $PIN_FILE" >&2
+    exit 66
+  fi
   REMOTE_PIN_PATH="$FLEET_REMOTE_ROOT/.fleet/$LABEL.pin.json"
   ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$FLEET_REMOTE_ROOT/.fleet'"
   scp "${SSH_OPTS[@]}" "$PIN_FILE" "$SSH_TARGET:$REMOTE_PIN_PATH" >/dev/null
@@ -143,7 +155,8 @@ PER_TASK_CAP_USD=${FLEET_PER_TASK_CAP_USD:-}
 WORKERS=$FLEET_WORKERS
 REASONING_EFFORT=${FLEET_REASONING_EFFORT:-}
 NO_BUDGET_LIMIT=${FLEET_NO_BUDGET_LIMIT:-0}
-NO_TIMEOUT=${NO_TIMEOUT:-0}
+NO_TIMEOUT=${NO_TIMEOUT:-${FLEET_NO_TIMEOUT:-0}}
+AGENT_TIMEOUT_MULTIPLIER=${AGENT_TIMEOUT_MULTIPLIER:-${FLEET_AGENT_TIMEOUT_MULTIPLIER:-}}
 PIN_INSTANCES=${REMOTE_PIN_PATH:-}
 SAMPLING=${CANARY_SAMPLING:-}
 SIZE=${CANARY_SIZE:-}

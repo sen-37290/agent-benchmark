@@ -230,6 +230,14 @@ def resolve(
         raise ConfigurationError(f"generated pool does not exist: {generated_pool}")
     if request.no_timeout and benchmark["harness"] != "harbor":
         raise ConfigurationError("--no-timeout is supported only by Harbor benchmark profiles")
+    if request.agent_timeout_multiplier is not None and benchmark["harness"] != "harbor":
+        raise ConfigurationError(
+            "--agent-timeout-multiplier is supported only by Harbor benchmark profiles"
+        )
+    if request.no_timeout and request.agent_timeout_multiplier is not None:
+        raise ConfigurationError(
+            "--no-timeout and --agent-timeout-multiplier set the same Harbor knob; pass one"
+        )
     pool_data = yaml.safe_load(generated_pool.read_text())
     instance_ids = pool_data.get("instance_ids") if isinstance(pool_data, dict) else None
     if not isinstance(instance_ids, list) or not instance_ids:
@@ -303,6 +311,7 @@ def resolve(
         execution=ExecutionSpec(
             workers=request.workers,
             no_timeout=request.no_timeout,
+            agent_timeout_multiplier=request.agent_timeout_multiplier,
             error_retries=(
                 request.error_retries
                 if request.error_retries is not None

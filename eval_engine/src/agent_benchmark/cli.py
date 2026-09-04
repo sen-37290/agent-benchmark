@@ -63,6 +63,7 @@ def _request(
     no_budget_limit: bool,
     per_task_cost_limit_usd: float | None,
     no_timeout: bool,
+    agent_timeout_multiplier: float | None,
     error_retries: int | None,
     target: str,
     label: str | None = None,
@@ -87,6 +88,7 @@ def _request(
         no_budget_limit=no_budget_limit,
         per_task_cost_limit_usd=per_task_cost_limit_usd,
         no_timeout=no_timeout,
+        agent_timeout_multiplier=agent_timeout_multiplier,
         error_retries=error_retries,
         target=target,
     )
@@ -179,9 +181,20 @@ def plan(
         bool,
         typer.Option(
             "--no-timeout",
-            help="Disable the Harbor agent-execution deadline.",
+            help="Disable the Harbor agent-execution deadline entirely (multiplier 'inf').",
         ),
     ] = False,
+    agent_timeout_multiplier: Annotated[
+        float | None,
+        typer.Option(
+            "--agent-timeout-multiplier",
+            min=0.01,
+            help=(
+                "Scale the Harbor agent deadline instead of removing it, e.g. 6 turns the "
+                "official 900/1800/3600s limits into 1.5/3/6 hours."
+            ),
+        ),
+    ] = None,
     error_retries: Annotated[
         int | None,
         typer.Option(
@@ -243,6 +256,7 @@ def plan(
         no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
+        agent_timeout_multiplier,
         error_retries,
         _selected_target(primary, backup),
         label=label,
@@ -285,9 +299,20 @@ def run(
         bool,
         typer.Option(
             "--no-timeout",
-            help="Disable the Harbor agent-execution deadline.",
+            help="Disable the Harbor agent-execution deadline entirely (multiplier 'inf').",
         ),
     ] = False,
+    agent_timeout_multiplier: Annotated[
+        float | None,
+        typer.Option(
+            "--agent-timeout-multiplier",
+            min=0.01,
+            help=(
+                "Scale the Harbor agent deadline instead of removing it, e.g. 6 turns the "
+                "official 900/1800/3600s limits into 1.5/3/6 hours."
+            ),
+        ),
+    ] = None,
     error_retries: Annotated[
         int | None,
         typer.Option(
@@ -350,6 +375,7 @@ def run(
         no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
+        agent_timeout_multiplier,
         error_retries,
         _selected_target(primary, backup),
         label=label,

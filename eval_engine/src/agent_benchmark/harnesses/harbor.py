@@ -21,6 +21,7 @@ from agent_benchmark.run.retry import (
     select_attempt,
     wait_before_attempt,
 )
+from agent_benchmark.run.scrub import scrub_tree
 from agent_benchmark.run.stop import should_stop
 
 # Harbor is launched through the engine's bootstrap rather than its console script so a per-task
@@ -104,9 +105,35 @@ def build_command(
     )
     if spec.execution.no_timeout:
         command.extend(["--agent-timeout-multiplier", "inf"])
+    elif spec.execution.agent_timeout_multiplier is not None:
+        command.extend(
+            ["--agent-timeout-multiplier", f"{spec.execution.agent_timeout_multiplier:g}"]
+        )
     if spec.execution.error_retries and not engine_managed_retries:
         command.extend(["--max-retries", str(spec.execution.error_retries)])
     return command
+
+
+def _scrub_artifacts(root: Path, api_key: str, log_path: Path) -> None:
+    """Strip the provider key from a completed job's artifacts before anything else reads them.
+
+    The key is no longer given to the container (agents/terminus_2.py), so this should find
+    nothing. It stays because a hit here means a new leak path opened, and an artifact tree is
+    graded, archived and uploaded -- discovering it later is discovering it too late.
+    """
+    files, replacements, touched = scrub_tree(root, [api_key])
+    if not files:
+        return
+    message = (
+        f"SECURITY: redacted the provider key from {replacements} place(s) in {files} artifact "
+        f"file(s) under {root}: {', '.join(touched[:10])}"
+        f"{' ...' if len(touched) > 10 else ''}\n"
+    )
+    print(message, end="", flush=True)
+    with contextlib.suppress(OSError):
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(message)
 
 
 class HarborHarness(HarnessAdapter):
@@ -158,6 +185,8 @@ class HarborHarness(HarnessAdapter):
             budget_usd=spec.budget.total_usd,
             stop_dir=run_dir,
         )
+
+        _scrub_artifacts(output_dir, api_key, run_dir / "logs" / "execute.log")
 
         trial_results = sorted(output_dir.glob("*/*/result.json"))
         # A stop request (cost cap or operator) makes an incomplete pool the expected outcome;
@@ -229,6 +258,8 @@ class HarborHarness(HarnessAdapter):
                     budget_usd=spec.budget.total_usd,
                     stop_dir=run_dir,
                 )
+            _scrub_artifacts(round_root, api_key, run_dir / "logs" / "execute.log")
+
             by_id: dict[str, tuple[Path, dict[str, object]]] = {}
             for result_path in round_root.glob("*/*/result.json"):
                 result = json.loads(result_path.read_text())
