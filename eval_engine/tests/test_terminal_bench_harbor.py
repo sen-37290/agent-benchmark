@@ -72,6 +72,32 @@ def test_no_timeout_disables_harbor_agent_deadline(tmp_path: Path) -> None:
     assert command[command.index("--agent-timeout-multiplier") + 1] == "inf"
 
 
+def test_finite_multiplier_scales_the_agent_deadline(tmp_path: Path) -> None:
+    """The bounded alternative to --no-timeout.
+
+    Removing the deadline leaves the per-task dollar cap as the only bound on a task, and
+    Terminus 2 allows 1,000,000 episodes -- on a cheap model that is effectively no bound at
+    all. A multiplier gives a slow task more room without giving it forever.
+    """
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.agent_timeout_multiplier = 6
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--agent-timeout-multiplier") + 1] == "6"
+
+
+def test_no_timeout_wins_over_a_multiplier(tmp_path: Path) -> None:
+    # The CLI rejects passing both, so this only pins the precedence of a spec built by hand.
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.no_timeout = True
+    spec.execution.agent_timeout_multiplier = 6
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--agent-timeout-multiplier") + 1] == "inf"
+
+
 def test_default_keeps_task_agent_deadline(tmp_path: Path) -> None:
     spec, run_dir = terminal_spec(tmp_path)
 
@@ -126,7 +152,8 @@ def test_terminal_bench_runs_mini_swe_agent(tmp_path: Path) -> None:
     assert command[command.index("-a") + 1] == "mini-swe-agent"
     assert any("config_file=" in argument for argument in command)
     assert "version=2.4.5" in command
-    assert "cost_limit=5.0" in command
+    # The per-task cap comes from the benchmark profile, raised to an enforced $20.
+    assert "cost_limit=20.0" in command
 
 
 def test_resumes_existing_native_job(tmp_path: Path) -> None:
@@ -241,6 +268,7 @@ def test_swebench_runs_default_mini_swe_agent(tmp_path: Path) -> None:
     assert command[command.index("-a") + 1] == "mini-swe-agent"
     assert any("config_file=" in argument for argument in command)
     assert "version=2.4.5" in command
+    # This is the swebench-verified-harbor profile, whose per-task cap is unchanged at $5.
     assert "cost_limit=5.0" in command
 
 
@@ -302,6 +330,44 @@ def test_cli_plan_records_no_timeout() -> None:
     assert result.exit_code == 0, result.output
     assert "no_timeout: true" in result.output
     assert "subject_agent_version: 2.0.0" in result.output
+
+
+def _plan_argv(*extra: str) -> list[str]:
+    return [
+        "plan",
+        "--benchmark",
+        "terminal-bench-2.1",
+        "--model",
+        "kimi-k3",
+        "--reasoning-effort",
+        "max",
+        "--provider",
+        "openrouter",
+        "--workers",
+        "1",
+        "--budget-usd",
+        "5",
+        "--sampling",
+        "random",
+        "--size",
+        "1",
+        *extra,
+    ]
+
+
+def test_cli_plan_records_the_agent_timeout_multiplier() -> None:
+    result = CliRunner().invoke(app, _plan_argv("--agent-timeout-multiplier", "6"))
+
+    assert result.exit_code == 0, result.output
+    assert "agent_timeout_multiplier: 6.0" in result.output
+
+
+def test_cli_plan_rejects_both_timeout_options() -> None:
+    result = CliRunner().invoke(app, _plan_argv("--no-timeout", "--agent-timeout-multiplier", "6"))
+
+    assert result.exit_code != 0
+    # The CLI lets ConfigurationError propagate, so the message is on the exception.
+    assert "set the same Harbor knob" in str(result.exception)
 
 
 def test_remote_deploy_selects_terminalbench_extra(tmp_path: Path, monkeypatch) -> None:

@@ -90,13 +90,17 @@ if [ -n "${PER_TASK_CAP_USD:-}" ]; then
   PER_TASK_ARGS=(--per-task-cost-limit-usd "$PER_TASK_CAP_USD")
 fi
 
-# Omitting both means the full benchmark, which is what a real experiment wants. Setting them
-# runs a small canary over the identical code path -- the only honest way to validate a VM,
-# transport and key before committing the full budget.
+# Two ways to give slow tasks more room, and they are not equivalent. --no-timeout removes the
+# deadline outright, which leaves the per-task dollar cap as the ONLY bound on a task (Terminus 2
+# allows 1,000,000 episodes); on a cheap model that can mean days per task. A finite multiplier
+# scales the official 900/1800/3600s limits instead and still guarantees the task ends.
 TIMEOUT_ARGS=()
 if [ "${NO_TIMEOUT:-0}" = "1" ]; then
   TIMEOUT_ARGS=(--no-timeout)
-  log "Harbor agent-execution deadline DISABLED (--no-timeout)"
+  log "Harbor agent-execution deadline DISABLED (--no-timeout); only the per-task cap bounds a task"
+elif [ -n "${AGENT_TIMEOUT_MULTIPLIER:-}" ]; then
+  TIMEOUT_ARGS=(--agent-timeout-multiplier "$AGENT_TIMEOUT_MULTIPLIER")
+  log "Harbor agent deadline scaled x${AGENT_TIMEOUT_MULTIPLIER}"
 fi
 
 # A subset re-run pins exact task ids via the benchmark's pin env var, so only the named tasks run
@@ -122,6 +126,9 @@ if [ -n "${REASONING_EFFORT:-}" ]; then
   log "reasoning effort: $REASONING_EFFORT"
 fi
 
+# Omitting both means the full benchmark, which is what a real experiment wants. Setting them
+# runs a small canary over the identical code path -- the only honest way to validate a VM,
+# transport and key before committing the full budget.
 SCOPE_ARGS=()
 if [ -n "${SAMPLING:-}" ] && [ -n "${SIZE:-}" ]; then
   SCOPE_ARGS=(--sampling "$SAMPLING" --size "$SIZE")

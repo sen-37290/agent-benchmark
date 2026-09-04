@@ -1,0 +1,21 @@
+{
+  "_note": "Sol's 6 officially-failed tasks from 20260903 gpt-5-6-sol-terminal-bench. 3 AgentTimeoutError (re-run with a 6x deadline is a genuine retry) and 3 BadRequestError content refusals from OpenAI, which are expected to reproduce unchanged -- they are included to document the refusal as a provider policy boundary, not a harness fault. Original cost of all 6: $5.12.",
+  "timeouts": [
+    "extract-moves-from-video",
+    "make-doom-for-mips",
+    "make-mips-interpreter"
+  ],
+  "policy_refusals": [
+    "break-filter-js-from-html",
+    "model-extraction-relu-logits",
+    "vulnerable-secret"
+  ],
+  "instance_ids": [
+    "break-filter-js-from-html",
+    "extract-moves-from-video",
+    "make-doom-for-mips",
+    "make-mips-interpreter",
+    "model-extraction-relu-logits",
+    "vulnerable-secret"
+  ]
+}

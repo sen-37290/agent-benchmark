@@ -69,12 +69,58 @@ def test_normalizes_reward_error_cost_tokens_and_missing(tmp_path: Path) -> None
 
     results = normalize(spec, run_dir)
     assert [result.status for result in results] == ["completed", "error", "missing"]
-    assert results[0].metrics == {"reward": 1.0, "resolved": True}
+    assert results[0].metrics == {"reward": 1.0, "resolved": True, "verifier_completed": True}
     assert results[0].cost_usd == 0.25
     assert results[0].duration_seconds == 90
+    # Timed out before any verifier ran: nothing to credit, so it scores 0.
     assert results[1].error_type == "AgentTimeoutError"
-    assert results[1].metrics == {"reward": 0.0, "resolved": False}
+    assert results[1].metrics == {
+        "reward": 0.0,
+        "resolved": False,
+        "verifier_completed": False,
+    }
     assert results[2].metrics == {"reward": None, "resolved": False}
+
+
+def test_verified_pass_survives_an_agent_phase_exception(tmp_path: Path) -> None:
+    """A trial whose agent timed out but whose verifier scored 1 keeps the point.
+
+    Harbor grades the container state after the agent phase ends, so a task can be solved and
+    still be recorded with an AgentTimeoutError. Forcing reward 0 whenever `exception_info` was
+    present cost the gpt-5.6-luna run four proven passes (path-tracing, path-tracing-reverse,
+    regex-chess, sanitize-git-repo), each verified 1.0 with no failing tests.
+    """
+    spec, run_dir, ids = setup_run(tmp_path)
+    write_trial(run_dir, spec.run_id, ids[0], reward=1.0, exception="AgentTimeoutError")
+    # The other two keep the pool complete so validate_and_summarize has nothing to complain
+    # about beyond the case under test.
+    write_trial(run_dir, spec.run_id, ids[1], reward=0.0)
+    write_trial(run_dir, spec.run_id, ids[2], reward=0.0)
+
+    result = normalize(spec, run_dir)[0]
+    # The agent phase really did fail, so the status stays "error" -- but the verifier decides
+    # the reward. The two are separate dimensions.
+    assert result.status == "error"
+    assert result.error_type == "AgentTimeoutError"
+    assert result.metrics["reward"] == 1.0
+    assert result.metrics["resolved"] is True
+    assert result.metrics["verifier_completed"] is True
+
+    summary = validate_and_summarize(spec, run_dir)
+    assert summary["successful_count"] == 1
+    assert summary["error_count"] == 1  # still reported as an agent-phase error
+    assert summary["verifier_scored_count"] == 3
+
+
+def test_cost_stop_without_a_verifier_scores_zero(tmp_path: Path) -> None:
+    """A per-task cost stop aborts before verification, so there is no reward to trust."""
+    spec, run_dir, ids = setup_run(tmp_path)
+    write_trial(run_dir, spec.run_id, ids[0], reward=None, exception="CostLimitExceeded")
+
+    result = normalize(spec, run_dir)[0]
+    assert result.metrics["reward"] == 0.0
+    assert result.metrics["resolved"] is False
+    assert result.metrics["verifier_completed"] is False
 
 
 def test_grade_only_validates_inline_rewards(tmp_path: Path) -> None:
@@ -92,6 +138,7 @@ def test_grade_only_validates_inline_rewards(tmp_path: Path) -> None:
         "stop_reason": None,
         "successful_count": 1,
         "error_count": 1,
+        "verifier_scored_count": 2,
         "mean_reward": pytest.approx(1 / 3),
         "accuracy": pytest.approx(1 / 3),
     }
