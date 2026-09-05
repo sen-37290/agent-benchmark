@@ -136,7 +136,7 @@ def test_empty_stream_is_retryable_not_an_empty_turn(monkeypatch, uninstalled) -
         asyncio.run(litellm.acompletion(model="anthropic/claude-fable-5-1", messages=[]))
 
 
-def test_attempt_log_records_first_byte_and_outcome(monkeypatch, uninstalled, tmp_path) -> None:
+def test_attempt_log_records_first_chunk_and_outcome(monkeypatch, uninstalled, tmp_path) -> None:
     """The observability gap: a timed-out attempt used to leave no trace at all."""
 
     def chunks():
@@ -153,7 +153,7 @@ def test_attempt_log_records_first_byte_and_outcome(monkeypatch, uninstalled, tm
     entry = json.loads(log.read_text().splitlines()[0])
     assert entry["outcome"] == "ok"
     assert entry["chunks"] == 1
-    assert entry["first_byte_s"] is not None
+    assert entry["first_chunk_s"] is not None
     assert entry["finish_reason"] == "stop"
 
 

@@ -39,9 +39,16 @@ so a stalled attempt is retried rather than killing the trial.
 
 OBSERVABILITY. The old logs recorded only successful completions, so an attempt that timed out
 inside LiteLLM left no trace and "41 minutes without progress" could not be attributed. Every
-attempt now appends one JSON line to ``AGENT_BENCH_LLM_STREAM_LOG`` with request start, latency
-to first byte, chunk count, last-byte time, token counts and outcome -- enough to tell a slow
-generation (first byte early, chunks throughout) from a provider stall (no first byte at all).
+attempt now appends one JSON line to ``AGENT_BENCH_LLM_STREAM_LOG`` with latency to the first
+chunk, chunk count, elapsed time, token counts and outcome -- enough to tell a slow generation
+(chunks arriving) from a provider stall (none, and an error).
+
+``first_chunk_s`` is NOT time to first byte, and the difference matters when reading the log
+against ``idle_timeout_s``. Anthropic sends SSE pings while the model thinks; LiteLLM's iterator
+does not yield a chunk for them, but they are bytes on the socket and they reset httpx's read
+timer. So a turn can legitimately show ``first_chunk_s: 1278`` under a 180s idle timeout -- 21
+minutes of thinking, on a connection that was never quiet -- and that is exactly the turn the old
+non-streaming transport had no way to survive. A stall looks different: no chunks AND an error.
 """
 
 from __future__ import annotations
@@ -63,12 +70,12 @@ DEADLINE_ENV = "AGENT_BENCH_LLM_STREAM_DEADLINE_SECONDS"
 #: Where to append one JSON line per attempt. Optional.
 LOG_ENV = "AGENT_BENCH_LLM_STREAM_LOG"
 
-#: A healthy stream is never quiet this long. The binding case is not the gap between deltas --
-#: those arrive continuously once the model writes -- but the wait for the FIRST byte while it
-#: thinks, which httpx's read timeout also covers. Measured over the first 42 calls of the
-#: streaming run: p50 5s, p90 14s, max 141s. 180s left only 39s of headroom on that tail, so a
-#: long think would have been misread as a stall; 300s keeps the margin while still ending a dead
-#: connection in five minutes rather than the 47 the old transport managed.
+#: A healthy stream is never quiet this long, because this bounds raw BYTES, not chunks: the
+#: server's SSE pings keep the timer fed through a long thinking phase even when no chunk is
+#: yielded. Measured on the streaming run, a turn reached its first chunk after 1,278s under a
+#: 180s idle timeout and completed normally, which is the proof that pings do arrive. The margin
+#: above 180s is for a provider that pings less often; a dead connection still ends in five
+#: minutes rather than the 47 the old transport managed.
 DEFAULT_IDLE_SECONDS = 300.0
 #: Fable's longest observed Terminal-Bench turn (~49k output tokens) lands well inside this.
 DEFAULT_DEADLINE_SECONDS = 1800.0
@@ -202,7 +209,7 @@ def install(idle_seconds: float, deadline_seconds: float) -> bool:
             entry.update(
                 {
                     "outcome": "deadline_exceeded",
-                    "first_byte_s": _elapsed(started, first_chunk_at),
+                    "first_chunk_s": _elapsed(started, first_chunk_at),
                     "chunks": len(chunks),
                     "elapsed_s": round(time.monotonic() - started, 3),
                 }
@@ -222,7 +229,7 @@ def install(idle_seconds: float, deadline_seconds: float) -> bool:
                     "outcome": "error",
                     "error_type": type(error).__name__,
                     "error": str(error)[:300],
-                    "first_byte_s": _elapsed(started, first_chunk_at),
+                    "first_chunk_s": _elapsed(started, first_chunk_at),
                     "chunks": len(chunks),
                     "elapsed_s": round(time.monotonic() - started, 3),
                 }
@@ -254,7 +261,7 @@ def install(idle_seconds: float, deadline_seconds: float) -> bool:
                 "outcome": "ok",
                 "served_model": getattr(response, "model", None),
                 "finish_reason": _finish_reason(response),
-                "first_byte_s": _elapsed(started, first_chunk_at),
+                "first_chunk_s": _elapsed(started, first_chunk_at),
                 "chunks": len(chunks),
                 "elapsed_s": round(time.monotonic() - started, 3),
                 "prompt_tokens": _usage_field(response, "prompt_tokens"),
