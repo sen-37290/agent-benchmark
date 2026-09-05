@@ -137,12 +137,66 @@ experiments:
     per_task_cap_usd: 20
     workers: 8
 
+  # The same 24 tasks again, with Anthropic SERVER-SIDE FALLBACK on. This is the experiment the
+  # retry-24 row could not be: that run lost 13 of its 24 tasks to refusals, not to the clock or
+  # the budget.
+  #
+  # WHAT A REFUSAL DOES HERE. claude-fable-5-1 answers some of these prompts with HTTP 200,
+  # `stop_reason: "refusal"` and empty content. Terminus 2 has no refusal branch, so it reads the
+  # empty body as malformed JSON, appends "please fix your JSON" and re-asks -- forever. Input
+  # tokens grow every turn, output tokens stay at zero, and the trial ends only at the per-task
+  # cap. In the first (uncapped) run that loop reached $5,019 on a single task; 96.6% of that
+  # run's $12,746 went to refusal loops that produced no output token at all. The measured
+  # categories are `cyber` (extract-elf, vulnerable-secret, write-compressor, crack-7z-hash) and
+  # `bio` (protein-assembly).
+  #
+  # `fallbacks: default` makes the API retry a refused request on the model Anthropic recommends
+  # for that refusal category, inside the same call, and the answer comes back normally. Measured
+  # on the two reproducible prompts: cyber -> claude-opus-4-8, bio -> claude-opus-5. So the
+  # fallback model VARIES BY TASK here, and a category with no recommendation still refuses --
+  # read any result together with logs/anthropic_fallback.jsonl, which records the model that
+  # actually served each call.
+  #
+  # Caps and workers match the retry-24 row deliberately: this differs from it in one variable.
+  - label: sen-fable-5-1-fallback-to-opus-terminal-bench
+    vm: sen-fable-5-1-fallback-to-opus-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_FALLBACK_TO_OPUS_TERMINAL_BENCH
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-fallback-to-opus-terminal-bench.json  # 24 tasks
+    no_timeout: true
+    experiment_cap_usd: 600
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 8
+
+  # The one-task smoke gate for the row above: same VM, same key, same code path, one task known
+  # to refuse (write-compressor, category cyber). Run it to completion before the 24.
+  - label: sen-fable-5-1-fallback-to-opus-terminal-bench-smoke
+    vm: sen-fable-5-1-fallback-to-opus-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_FALLBACK_TO_OPUS_TERMINAL_BENCH
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-fallback-to-opus-terminal-bench-smoke.json  # 1 task
+    no_timeout: true
+    experiment_cap_usd: 25
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 1
+
   # ---- gpt-5.6 Terminal-Bench re-runs: the tasks the 20260903 runs lost to the clock or to a
   # broken shell, replayed on ONE VM, one after another. -------------------------------------
   #
-  # All three share sen-fable-5-1-failed-cases-terminal-bench and must be started in order --
-  # sol, then terra, then luna -- because a VM carries a single .fleet/launch.env and one
-  # controller. Wait for each to reach "Complete" before deploying the next.
+  # One VM and one API key each, so all three run CONCURRENTLY. They were originally chained
+  # onto a single VM, which serialised ~15h of wall clock for no benefit: a VM carries one
+  # .fleet/launch.env and one controller, so two experiments cannot share it. Separate VMs remove
+  # both the serialisation and any chance of one stage's containers perturbing another's.
   #
   # WHY A 6x MULTIPLIER AND NOT --no-timeout. Removing the deadline sounds like the right way to
   # re-run a timeout, but Terminus 2 permits 1,000,000 episodes, so with no deadline the only
@@ -171,7 +225,7 @@ experiments:
     workers: 6
 
   - label: sen-gpt-5-6-terra-terminal-bench-retry
-    vm: sen-fable-5-1-failed-cases-terminal-bench
+    vm: gpt-5-6-terra-failed-cases-terminal-bench
     benchmark: terminal-bench-2.1
     model: gpt-5-6-terra
     reasoning_effort: xhigh
@@ -190,7 +244,7 @@ experiments:
   # benchmarks/terminal_bench/results.py, so those four are recovered by re-normalizing the
   # archived run. Re-running a proven pass can only lose it.
   - label: sen-gpt-5-6-luna-terminal-bench-retry
-    vm: sen-fable-5-1-failed-cases-terminal-bench
+    vm: gpt-5-6-luna-failed-cases-terminal-bench
     benchmark: terminal-bench-2.1
     model: gpt-5-6-luna
     reasoning_effort: xhigh
@@ -202,6 +256,45 @@ experiments:
     no_budget_limit: false
     per_task_cap_usd: 20
     workers: 8
+
+  # ---- gpt-5.6 Terminal-Bench: the 2 tasks OpenAI's content filter refuses, run with a
+  # CLIENT-SIDE model fallback. ----------------------------------------------------------------
+  #
+  # break-filter-js-from-html and vulnerable-secret fail on gpt-5.6-sol with HTTP 400
+  # `cyber_policy` ("flagged for possible cybersecurity risk"), reproduced in
+  # sen-gpt-5-6-sol-terminal-bench-retry. The agent gets one benign turn, then the call that
+  # engages the vulnerability is refused; the 400 is not transient, so Harbor's retry only
+  # reproduces it and the trial dies error/BadRequestError.
+  #
+  # OpenAI ships NO server-side fallback (unlike Anthropic's `fallbacks` body param), so the
+  # fallback is done client-side at the litellm.acompletion seam (see openai_fallback): a refused
+  # request is re-issued, unchanged but for the model string, down this ladder --
+  #   gpt-5.6-sol  (primary)      -> refused
+  #   gpt-5.6-sol  (retry #1)     -> the filter is non-deterministic; a repeat sometimes serves
+  #   gpt-5.6-terra (fallback #1) -> never refused on these tasks in any prior run
+  #   gpt-5.6-luna  (fallback #2)
+  #   STOP -> provider_refusal
+  # VERIFIED against the live API: any one key serves all three snapshots, so only the model
+  # string changes; the key, messages and xhigh effort stay identical. logs/openai_fallback.jsonl
+  # records which snapshot actually served each call.
+  - label: sen-gpt-5-6-sol-fallback-terminal-bench
+    vm: sen-fable-5-1-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-sol
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH_RETRY  # this key serves sol, terra AND luna
+    openai_fallbacks:
+      - openai/gpt-5.6-sol
+      - openai/gpt-5.6-sol
+      - openai/gpt-5.6-terra
+      - openai/gpt-5.6-luna
+    pin_file: pins/sen-gpt-5-6-sol-fallback-terminal-bench.json  # 2 tasks
+    agent_timeout_multiplier: 6
+    experiment_cap_usd: 100
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 2
 
   # ---- CyberGym (300 tasks, OpenHands). Both VMs already hold the 175G data cache and
   # the canary/smoke gates, so prepare is a no-op there. ----

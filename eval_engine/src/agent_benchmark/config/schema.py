@@ -39,6 +39,16 @@ class UserRequest(BaseModel):
     # decides the canonical name the subject agent reads; this only says where to read it from.
     api_key_from: str | None = None
     no_cleanup: bool = False
+    # Anthropic server-side fallback routing: "default" for Anthropic's per-category
+    # recommendation, or a JSON list of up to three models, e.g.
+    # '[{"model": "claude-opus-5"}]'. None leaves refusals as refusals.
+    anthropic_fallbacks: str | None = None
+    # OpenAI client-side model fallback: a JSON list of litellm model ids to try in order on a
+    # content-policy (cyber_policy) refusal, e.g.
+    # '["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]'. OpenAI has no
+    # server-side equivalent, so the refused request is re-issued on the next model. None leaves
+    # refusals as refusals.
+    openai_fallbacks: str | None = None
 
     @field_validator("benchmark", "model", "provider", "target")
     @classmethod
@@ -48,7 +58,14 @@ class UserRequest(BaseModel):
             raise ValueError("must not be empty")
         return value
 
-    @field_validator("agent", "reasoning_effort", "label", "api_key_from")
+    @field_validator(
+        "agent",
+        "reasoning_effort",
+        "label",
+        "api_key_from",
+        "anthropic_fallbacks",
+        "openai_fallbacks",
+    )
     @classmethod
     def optional_nonempty(cls, value: str | None) -> str | None:
         if value is None:
@@ -88,6 +105,13 @@ class ModelSpec(BaseModel):
     reasoning_effort: str | None = None
     provider_route: str | None = None
     byok: bool = False
+    #: Server-side fallback routing sent on every Anthropic request; see UserRequest. It is
+    #: recorded on the spec, not read from ambient environment, because a fallback that is a
+    #: property of the request cannot silently go missing on one code path.
+    anthropic_fallbacks: str | None = None
+    #: OpenAI client-side model-fallback ladder (JSON list of model ids); see UserRequest. Also
+    #: recorded on the spec rather than read from ambient environment, for the same reason.
+    openai_fallbacks: str | None = None
     config: dict[str, Any]
 
     @model_validator(mode="after")

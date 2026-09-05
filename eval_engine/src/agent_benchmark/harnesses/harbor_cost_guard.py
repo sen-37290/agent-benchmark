@@ -22,6 +22,7 @@ Run this module in place of the ``harbor`` console script; every argument is for
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import random
 import sys
@@ -35,6 +36,14 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.getcwd()) != _HERE]
 
 from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit  # noqa: E402
+from agent_benchmark.harnesses.anthropic_fallback import (  # noqa: E402
+    configured_fallbacks,
+    install as install_anthropic_fallback,
+)
+from agent_benchmark.harnesses.openai_fallback import (  # noqa: E402
+    configured_fallbacks as configured_openai_fallbacks,
+    install as install_openai_fallback,
+)
 from agent_benchmark.run.retry import is_transient  # noqa: E402
 
 #: How many times one LLM request may be attempted before the trial is allowed to fail.
@@ -160,6 +169,35 @@ def main() -> None:
         )
     else:
         print("[llm-retry] disabled", file=sys.stderr, flush=True)
+
+    # Server-side fallback, when the run asks for it. Claude Fable 5.1 refuses some
+    # Terminal-Bench tasks outright, and a refusal is an HTTP 200 with empty content that
+    # Terminus 2 loops on; letting the API retry on another model is what makes those tasks
+    # runnable at all. See anthropic_fallback for why this cannot go through LiteLLM's
+    # public kwargs.
+    fallbacks = configured_fallbacks()
+    if fallbacks is not None:
+        install_anthropic_fallback(fallbacks)
+        print(
+            f"[fallback] server-side fallback enabled: {json.dumps(fallbacks)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    # Client-side model fallback for OpenAI content-policy refusals. gpt-5.6 declines some
+    # Terminal-Bench tasks with an HTTP 400 (cyber_policy) that no retry can clear; re-issuing
+    # the identical request on the next model in the ladder is what makes those tasks runnable.
+    # OpenAI has no server-side equivalent, so this is done at the litellm.acompletion seam.
+    # See openai_fallback.
+    openai_fallbacks = configured_openai_fallbacks()
+    if openai_fallbacks is not None:
+        install_openai_fallback(openai_fallbacks)
+        print(
+            f"[openai-fallback] client-side model fallback enabled: "
+            f"{json.dumps(openai_fallbacks)}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     from harbor.cli.main import app
 

@@ -5,6 +5,11 @@ from pathlib import Path
 from agent_benchmark.agents.base import AgentAdapter, AgentInvocation, litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
+from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
+from agent_benchmark.harnesses.openai_fallback import (
+    FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+    LEDGER_ENV as OPENAI_LEDGER_ENV,
+)
 from agent_benchmark.run.costguard import LIMIT_ENV
 
 TERMINUS_2_VERSION = "2.0.0"
@@ -19,7 +24,6 @@ class Terminus2Adapter(AgentAdapter):
         run_dir: Path,
         api_key: str,
     ) -> AgentInvocation:
-        del run_dir
         if spec.model.subject_agent_version != TERMINUS_2_VERSION:
             raise StageError(
                 "Terminus 2 version mismatch: "
@@ -56,6 +60,28 @@ class Terminus2Adapter(AgentAdapter):
         # omitted and the guard installs nothing.
         if spec.benchmark.settings.get("enforce_per_task_cost_limit", True):
             process_environment[LIMIT_ENV] = f"{spec.budget.per_task_usd:.6f}"
+        # Anthropic server-side fallback, when the resolved spec asks for it. It is carried on
+        # the invocation rather than inherited from the controller's environment: the parameter
+        # has to be on every request that can be refused, and ambient state is exactly how one
+        # code path ends up unprotected. harbor_cost_guard reads these inside the Harbor process.
+        if spec.model.anthropic_fallbacks:
+            process_environment[FALLBACKS_ENV] = spec.model.anthropic_fallbacks
+            # A refusal is an HTTP 200 and a fallback-served answer looks like any other, so
+            # neither appears in Harbor's logs or in any error rate. The ledger is the only
+            # record of how often the fallback actually fired.
+            process_environment[LEDGER_ENV] = str(run_dir / "logs" / "anthropic_fallback.jsonl")
+        # OpenAI has no server-side fallback, so a refused request is retried on the next model
+        # client-side; see openai_fallback. Carried on the invocation for the same reason as the
+        # Anthropic routing: a fallback that is a property of the request must never depend on
+        # ambient controller environment, or one code path ends up unprotected.
+        if spec.model.openai_fallbacks:
+            process_environment[OPENAI_FALLBACKS_ENV] = spec.model.openai_fallbacks
+            # A content-policy refusal is a 400 that leaves no successful-call record, and a
+            # fallback-served answer is indistinguishable downstream. The ledger is the only
+            # record of which model actually served each call.
+            process_environment[OPENAI_LEDGER_ENV] = str(
+                run_dir / "logs" / "openai_fallback.jsonl"
+            )
         return AgentInvocation(
             model_name=model_name,
             kwargs=kwargs,

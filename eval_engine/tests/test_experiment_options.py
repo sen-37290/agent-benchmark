@@ -152,3 +152,143 @@ def test_terminus_per_task_limit_follows_the_benchmark_setting(tmp_path: Path) -
     spec.benchmark.settings["enforce_per_task_cost_limit"] = False
     invocation = agent_adapter("terminus-2").invocation(spec, tmp_path, "secret-key")
     assert LIMIT_ENV not in invocation.process_environment
+
+
+def test_anthropic_fallbacks_absent_by_default(tmp_path: Path) -> None:
+    """A run that does not ask for fallback must not send the parameter."""
+    spec = _resolved(tmp_path)
+    assert spec.model.anthropic_fallbacks is None
+
+    from agent_benchmark.agents.terminus_2 import ADAPTER
+    from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV
+
+    invocation = ADAPTER.invocation(spec, tmp_path, "key")
+    assert FALLBACKS_ENV not in invocation.process_environment
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["default", '[{"model": "claude-opus-4-8"}]', '[{"model": "claude-opus-5"}]'],
+)
+def test_anthropic_fallbacks_reaches_the_harbor_process(tmp_path: Path, value: str) -> None:
+    """The routing travels on the invocation, not through ambient environment.
+
+    The Harbor process is where the parameter is actually attached to each request, so the
+    setting has to arrive there as part of the spec; anything read from the controller's own
+    environment could be present on one code path and missing on another.
+    """
+    spec = _resolved(tmp_path, anthropic_fallbacks=value)
+    assert spec.model.anthropic_fallbacks == value
+
+    from agent_benchmark.agents.terminus_2 import ADAPTER
+    from agent_benchmark.harnesses.anthropic_fallback import (
+        FALLBACKS_ENV,
+        LEDGER_ENV,
+        configured_fallbacks,
+    )
+
+    invocation = ADAPTER.invocation(spec, tmp_path, "key")
+    assert invocation.process_environment[FALLBACKS_ENV] == value
+    # The ledger is the run's only record of a refusal: refusals are HTTP 200 and never
+    # appear in Harbor's logs or in any error rate.
+    assert invocation.process_environment[LEDGER_ENV].endswith("anthropic_fallback.jsonl")
+
+    # And the guard parses back exactly what the CLI was given.
+    monkeypatched = {FALLBACKS_ENV: value}
+    import os
+
+    original = os.environ.get(FALLBACKS_ENV)
+    os.environ.update(monkeypatched)
+    try:
+        parsed = configured_fallbacks()
+    finally:
+        if original is None:
+            os.environ.pop(FALLBACKS_ENV, None)
+        else:
+            os.environ[FALLBACKS_ENV] = original
+    assert parsed == ("default" if value == "default" else json.loads(value))
+
+
+@pytest.mark.parametrize(
+    "value", ["[]", "{}", "not-json", '[{"no_model": "x"}]', '[{"model": "a"}, {"model": "b"}, {"model": "c"}, {"model": "d"}]']
+)
+def test_anthropic_fallbacks_rejects_malformed_routing(value: str) -> None:
+    """A bad routing string must fail here, not as a 400 on every request of a long run."""
+    import os
+
+    from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, configured_fallbacks
+
+    original = os.environ.get(FALLBACKS_ENV)
+    os.environ[FALLBACKS_ENV] = value
+    try:
+        with pytest.raises(ValueError):
+            configured_fallbacks()
+    finally:
+        if original is None:
+            os.environ.pop(FALLBACKS_ENV, None)
+        else:
+            os.environ[FALLBACKS_ENV] = original
+
+
+def test_openai_fallbacks_absent_by_default(tmp_path: Path) -> None:
+    """A run that does not ask for OpenAI fallback must not set the env var."""
+    spec = _resolved(tmp_path)
+    assert spec.model.openai_fallbacks is None
+
+    from agent_benchmark.agents.terminus_2 import ADAPTER
+    from agent_benchmark.harnesses.openai_fallback import FALLBACKS_ENV as OPENAI_FALLBACKS_ENV
+
+    invocation = ADAPTER.invocation(spec, tmp_path, "key")
+    assert OPENAI_FALLBACKS_ENV not in invocation.process_environment
+
+
+def test_openai_fallbacks_reaches_the_harbor_process(tmp_path: Path) -> None:
+    """The client-side ladder travels on the invocation, not through ambient environment."""
+    value = '["openai/gpt-5.6-sol", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]'
+    spec = _resolved(tmp_path, provider="openai", model="gpt-5-6-sol", openai_fallbacks=value)
+    assert spec.model.openai_fallbacks == value
+
+    import os
+
+    from agent_benchmark.agents.terminus_2 import ADAPTER
+    from agent_benchmark.harnesses.openai_fallback import (
+        FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+        LEDGER_ENV as OPENAI_LEDGER_ENV,
+        configured_fallbacks as configured_openai_fallbacks,
+    )
+
+    invocation = ADAPTER.invocation(spec, tmp_path, "key")
+    assert invocation.process_environment[OPENAI_FALLBACKS_ENV] == value
+    # The ledger is the run's only record of a content-policy refusal (a 400 that never becomes a
+    # successful-call record) and of which model actually served each call.
+    assert invocation.process_environment[OPENAI_LEDGER_ENV].endswith("openai_fallback.jsonl")
+
+    original = os.environ.get(OPENAI_FALLBACKS_ENV)
+    os.environ[OPENAI_FALLBACKS_ENV] = value
+    try:
+        parsed = configured_openai_fallbacks()
+    finally:
+        if original is None:
+            os.environ.pop(OPENAI_FALLBACKS_ENV, None)
+        else:
+            os.environ[OPENAI_FALLBACKS_ENV] = original
+    assert parsed == json.loads(value)
+
+
+@pytest.mark.parametrize("value", ["[]", "{}", "not-json", "[1, 2]", '["", "x"]'])
+def test_openai_fallbacks_rejects_malformed_ladder(value: str) -> None:
+    """A bad ladder must fail here, not as a 400 on every refused request of a long run."""
+    import os
+
+    from agent_benchmark.harnesses.openai_fallback import FALLBACKS_ENV, configured_fallbacks
+
+    original = os.environ.get(FALLBACKS_ENV)
+    os.environ[FALLBACKS_ENV] = value
+    try:
+        with pytest.raises(ValueError):
+            configured_fallbacks()
+    finally:
+        if original is None:
+            os.environ.pop(FALLBACKS_ENV, None)
+        else:
+            os.environ[FALLBACKS_ENV] = original

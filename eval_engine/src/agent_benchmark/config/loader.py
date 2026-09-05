@@ -305,6 +305,8 @@ def resolve(
             reasoning_effort=request.reasoning_effort,
             provider_route=provider_route,
             byok=request.byok,
+            anthropic_fallbacks=request.anthropic_fallbacks,
+            openai_fallbacks=request.openai_fallbacks,
             config=config,
         ),
         target=target,

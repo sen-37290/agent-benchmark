@@ -27,6 +27,7 @@ import argparse
 import concurrent.futures as futures
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -79,6 +80,12 @@ class Experiment:
     # naming exactly the tasks to run. Declared here rather than passed as a shell variable so
     # the row alone says what the experiment covers.
     pin_file: str | None
+    # Anthropic server-side fallback routing for the run: "default", or a JSON list of up to
+    # three models. Only a safety-classifier refusal triggers it; everything else is unchanged.
+    anthropic_fallbacks: str | None
+    # OpenAI client-side model-fallback ladder (JSON list of litellm model ids) for the run.
+    # Only a content-policy (cyber_policy) refusal triggers it; everything else is unchanged.
+    openai_fallbacks: str | None
     project: str
     zone: str
     remote_root: str
@@ -116,6 +123,20 @@ def load_experiments() -> list[Experiment]:
                 ),
                 no_timeout=bool(row.get("no_timeout", False)),
                 pin_file=row.get("pin_file") or None,
+                anthropic_fallbacks=(
+                    row["anthropic_fallbacks"]
+                    if isinstance(row.get("anthropic_fallbacks"), str)
+                    else json.dumps(row["anthropic_fallbacks"], separators=(",", ":"))
+                    if row.get("anthropic_fallbacks")
+                    else None
+                ),
+                openai_fallbacks=(
+                    row["openai_fallbacks"]
+                    if isinstance(row.get("openai_fallbacks"), str)
+                    else json.dumps(row["openai_fallbacks"], separators=(",", ":"))
+                    if row.get("openai_fallbacks")
+                    else None
+                ),
                 project=defaults["project"],
                 zone=defaults["zone"],
                 remote_root=defaults["remote_root"],
@@ -483,6 +504,8 @@ def cmd_env(args: argparse.Namespace) -> int:
             else ""
         ),
         "FLEET_PIN_FILE": str(HERE / experiment.pin_file) if experiment.pin_file else "",
+        "FLEET_ANTHROPIC_FALLBACKS": experiment.anthropic_fallbacks or "",
+        "FLEET_OPENAI_FALLBACKS": experiment.openai_fallbacks or "",
         "FLEET_REMOTE_ROOT": experiment.remote_root,
         "FLEET_SSH_USER": experiment.ssh_user,
         "FLEET_DEPENDENCY_EXTRA": experiment.dependency_extra,
@@ -492,8 +515,11 @@ def cmd_env(args: argparse.Namespace) -> int:
             else ""
         ),
     }
+    # shell-quote each value so a payload containing quotes -- e.g. the JSON model ladder in
+    # FLEET_OPENAI_FALLBACKS -- survives `eval` intact. A naive repr()+quote-swap corrupts any
+    # value that itself contains double quotes.
     for key, value in values.items():
-        print(f"{key}={value!r}".replace("'", '"'))
+        print(f"{key}={shlex.quote(value)}")
     return 0
 
 
