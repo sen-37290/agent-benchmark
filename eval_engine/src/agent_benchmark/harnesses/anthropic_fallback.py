@@ -186,10 +186,16 @@ def _install_streaming_ledger() -> None:
 
     ``transform_parsed_response`` is the non-streaming parse path only; a streamed response never
     passes through it, so without this the ledger would silently record nothing -- and a refusal
-    is an HTTP 200 that shows up nowhere else. ``ModelResponseIterator.chunk_parser`` receives
-    every raw Anthropic SSE event, which carries the same fields the parsed body does: the served
-    model in ``message_start``, the stop reason and final usage in ``message_delta``, and a
-    ``fallback`` content block when a fallback model took over.
+    is an HTTP 200 that shows up nowhere else. ``ModelResponseIterator.chunk_parser`` receives the
+    raw Anthropic SSE events, which carry the same fields the parsed body does: the served model
+    in ``message_start``, the stop reason and final usage in ``message_delta``, and a ``fallback``
+    content block when a fallback model took over.
+
+    ``message_stop`` is NOT one of them, and assuming it was is what left the first streaming run
+    with an empty ledger. LiteLLM finishes the response at ``message_delta`` and never dispatches
+    the trailing event to the parser -- six events into a mocked stream, five reach
+    ``chunk_parser``. So the line is written at ``message_delta``, the last event carrying
+    anything, and ``message_stop`` only closes the state out if a version ever does deliver it.
 
     The request body itself needs nothing extra: ``transform_request`` builds it for the streaming
     call too, so ``fallbacks`` and the beta header are already on the wire.
@@ -212,7 +218,7 @@ def _install_streaming_ledger() -> None:
 
 
 def _observe_stream_event(iterator: Any, chunk: Any) -> None:
-    """Accumulate one response's fallback facts, and emit them at ``message_stop``.
+    """Accumulate one response's fallback facts, and emit them when the response finishes.
 
     State lives on the iterator instance, and LiteLLM builds one iterator per response, so
     concurrent trials cannot interleave.
@@ -221,13 +227,14 @@ def _observe_stream_event(iterator: Any, chunk: Any) -> None:
         return
     event = chunk.get("type")
     state = getattr(iterator, "_agent_bench_state", None)
-    if state is None:
+    if state is None or event == "message_start":
         state = {
             "served_model": None,
             "stop_reason": None,
             "refusal_category": None,
             "iterations": [],
             "saw_fallback_block": False,
+            "emitted": False,
         }
         iterator._agent_bench_state = state
 
@@ -235,7 +242,7 @@ def _observe_stream_event(iterator: Any, chunk: Any) -> None:
         message = chunk.get("message") or {}
         state["served_model"] = message.get("model")
         usage = message.get("usage") or {}
-        state["iterations"] = list(usage.get("iterations") or state["iterations"])
+        state["iterations"] = list(usage.get("iterations") or [])
     elif event == "content_block_start":
         if (chunk.get("content_block") or {}).get("type") == "fallback":
             state["saw_fallback_block"] = True
@@ -248,30 +255,39 @@ def _observe_stream_event(iterator: Any, chunk: Any) -> None:
         usage = chunk.get("usage") or {}
         if usage.get("iterations"):
             state["iterations"] = list(usage["iterations"])
+        # The last event LiteLLM dispatches -- write the line here, not at message_stop.
+        _emit_state(state)
     elif event == "message_stop":
-        iterations = state["iterations"]
-        served_by_fallback = (
-            state["saw_fallback_block"]
-            or any(i.get("type") == "fallback_message" for i in iterations)
-        ) and state["stop_reason"] != "refusal"
-        _record(
-            {
-                "transport": "stream",
-                "served_model": state["served_model"],
-                "stop_reason": state["stop_reason"],
-                "refusal_category": state["refusal_category"],
-                "served_by_fallback": served_by_fallback,
-                "iterations": [
-                    {
-                        "type": i.get("type"),
-                        "model": i.get("model"),
-                        "input_tokens": i.get("input_tokens"),
-                        "output_tokens": i.get("output_tokens"),
-                        "cache_read_input_tokens": i.get("cache_read_input_tokens"),
-                        "cache_creation_input_tokens": i.get("cache_creation_input_tokens"),
-                    }
-                    for i in iterations
-                ],
-            }
-        )
+        _emit_state(state)
         iterator._agent_bench_state = None
+
+
+def _emit_state(state: dict[str, Any]) -> None:
+    """Write one ledger line for a finished response, at most once."""
+    if state.get("emitted"):
+        return
+    state["emitted"] = True
+    iterations = state["iterations"]
+    served_by_fallback = (
+        state["saw_fallback_block"] or any(i.get("type") == "fallback_message" for i in iterations)
+    ) and state["stop_reason"] != "refusal"
+    _record(
+        {
+            "transport": "stream",
+            "served_model": state["served_model"],
+            "stop_reason": state["stop_reason"],
+            "refusal_category": state["refusal_category"],
+            "served_by_fallback": served_by_fallback,
+            "iterations": [
+                {
+                    "type": i.get("type"),
+                    "model": i.get("model"),
+                    "input_tokens": i.get("input_tokens"),
+                    "output_tokens": i.get("output_tokens"),
+                    "cache_read_input_tokens": i.get("cache_read_input_tokens"),
+                    "cache_creation_input_tokens": i.get("cache_creation_input_tokens"),
+                }
+                for i in iterations
+            ],
+        }
+    )
