@@ -130,10 +130,16 @@ say "writing launch.env"
 # on disk for the life of the run. It is piped over stdin so it never appears in a process list.
 API_KEY_VALUE="$(cd "$REPO_ROOT" && python3 - "$FLEET_API_KEY_FROM" <<'PY'
 import sys
+
+# `api_key_from` names a shell variable, so it uses underscores -- but a key may be written in
+# .env with hyphens instead (SEN-FABLE-5-1-... rather than SEN_FABLE_5_1_...), which is not a
+# legal shell name and so could never be exported under that spelling. Accept either here, and
+# keep the underscored name as the one that reaches the VM.
 name = sys.argv[1]
+candidates = (name, name.replace("_", "-"))
 for line in open(".env"):
     line = line.strip()
-    if line.startswith(f"{name}="):
+    if any(line.startswith(f"{candidate}=") for candidate in candidates):
         print(line.split("=", 1)[1].strip().strip('"').strip("'"))
         break
 PY
@@ -158,6 +164,8 @@ NO_BUDGET_LIMIT=${FLEET_NO_BUDGET_LIMIT:-0}
 NO_TIMEOUT=${NO_TIMEOUT:-${FLEET_NO_TIMEOUT:-0}}
 AGENT_TIMEOUT_MULTIPLIER=${AGENT_TIMEOUT_MULTIPLIER:-${FLEET_AGENT_TIMEOUT_MULTIPLIER:-}}
 PIN_INSTANCES=${REMOTE_PIN_PATH:-}
+ANTHROPIC_FALLBACKS='${FLEET_ANTHROPIC_FALLBACKS:-}'
+OPENAI_FALLBACKS='${FLEET_OPENAI_FALLBACKS:-}'
 SAMPLING=${CANARY_SAMPLING:-}
 SIZE=${CANARY_SIZE:-}
 CONTROLLER_DIR=$FLEET_REMOTE_ROOT
