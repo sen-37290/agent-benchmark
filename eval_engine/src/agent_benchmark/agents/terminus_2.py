@@ -8,8 +8,11 @@ from agent_benchmark.exceptions import StageError
 from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
 from agent_benchmark.harnesses.openai_fallback import (
     FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+)
+from agent_benchmark.harnesses.openai_fallback import (
     LEDGER_ENV as OPENAI_LEDGER_ENV,
 )
+from agent_benchmark.harnesses.streaming_completion import LOG_ENV as STREAM_LOG_ENV
 from agent_benchmark.run.costguard import LIMIT_ENV
 
 TERMINUS_2_VERSION = "2.0.0"
@@ -60,6 +63,11 @@ class Terminus2Adapter(AgentAdapter):
         # omitted and the guard installs nothing.
         if spec.benchmark.settings.get("enforce_per_task_cost_limit", True):
             process_environment[LIMIT_ENV] = f"{spec.budget.per_task_usd:.6f}"
+        # One line per model request, whatever its outcome. Harbor logs completed calls only, so
+        # an attempt that stalls or times out leaves no trace at all -- which is why a run with
+        # six wedged requests could only be diagnosed from TCP byte counters. See
+        # streaming_completion.
+        process_environment[STREAM_LOG_ENV] = str(run_dir / "logs" / "llm_stream.jsonl")
         # Anthropic server-side fallback, when the resolved spec asks for it. It is carried on
         # the invocation rather than inherited from the controller's environment: the parameter
         # has to be on every request that can be refused, and ambient state is exactly how one

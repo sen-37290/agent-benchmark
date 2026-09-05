@@ -35,23 +35,27 @@ import time
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.getcwd()) != _HERE]
 
+from agent_benchmark.harnesses import anthropic_fallback as _anthropic_fallback  # noqa: E402
+from agent_benchmark.harnesses import openai_fallback as _openai_fallback  # noqa: E402
+from agent_benchmark.harnesses import streaming_completion as _streaming  # noqa: E402
 from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit  # noqa: E402
-from agent_benchmark.harnesses.anthropic_fallback import (  # noqa: E402
-    configured_fallbacks,
-    install as install_anthropic_fallback,
-)
-from agent_benchmark.harnesses.openai_fallback import (  # noqa: E402
-    configured_fallbacks as configured_openai_fallbacks,
-    install as install_openai_fallback,
-)
 from agent_benchmark.run.retry import is_transient  # noqa: E402
 
 #: How many times one LLM request may be attempted before the trial is allowed to fail.
 ATTEMPTS_ENV = "AGENT_BENCH_LLM_RETRY_ATTEMPTS"
 #: Ceiling on the total time spent retrying a single request, in seconds.
 BUDGET_ENV = "AGENT_BENCH_LLM_RETRY_SECONDS"
+#: Read timeout for one NON-streaming LLM request. Only consulted when streaming is turned off:
+#: a whole-response timeout cannot tell a long generation from a dead socket, which is why the
+#: streaming path replaces it with an inter-byte idle timer plus a wall-clock deadline. See
+#: streaming_completion.
+REQUEST_TIMEOUT_ENV = "AGENT_BENCH_LLM_REQUEST_TIMEOUT_SECONDS"
 DEFAULT_ATTEMPTS = 8
-DEFAULT_BUDGET_SECONDS = 1800.0
+#: Ceiling on the retry sequence for ONE logical model turn. Bounded rather than generous: with
+#: streaming, a stalled attempt now ends in minutes, so a turn that is still failing after two
+#: hours is broken, not unlucky.
+DEFAULT_BUDGET_SECONDS = 7200.0
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 3600.0
 _BASE_DELAY = 10.0
 _MAX_DELAY = 300.0
 
@@ -77,7 +81,11 @@ def _retryable(error: BaseException) -> bool:
     return is_transient(type(error).__name__, str(error))
 
 
-def install_llm_retries(attempts: int, budget_seconds: float) -> bool:
+def install_llm_retries(
+    attempts: int,
+    budget_seconds: float,
+    request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS,
+) -> bool:
     """Wrap ``LiteLLM.call`` in a long transient-only retry. Returns True when applied."""
     if attempts <= 1:
         return False
@@ -88,7 +96,28 @@ def install_llm_retries(attempts: int, budget_seconds: float) -> bool:
 
     original = LiteLLM.call
 
+    # Keep genuine connection failures responsive while allowing a non-streaming response body to
+    # take up to an hour. A single float would also turn the TCP connect timeout into one hour.
+    # The streaming path sets its own, sharper timeout at the acompletion seam and ignores this
+    # one, so it is only built when streaming is off.
+    import httpx
+
+    request_timeout = (
+        None
+        if _streaming.is_enabled()
+        else httpx.Timeout(
+            request_timeout_seconds,
+            connect=min(60.0, request_timeout_seconds),
+            write=min(60.0, request_timeout_seconds),
+            pool=min(60.0, request_timeout_seconds),
+        )
+    )
+
     async def retrying_call(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        # Harbor forwards unknown call kwargs directly to litellm.acompletion(). Use setdefault so
+        # an explicit per-call timeout remains authoritative.
+        if request_timeout is not None:
+            kwargs.setdefault("timeout", request_timeout)
         deadline = time.monotonic() + budget_seconds
         for attempt in range(1, attempts + 1):
             try:
@@ -158,12 +187,45 @@ def main() -> None:
             flush=True,
         )
 
+    # Streaming goes in FIRST so it sits closest to the wire: openai_fallback wraps
+    # litellm.acompletion too, and a fallback rung must stream like any other attempt.
+    #
+    # This is the fix for the stall that left a six-task Terminal-Bench run with zero completions
+    # after 108 minutes. Non-streaming, a Fable max-effort turn leaves the socket silent for the
+    # whole generation, which is indistinguishable from a connection that has been dropped
+    # somewhere in between -- and unrecoverable, because nothing arrives to time out on until the
+    # read timeout expires. Streaming keeps bytes flowing, so a stall is detected in minutes.
+    idle_seconds = _streaming.configured_idle_seconds()
+    deadline_seconds = _streaming.configured_deadline_seconds()
+    streaming = _streaming.is_enabled() and _streaming.install(idle_seconds, deadline_seconds)
+    if streaming:
+        print(
+            f"[llm-stream] streaming transport enabled: {idle_seconds:.0f}s inter-byte idle "
+            f"timeout, {deadline_seconds:.0f}s wall-clock deadline per attempt",
+            file=sys.stderr,
+            flush=True,
+        )
+    else:
+        # Loud, because this is the configuration that produced hour-long silent requests.
+        print(
+            "[llm-stream] WARNING: DISABLED -- requests are non-streaming; a long generation "
+            "cannot be told apart from a dead connection",
+            file=sys.stderr,
+            flush=True,
+        )
+
     attempts = int(_positive(ATTEMPTS_ENV, DEFAULT_ATTEMPTS))
     budget = _positive(BUDGET_ENV, DEFAULT_BUDGET_SECONDS)
-    if install_llm_retries(attempts, budget):
+    request_timeout = _positive(REQUEST_TIMEOUT_ENV, DEFAULT_REQUEST_TIMEOUT_SECONDS)
+    if install_llm_retries(attempts, budget, request_timeout):
+        bound = (
+            f"{deadline_seconds:.0f}s deadline per attempt"
+            if streaming
+            else f"{request_timeout:.0f}s response timeout"
+        )
         print(
             f"[llm-retry] up to {attempts} attempts per request "
-            f"within {budget:.0f}s, transient errors only",
+            f"within {budget:.0f}s, {bound}, transient errors only",
             file=sys.stderr,
             flush=True,
         )
@@ -175,9 +237,9 @@ def main() -> None:
     # Terminus 2 loops on; letting the API retry on another model is what makes those tasks
     # runnable at all. See anthropic_fallback for why this cannot go through LiteLLM's
     # public kwargs.
-    fallbacks = configured_fallbacks()
+    fallbacks = _anthropic_fallback.configured_fallbacks()
     if fallbacks is not None:
-        install_anthropic_fallback(fallbacks)
+        _anthropic_fallback.install(fallbacks)
         print(
             f"[fallback] server-side fallback enabled: {json.dumps(fallbacks)}",
             file=sys.stderr,
@@ -189,9 +251,9 @@ def main() -> None:
     # the identical request on the next model in the ladder is what makes those tasks runnable.
     # OpenAI has no server-side equivalent, so this is done at the litellm.acompletion seam.
     # See openai_fallback.
-    openai_fallbacks = configured_openai_fallbacks()
+    openai_fallbacks = _openai_fallback.configured_fallbacks()
     if openai_fallbacks is not None:
-        install_openai_fallback(openai_fallbacks)
+        _openai_fallback.install(openai_fallbacks)
         print(
             f"[openai-fallback] client-side model fallback enabled: "
             f"{json.dumps(openai_fallbacks)}",

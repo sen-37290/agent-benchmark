@@ -190,6 +190,36 @@ experiments:
     per_task_cap_usd: 20
     workers: 1
 
+  # Same six tasks again, this time on the STREAMING transport. The previous attempt is the
+  # reason this one exists: with a 3600s non-streaming read timeout it was stopped after 108
+  # minutes with 57 agent steps and zero completed tasks. Measured on its own sockets, three of
+  # the six connections had received the TLS handshake and NOT ONE FURTHER BYTE for 47 minutes --
+  # a request that had never begun to answer, on a worker that would have waited an hour for it.
+  #
+  # A non-streaming request is silent for the entire generation, so a connection dropped by any
+  # NAT or load balancer in between looks exactly like a model still thinking, and nothing
+  # arrives to time out on until the read timeout expires an hour later. Streaming keeps bytes
+  # on the wire continuously: the flow is never idle, and httpx's read timeout becomes the
+  # inter-byte idle timer it always should have been, under a 30-minute wall-clock deadline per
+  # attempt. See harnesses/streaming_completion for the measured tail that sets the idle default.
+  #
+  # Six workers is unchanged and is no longer the risk it was: a stalled request now frees its
+  # worker in minutes rather than occupying it for an hour and retrying into the same hole.
+  - label: sen-fable-5-1-streaming-terminal-bench-retry-6
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-streaming-terminal-bench-retry-6.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 6
+
   # ---- gpt-5.6 Terminal-Bench re-runs: the tasks the 20260903 runs lost to the clock or to a
   # broken shell, replayed on ONE VM, one after another. -------------------------------------
   #

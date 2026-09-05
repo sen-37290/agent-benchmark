@@ -35,6 +35,7 @@ though the conversation had been on the fallback model all along.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
@@ -176,4 +177,101 @@ def install(fallbacks: str | list[dict[str, Any]]) -> bool:
     AnthropicConfig.transform_request = transform_request  # type: ignore[method-assign]
     AnthropicConfig.transform_parsed_response = transform_parsed_response  # type: ignore[method-assign]
     AnthropicConfig._agent_bench_server_side_fallback = True  # type: ignore[attr-defined]
+    _install_streaming_ledger()
     return True
+
+
+def _install_streaming_ledger() -> None:
+    """Keep the ledger writing when the run streams (see streaming_completion).
+
+    ``transform_parsed_response`` is the non-streaming parse path only; a streamed response never
+    passes through it, so without this the ledger would silently record nothing -- and a refusal
+    is an HTTP 200 that shows up nowhere else. ``ModelResponseIterator.chunk_parser`` receives
+    every raw Anthropic SSE event, which carries the same fields the parsed body does: the served
+    model in ``message_start``, the stop reason and final usage in ``message_delta``, and a
+    ``fallback`` content block when a fallback model took over.
+
+    The request body itself needs nothing extra: ``transform_request`` builds it for the streaming
+    call too, so ``fallbacks`` and the beta header are already on the wire.
+    """
+    from litellm.llms.anthropic.chat.handler import ModelResponseIterator
+
+    if getattr(ModelResponseIterator, "_agent_bench_fallback_ledger", False):
+        return
+
+    original_parser = ModelResponseIterator.chunk_parser
+
+    def chunk_parser(self, chunk, *args, **kwargs):  # type: ignore[no-untyped-def]
+        # Never let instrumentation break the stream.
+        with contextlib.suppress(Exception):
+            _observe_stream_event(self, chunk)
+        return original_parser(self, chunk, *args, **kwargs)
+
+    ModelResponseIterator.chunk_parser = chunk_parser  # type: ignore[method-assign]
+    ModelResponseIterator._agent_bench_fallback_ledger = True  # type: ignore[attr-defined]
+
+
+def _observe_stream_event(iterator: Any, chunk: Any) -> None:
+    """Accumulate one response's fallback facts, and emit them at ``message_stop``.
+
+    State lives on the iterator instance, and LiteLLM builds one iterator per response, so
+    concurrent trials cannot interleave.
+    """
+    if not isinstance(chunk, dict):
+        return
+    event = chunk.get("type")
+    state = getattr(iterator, "_agent_bench_state", None)
+    if state is None:
+        state = {
+            "served_model": None,
+            "stop_reason": None,
+            "refusal_category": None,
+            "iterations": [],
+            "saw_fallback_block": False,
+        }
+        iterator._agent_bench_state = state
+
+    if event == "message_start":
+        message = chunk.get("message") or {}
+        state["served_model"] = message.get("model")
+        usage = message.get("usage") or {}
+        state["iterations"] = list(usage.get("iterations") or state["iterations"])
+    elif event == "content_block_start":
+        if (chunk.get("content_block") or {}).get("type") == "fallback":
+            state["saw_fallback_block"] = True
+    elif event == "message_delta":
+        delta = chunk.get("delta") or {}
+        state["stop_reason"] = delta.get("stop_reason") or state["stop_reason"]
+        state["refusal_category"] = (delta.get("stop_details") or {}).get("category") or state[
+            "refusal_category"
+        ]
+        usage = chunk.get("usage") or {}
+        if usage.get("iterations"):
+            state["iterations"] = list(usage["iterations"])
+    elif event == "message_stop":
+        iterations = state["iterations"]
+        served_by_fallback = (
+            state["saw_fallback_block"]
+            or any(i.get("type") == "fallback_message" for i in iterations)
+        ) and state["stop_reason"] != "refusal"
+        _record(
+            {
+                "transport": "stream",
+                "served_model": state["served_model"],
+                "stop_reason": state["stop_reason"],
+                "refusal_category": state["refusal_category"],
+                "served_by_fallback": served_by_fallback,
+                "iterations": [
+                    {
+                        "type": i.get("type"),
+                        "model": i.get("model"),
+                        "input_tokens": i.get("input_tokens"),
+                        "output_tokens": i.get("output_tokens"),
+                        "cache_read_input_tokens": i.get("cache_read_input_tokens"),
+                        "cache_creation_input_tokens": i.get("cache_creation_input_tokens"),
+                    }
+                    for i in iterations
+                ],
+            }
+        )
+        iterator._agent_bench_state = None
