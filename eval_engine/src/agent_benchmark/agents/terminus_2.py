@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from agent_benchmark.agents.base import AgentAdapter, AgentInvocation, litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
+from agent_benchmark.harnesses.effort_probe import LOG_ENV as EFFORT_LOG_ENV
 from agent_benchmark.harnesses.openai_fallback import (
     FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+)
+from agent_benchmark.harnesses.openai_fallback import (
     LEDGER_ENV as OPENAI_LEDGER_ENV,
 )
 from agent_benchmark.run.costguard import LIMIT_ENV
@@ -54,6 +58,13 @@ class Terminus2Adapter(AgentAdapter):
         # Keeping it host-only removes the exposure at the source, independently of how Harbor
         # chooses to seed the tmux session.
         process_environment = {spec.model.api_key_env: api_key}
+        # Effort trace. Terminus 2 builds its LiteLLM client inside the Harbor process, so the
+        # only observable record of what reasoning_effort was actually SENT lives there --
+        # chat completions echo no effort back, unlike the Responses API. Enabled only when the
+        # engine's own environment asks for it, so ordinary runs are untouched.
+        # See harnesses/effort_probe.
+        if os.environ.get(EFFORT_LOG_ENV):
+            process_environment[EFFORT_LOG_ENV] = str(run_dir / "logs" / "effort_probe.jsonl")
         # Terminus 2 has no dollar limit of its own, so the engine's cost guard enforces one inside
         # the Harbor process. It reads the limit from the environment; see harbor_cost_guard.
         # A benchmark may opt out of the per-task cap entirely, in which case the limit env var is

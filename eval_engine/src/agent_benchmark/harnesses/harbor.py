@@ -10,6 +10,7 @@ from agent_benchmark.agents.base import AgentInvocation
 from agent_benchmark.benchmarks.paths import benchmark_dataset_dir
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
+from agent_benchmark.harnesses import effort_probe
 from agent_benchmark.harnesses.base import HarnessAdapter
 from agent_benchmark.run.process import collected_cost, run_logged
 from agent_benchmark.run.retry import (
@@ -48,6 +49,14 @@ def _agent_arguments(invocation: AgentInvocation) -> list[str]:
         arguments.extend(["--ak", f"{key}={encoded}"])
     for key, value in invocation.environment.items():
         arguments.extend(["--ae", f"{key}={value}"])
+    # Stage A of the effort trace: the argv is the last thing the ENGINE controls. Everything
+    # after this belongs to Harbor and LiteLLM, so a value that is correct here and wrong on the
+    # wire was lost downstream. See effort_probe.
+    effort_probe.record(
+        "A-engine-agent-argv",
+        agent_kwargs=invocation.kwargs,
+        ak_argv=[a for a in arguments if a != "--ak" and a != "--ae"],
+    )
     return arguments
 
 
