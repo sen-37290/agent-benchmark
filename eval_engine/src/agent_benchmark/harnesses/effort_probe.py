@@ -65,6 +65,27 @@ def record(stage: str, **payload: object) -> None:
     _emit(stage, payload)
 
 
+def record_at(path: str | None, stage: str, **payload: object) -> None:
+    """Write to an explicit path rather than reading the environment.
+
+    The engine hands the execute stage to a worker over SSH, and an SSH login shell inherits
+    none of the engine's exported variables -- so a probe gated on the engine's own environment
+    is silently off in exactly the process that builds the request. The run directory does cross
+    that boundary, so the path is carried explicitly instead.
+    """
+    if not path:
+        return
+    previous = os.environ.get(LOG_ENV)
+    os.environ[LOG_ENV] = path
+    try:
+        _emit(stage, payload)
+    finally:
+        if previous is None:
+            os.environ.pop(LOG_ENV, None)
+        else:
+            os.environ[LOG_ENV] = previous
+
+
 def _summarise(data: dict[str, object]) -> dict[str, object]:
     """Keep the interesting keys and drop the prompt.
 

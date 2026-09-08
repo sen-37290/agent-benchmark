@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from agent_benchmark.agents.base import AgentAdapter, AgentInvocation, litellm_model_name
@@ -63,8 +62,10 @@ class Terminus2Adapter(AgentAdapter):
         # chat completions echo no effort back, unlike the Responses API. Enabled only when the
         # engine's own environment asks for it, so ordinary runs are untouched.
         # See harnesses/effort_probe.
-        if os.environ.get(EFFORT_LOG_ENV):
-            process_environment[EFFORT_LOG_ENV] = str(run_dir / "logs" / "effort_probe.jsonl")
+        # Carried unconditionally: `agent-bench worker execute` runs over SSH, so the engine's
+        # exported environment is absent in the process that actually builds this request.
+        # Gating on it meant the probe was off precisely where it had to be on.
+        process_environment[EFFORT_LOG_ENV] = str(run_dir / "logs" / "effort_probe.jsonl")
         # Terminus 2 has no dollar limit of its own, so the engine's cost guard enforces one inside
         # the Harbor process. It reads the limit from the environment; see harbor_cost_guard.
         # A benchmark may opt out of the per-task cap entirely, in which case the limit env var is

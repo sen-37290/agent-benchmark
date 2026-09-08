@@ -52,7 +52,8 @@ def _agent_arguments(invocation: AgentInvocation) -> list[str]:
     # Stage A of the effort trace: the argv is the last thing the ENGINE controls. Everything
     # after this belongs to Harbor and LiteLLM, so a value that is correct here and wrong on the
     # wire was lost downstream. See effort_probe.
-    effort_probe.record(
+    effort_probe.record_at(
+        invocation.process_environment.get(effort_probe.LOG_ENV),
         "A-engine-agent-argv",
         agent_kwargs=invocation.kwargs,
         ak_argv=[a for a in arguments if a != "--ak" and a != "--ae"],
