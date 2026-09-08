@@ -11,13 +11,27 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# LiteLLM is a DIRECT dependency of ours -- `harnesses/streaming_completion.py`,
+# `openai_fallback.py` and `anthropic_fallback.py` import it and wrap its internals -- but until
+# now it was only ever satisfied transitively: harbor and mini-swe-agent both require it with NO
+# version constraint, so the resolver picked whatever was current when the lock was written. That
+# was 1.94.0, in which `reasoning_effort="max"` is SILENTLY DROPPED on the way to the Responses
+# API: `_map_reasoning_effort()` has no `max` branch and returns None, and the caller in
+# `responses/main.py` pops the parameter unconditionally, so no `reasoning` field reaches the
+# provider at all. Every gpt-5.6 SWE-bench run therefore asked for `max` and was served `medium`
+# -- 72,188 of 72,188 stored responses echo `"effort": "medium"`. See BerriAI/litellm#38084;
+# fixed by a73f11ae9c (PR #38222), first released in 1.100.0. Pinned exactly, like the agents
+# below, so the effort a run actually gets is a property of the lock and not of the day it was
+# resolved.
 swebench = [
   "harbor==0.20.0",
+  "litellm==1.100.0",
   "mini-swe-agent==2.4.5",
   "swebench==4.0.3",
 ]
 terminalbench = [
   "harbor==0.21.0",
+  "litellm==1.100.0",
   "mini-swe-agent==2.4.5",
 ]
 
