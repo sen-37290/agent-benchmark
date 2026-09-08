@@ -14,13 +14,13 @@ model. That is sound here because the three gpt-5.6 snapshots -- sol, terra, lun
 addressable by a single key (verified: every key serves every snapshot), so only the model
 string changes; the key, messages, effort and every other parameter stay identical.
 
-The wrap is installed at LiteLLM's provider seam, ``litellm.acompletion``, the same way
-harbor_cost_guard installs its retry and anthropic_fallback installs its body parameter.
-That seam sits BELOW Harbor's own tenacity retry and cost guard, so a refusal is resolved
-per underlying HTTP call and is transparent to everything above it. The wrapper is a pure
-function of the call's kwargs -- it never mutates the ``LiteLLM`` instance -- so every new
-agent turn starts again at the primary model and only climbs the ladder for the calls that
-are actually refused.
+The wrap is installed at both LiteLLM provider seams used by Terminus 2:
+``litellm.acompletion`` for Chat Completions and ``litellm.aresponses`` for the Responses
+API. Those seams sit BELOW Harbor's own tenacity retry and cost guard, so a refusal is
+resolved per underlying HTTP call and is transparent to everything above it. The wrapper
+is a pure function of the call's kwargs -- it never mutates the ``LiteLLM`` instance -- so
+every new agent turn starts again at the primary model and only climbs the ladder for the
+calls that are actually refused.
 
 The ladder is the ordered list of models to try, primary first, each attempted once:
 
@@ -43,7 +43,7 @@ from __future__ import annotations
 import json
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 #: Ordered JSON list of litellm model ids to try, primary first. Empty/unset disables the wrap.
@@ -82,13 +82,10 @@ def configured_fallbacks() -> list[str] | None:
 
 def _is_content_policy_refusal(error: BaseException) -> bool:
     """True only for OpenAI's cyber content-policy 400, never a generic bad request."""
-    status = getattr(error, "status_code", None) or getattr(error, "code", None)
     text = str(error).lower()
-    if any(marker in text for marker in _REFUSAL_MARKERS):
-        return True
     # A 400 alone is never enough -- an oversized context or a bad parameter is a 400 too, and
     # retrying those on another model would only hide a real error. The markers above are required.
-    return False
+    return any(marker in text for marker in _REFUSAL_MARKERS)
 
 
 def _record(entry: dict[str, Any]) -> None:
@@ -96,7 +93,7 @@ def _record(entry: dict[str, Any]) -> None:
     path = os.environ.get(LEDGER_ENV, "").strip()
     if not path:
         return
-    entry["at"] = datetime.now(timezone.utc).isoformat()
+    entry["at"] = datetime.now(UTC).isoformat()
     line = json.dumps(entry, separators=(",", ":"))
     # One Harbor process runs every trial of the job, so concurrent workers share this file.
     with _ledger_lock:
@@ -109,71 +106,102 @@ def _record(entry: dict[str, Any]) -> None:
 
 
 def install(fallbacks: list[str]) -> bool:
-    """Retry a content-policy refusal down ``fallbacks``. Returns True when applied."""
+    """Retry content-policy refusals on both OpenAI API paths."""
     import litellm
 
     if getattr(litellm, "_agent_bench_openai_fallback", False):
         return True
 
-    original = litellm.acompletion
+    original_acompletion = litellm.acompletion
+    original_aresponses = litellm.aresponses
 
     async def acompletion_with_fallback(*args, **kwargs):  # type: ignore[no-untyped-def]
-        requested_model = kwargs.get("model")
-        # The ladder is the configured list. When the caller's model is already its head (the
-        # common case -- the run's primary model), the list IS the full sequence. Otherwise the
-        # caller's model is tried first and the list supplies the fallbacks after it.
-        if requested_model in fallbacks:
-            ladder = fallbacks[fallbacks.index(requested_model) :]
-        else:
-            ladder = [requested_model, *fallbacks] if requested_model else list(fallbacks)
+        return await _call_with_fallback(
+            original_acompletion,
+            "chat_completions",
+            fallbacks,
+            *args,
+            **kwargs,
+        )
 
-        last_error: BaseException | None = None
-        for index, model in enumerate(ladder):
-            attempt_kwargs = {**kwargs, "model": model}
-            try:
-                response = await original(*args, **attempt_kwargs)
-            except Exception as error:  # noqa: BLE001 -- re-raised below unless it is a refusal
-                if not _is_content_policy_refusal(error):
-                    # Not a refusal: hand it straight back so the retry/cost layers above decide.
-                    raise
-                last_error = error
-                _record(
-                    {
-                        "requested_model": requested_model,
-                        "attempted_model": model,
-                        "ladder_index": index,
-                        "outcome": "refused",
-                        "error": str(error)[:300],
-                    }
-                )
-                continue
+    async def aresponses_with_fallback(*args, **kwargs):  # type: ignore[no-untyped-def]
+        return await _call_with_fallback(
+            original_aresponses,
+            "responses",
+            fallbacks,
+            *args,
+            **kwargs,
+        )
+
+    litellm.acompletion = acompletion_with_fallback  # type: ignore[assignment]
+    litellm.aresponses = aresponses_with_fallback  # type: ignore[assignment]
+    litellm._agent_bench_openai_fallback = True  # type: ignore[attr-defined]
+    return True
+
+
+async def _call_with_fallback(
+    original: Any,
+    api: str,
+    fallbacks: list[str],
+    *args: Any,
+    **kwargs: Any,
+) -> Any:
+    requested_model = kwargs.get("model")
+    # The ladder is the configured list. When the caller's model is already its head (the
+    # common case -- the run's primary model), the list IS the full sequence. Otherwise the
+    # caller's model is tried first and the list supplies the fallbacks after it.
+    if requested_model in fallbacks:
+        ladder = fallbacks[fallbacks.index(requested_model) :]
+    else:
+        ladder = [requested_model, *fallbacks] if requested_model else list(fallbacks)
+
+    last_error: BaseException | None = None
+    for index, model in enumerate(ladder):
+        attempt_kwargs = {**kwargs, "model": model}
+        try:
+            response = await original(*args, **attempt_kwargs)
+        except Exception as error:  # noqa: BLE001 -- re-raised unless it is a refusal
+            if not _is_content_policy_refusal(error):
+                # Not a refusal: hand it straight back so the retry/cost layers above decide.
+                raise
+            last_error = error
             _record(
                 {
+                    "api": api,
                     "requested_model": requested_model,
                     "attempted_model": model,
                     "ladder_index": index,
-                    "served_model": _response_model(response) or model,
-                    "outcome": "served",
-                    "served_by_fallback": index > 0,
+                    "outcome": "refused",
+                    "error": str(error)[:300],
                 }
             )
-            return response
-
-        # Every rung refused: the task cannot be served. Record the terminal state and re-raise
-        # the last refusal so it surfaces as the trial's provider_refusal.
+            continue
         _record(
             {
+                "api": api,
                 "requested_model": requested_model,
-                "ladder": ladder,
-                "outcome": "provider_refusal",
+                "attempted_model": model,
+                "ladder_index": index,
+                "served_model": _response_model(response) or model,
+                "outcome": "served",
+                "served_by_fallback": index > 0,
             }
         )
-        assert last_error is not None  # the loop only exits here after at least one refusal
-        raise last_error
+        return response
 
-    litellm.acompletion = acompletion_with_fallback  # type: ignore[assignment]
-    litellm._agent_bench_openai_fallback = True  # type: ignore[attr-defined]
-    return True
+    # Every rung refused: the task cannot be served. Record the terminal state and re-raise
+    # the last refusal so it surfaces as the trial's provider_refusal.
+    _record(
+        {
+            "api": api,
+            "requested_model": requested_model,
+            "ladder": ladder,
+            "outcome": "provider_refusal",
+        }
+    )
+    if last_error is None:
+        raise RuntimeError("OpenAI fallback ladder was empty")
+    raise last_error
 
 
 def _response_model(response: Any) -> str | None:
