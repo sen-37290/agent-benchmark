@@ -71,16 +71,13 @@ fi
 
 say "syncing the repo"
 # The working branch is local-only, so `git clone` on the VM is not an option: transfer the tree
-# directly. `.agent-bench/targets.local.yaml` is untracked but required, so it must ride along.
-# `.env` must never ride along: this script extracts the one selected API key below and sends it
-# through stdin into the label-specific, mode-0600 launch file. An ABSOLUTE destination is
-# required -- a relative one has silently landed nothing.
+# directly. `.env` and `.agent-bench/targets.local.yaml` are untracked but required, so they must
+# ride along. An ABSOLUTE destination is required -- a relative one has silently landed nothing.
 #
 # `.fleet` is excluded because it is VM-side controller state, not repo content: it does not
 # exist locally, so --delete would remove it and take the previous experiment's log, resolved
 # spec and pin file with it. That matters whenever experiments share a VM in sequence.
 rsync -az --delete \
-  --exclude '.env' \
   --exclude '.venv' --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.ruff_cache' \
   --exclude 'eval_engine/runs' --exclude 'eval_engine/pools' --exclude 'eval_engine/dist' \
   --exclude 'results' --exclude 'usecase' --exclude '.DS_Store' \
