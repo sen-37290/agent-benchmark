@@ -107,18 +107,6 @@ def list_profiles() -> dict[str, list[str]]:
     return result
 
 
-def model_profile(name: str) -> dict[str, Any]:
-    """Return an isolated copy of a packaged model profile.
-
-    Fleet preflights use this to address the same provider-facing model as the
-    benchmark harness.  The profile name is a CLI alias (for example,
-    ``gpt-5-6-sol``), while ``config.model.model_name`` is the LiteLLM request
-    name (``openai/gpt-5.6-sol``); treating those as interchangeable produces
-    a provider 404.
-    """
-    return copy.deepcopy(_load_yaml("models", name))
-
-
 def benchmark_plugin_name(profile: str) -> str:
     return str(_load_yaml("benchmarks", profile)["plugin"])
 
