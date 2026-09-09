@@ -1,0 +1,11 @@
+{
+  "_note": "Six unresolved Fable 5.1 Terminal-Bench tasks relaunched after increasing the non-streaming LiteLLM response timeout from 600s to 3600s.",
+  "instance_ids": [
+    "headless-terminal",
+    "cancel-async-tasks",
+    "model-extraction-relu-logits",
+    "mailman",
+    "make-doom-for-mips",
+    "make-mips-interpreter"
+  ]
+}

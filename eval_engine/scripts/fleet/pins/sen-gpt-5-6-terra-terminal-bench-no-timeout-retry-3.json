@@ -1,0 +1,8 @@
+{
+  "_note": "Terra Terminal-Bench tail for an explicitly unbounded re-run. build-cython-ext lost its tmux session before verification in the baseline; extract-moves-from-video and train-fasttext reached the earlier x6 agent deadlines (10800s and 21600s) and received verifier reward 0. This pool deliberately removes the agent deadline and uses a practically non-binding cost ceiling.",
+  "instance_ids": [
+    "build-cython-ext",
+    "extract-moves-from-video",
+    "train-fasttext"
+  ]
+}

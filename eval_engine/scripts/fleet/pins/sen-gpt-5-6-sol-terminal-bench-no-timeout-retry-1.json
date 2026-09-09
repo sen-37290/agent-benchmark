@@ -1,0 +1,6 @@
+{
+  "_note": "Sol Terminal-Bench tail for an explicitly unbounded re-run. make-doom-for-mips lost its tmux session before verification in the x6 retry, so it has no capability verdict. This one-task pool removes the agent deadline and uses practically non-binding cost ceilings.",
+  "instance_ids": [
+    "make-doom-for-mips"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "_note": "Luna Terminal-Bench tail for an explicitly unbounded re-run. make-doom-for-mips lost its tmux session before verification in the baseline; extract-moves-from-video reached the earlier x6 agent deadline (10800s) and received verifier reward 0. This pool deliberately removes the agent deadline and uses a practically non-binding cost ceiling.",
+  "instance_ids": [
+    "extract-moves-from-video",
+    "make-doom-for-mips"
+  ]
+}

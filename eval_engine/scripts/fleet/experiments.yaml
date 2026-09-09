@@ -1,4 +1,4 @@
-# The ten concurrent experiments: one per VM, one API key each.
+# Fleet experiments: one active experiment per VM and one API key per experiment.
 #
 # This file is the single source of truth shared by deploy_experiment.sh, run_experiment.sh and
 # the fleet monitor. `label` is the join key: it names the experiment, prefixes the run ID, names
@@ -59,6 +59,58 @@ experiments:
     no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
 
+  # ---- SWE-bench Verified: full replacement of the 20260903 GPT runs after the LiteLLM fix. --
+  #
+  # The earlier rows requested `max`, but LiteLLM 1.94.0 silently removed that one effort value
+  # while translating Responses-API requests. Every one of the 72,188 archived responses echoed
+  # `medium`. LiteLLM 1.100.0 carries the upstream fix. These are complete 500-task replacements,
+  # not failed-case patches, and each runs on the dedicated VM with the same name as its label.
+  #
+  # The official SWE profile retains its locked $3/task cap and supplies error_retries: 3. The
+  # experiment cap is disabled, matching the intended-max cohort; no task may start until prepare
+  # has pre-pulled the complete generation/grading image set.
+  - label: sen-gpt-5-6-sol-swe-bench-litellm-fix-max
+    vm: sen-gpt-5-6-sol-swe-bench-litellm-fix-max
+    benchmark: swebench-verified
+    model: gpt-5-6-sol
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_SWE_BENCH_LITELLM_FIX_MAX
+    required_litellm_version: 1.100.0
+    strict_swe_image_gate: true
+    verify_responses_effort: true
+    experiment_cap_usd: 500
+    no_budget_limit: true
+    workers: 30
+
+  - label: sen-gpt-5-6-terra-swe-bench-litellm-fix-max
+    vm: sen-gpt-5-6-terra-swe-bench-litellm-fix-max
+    benchmark: swebench-verified
+    model: gpt-5-6-terra
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_TERRA_SWE_BENCH_LITELLM_FIX_MAX
+    required_litellm_version: 1.100.0
+    strict_swe_image_gate: true
+    verify_responses_effort: true
+    experiment_cap_usd: 500
+    no_budget_limit: true
+    workers: 30
+
+  - label: sen-gpt-5-6-luna-swe-bench-litellm-fix-max
+    vm: sen-gpt-5-6-luna-swe-bench-litellm-fix-max
+    benchmark: swebench-verified
+    model: gpt-5-6-luna
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_LUNA_SWE_BENCH_LITELLM_FIX_MAX
+    required_litellm_version: 1.100.0
+    strict_swe_image_gate: true
+    verify_responses_effort: true
+    experiment_cap_usd: 500
+    no_budget_limit: true
+    workers: 30
+
   - label: sen-fable-5-1-swe-bench
     vm: sen-fable-5-1-swe-bench
     benchmark: swebench-verified
@@ -69,6 +121,139 @@ experiments:
     experiment_cap_usd: 500
     no_budget_limit: true  # experiment cap disabled; per-task cap still applies
     workers: 30
+
+  # ---- SWE-bench Verified: the 18 matplotlib tasks terra and luna lost to a container-start
+  # timeout, replayed on a pre-warmed image cache. ---------------------------------------------
+  #
+  # WHAT WENT WRONG. mini-swe-agent starts each task with `docker run <image>` and wraps that
+  # call in `subprocess.run(..., timeout=pull_timeout)`, pull_timeout defaulting to 120s. The
+  # image is pulled implicitly by that same call, so at 30 workers ~30 first-touch pulls race;
+  # the matplotlib images are the largest in the dataset and a wave of them never lands inside
+  # 120s. All 18 died with TimeoutExpired before the model was ever called -- $0.00 spent, no
+  # trajectory -- and all four retry attempts replayed the identical herd. gpt-5.6-sol escaped
+  # only because its VM held a warm image cache from an earlier run; it lost nothing and is
+  # therefore NOT re-run here.
+  #
+  # THE FIX IS IN prepare, NOT IN THE ROW. `agent-bench prepare` now pre-pulls every image in the
+  # pool, four at a time, before any task starts, and the harness raises pull_timeout 120 -> 1800
+  # so a later cache miss costs time instead of costing the task. The official grader resolves
+  # the same `swebench/sweb.eval.x86_64.<id>:latest` reference, so one pre-pull warms grading too.
+  #
+  # WHY $20 AND WHY IT CHANGES NOTHING. The cap is raised for consistency with the fable re-run
+  # that follows, and it is inert here: the most expensive gpt-5.6 task ever measured was sol at
+  # $1.158, terra peaked at $0.479 and luna at $0.051, and no gpt-5.6 task in 1,500 trials ever
+  # exited LimitsExceeded. So these 18 remain directly comparable with the 464 already scored at
+  # the official $3, and merge into the archived runs without an asterisk. SWE-bench Verified
+  # locks its per-task cap, so the departure must be declared: allow_cost_limit_override.
+  #
+  # ONE VM, TWO EXPERIMENTS, IN SEQUENCE. A VM carries one launch.env and one controller, so
+  # these cannot run at the same time. Deploy terra, let it finish, then deploy luna -- which is
+  # the better order anyway, because luna reuses the image cache terra's prepare pulls.
+  - label: sen-gpt-5-6-terra-swe-bench-docker-timeout
+    vm: sen-gpt-5-6-docker-timeout-swe-bench
+    benchmark: swebench-verified
+    model: gpt-5-6-terra
+    reasoning_effort: max      # matches the run being repaired; do not "upgrade" it
+    provider: openai
+    api_key_from: SEN_GPT_5_6_TERRA_SWE_BENCH_DOCKER_TIMEOUT
+    pin_file: pins/sen-gpt-5-6-terra-swe-bench-docker-timeout.json  # 18 tasks
+    per_task_cap_usd: 20
+    allow_cost_limit_override: true   # departs from the locked official $3, on purpose
+    experiment_cap_usd: 50
+    no_budget_limit: false
+    # One worker per task: the whole subset runs in a single wave, and with the images already
+    # local there is no pull to serialise. Well under the 30 this VM class has sustained.
+    workers: 18
+
+  - label: sen-gpt-5-6-luna-swe-bench-docker-timeout
+    vm: sen-gpt-5-6-docker-timeout-swe-bench
+    benchmark: swebench-verified
+    model: gpt-5-6-luna
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_LUNA_SWE_BENCH_DOCKER_TIMEOUT
+    pin_file: pins/sen-gpt-5-6-luna-swe-bench-docker-timeout.json  # the same 18 tasks
+    per_task_cap_usd: 20
+    allow_cost_limit_override: true
+    experiment_cap_usd: 50
+    no_budget_limit: false
+    workers: 18
+
+  # ---- SWE-bench Verified: the 155 tasks fable produced no patch for, re-run with a per-task
+  # cap that does not bind. ---------------------------------------------------------------------
+  #
+  # THIS IS THE ROW THAT REPAIRS FABLE'S SCORE. Of fable's 161 non-resolved tasks in the
+  # 20260903 run, only SIX were verifier failures. 139 hit the official $3 per-task cost cap
+  # mid-repair -- 130 of them had already edited source files, and mini-swe-agent only captures a
+  # diff at `submit`, so the work in the container was discarded and the row scored 0. The other
+  # 16 are the same container-start timeout terra and luna hit. fable resolved 339/345 = 98.3% of
+  # everything it was ALLOWED to finish; the published 67.8% is that cap, not the model.
+  #
+  # WHY THE CAP BOUND ON FABLE ALONE. It is a flat dollar budget across models priced ~60x apart.
+  # Median cost per task: fable $1.842, sol $0.196, terra $0.087, luna $0.009. Under $3, sol had
+  # 15x headroom and fable had 1.6x. No gpt-5.6 task in 1,500 trials ever exited LimitsExceeded.
+  #
+  # WHY $20 AND NOT UNLIMITED. Measured from the 139 trajectories: at the moment the cap fired
+  # they averaged $0.12/call (p90 $0.28) at a median of 26 of the 250 allowed steps, and fable's
+  # FINISHED tasks needed a median of 25 calls (p90 38). Pricing the remaining calls at 1.5x the
+  # observed rate -- context grows every turn, so later calls cost more -- the projected need is a
+  # median of $3.28-$5.17 per task with a p90 of $8.72-$14.21. At $20 only about 1-4% of them
+  # still hit the cap, versus 100% today. Removing the bound entirely would leave step_limit=250
+  # as the only stop, which on this model is worth well over $100 on a single pathological task;
+  # $20 buys essentially all of the benefit with a floor under the downside.
+  #
+  # Expected spend is roughly $900-1,200. experiment_cap_usd is ENABLED at $2,500 so a pathology
+  # drains the run instead of the budget; 20 workers rather than 30 because the outer cap can
+  # only see FINISHED tasks, so concurrency is what it can overshoot by.
+  #
+  # SWE-bench Verified locks its per-task cap to the official $3, so the departure is declared
+  # here rather than inferred: allow_cost_limit_override.
+  - label: sen-fable-5-1-swe-bench-remove-cost-limit
+    vm: sen-fable-5-1-remove-cost-limit-swe-bench
+    benchmark: swebench-verified
+    model: fable-5-1
+    reasoning_effort: max      # matches the run being repaired; do not "upgrade" it
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_SWE_BENCH
+    pin_file: pins/sen-fable-5-1-swe-bench-remove-cost-limit.json  # 139 cost-capped + 16 timed out
+    # Anthropic server-side fallback. NOTE WHAT THIS IS AND IS NOT FOR HERE. It is insurance, not
+    # the repair: fable refused NOTHING on SWE-bench -- 484 trajectories and the execute log carry
+    # zero refusal signatures -- and all 139 losses are `LimitsExceeded` at >= $3.00. The repair is
+    # per_task_cap_usd above. This is on so that a refusal, if this snapshot produces one, is
+    # served instead of lost, and so logs/anthropic_fallback.jsonl records what happened either
+    # way. A refusal and a fallback-served answer are both HTTP 200, so the ledger is the only
+    # evidence that exists.
+    #
+    # This needed engine work: the flag was wired for Harbor only (terminus_2 -> harbor_cost_guard
+    # -> install). SWE-bench runs `mini-extra swebench` as its own subprocess, so before
+    # mini_swe_agent_bootstrap the flag was accepted, recorded in the resolved spec, and silently
+    # did nothing.
+    anthropic_fallbacks: default
+    per_task_cap_usd: 20
+    allow_cost_limit_override: true   # departs from the locked official $3, on purpose
+    experiment_cap_usd: 2500
+    no_budget_limit: false
+    workers: 20
+
+  # The 30 tasks from the repair run that produced empty patches only because Anthropic returned
+  # `invalid_request_error: You have reached your specified API usage limits` after 125/155 tasks.
+  # A post-run capacity probe through the exact LiteLLM path succeeded before this retry was
+  # launched. Keep the same model, effort, fallback instrumentation and per-task cap so these
+  # results can replace those 30 infrastructure failures without changing the experiment.
+  - label: sen-fable-5-1-swe-bench-api-limit-retry-30
+    vm: sen-fable-5-1-remove-cost-limit-swe-bench
+    benchmark: swebench-verified
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_SWE_BENCH_RETRY_30
+    pin_file: pins/sen-fable-5-1-swe-bench-api-limit-retry-30.json
+    anthropic_fallbacks: default
+    per_task_cap_usd: 20
+    allow_cost_limit_override: true
+    experiment_cap_usd: 600
+    no_budget_limit: false
+    workers: 10
 
   # ---- Terminal-Bench 2.1 (89 tasks, Harbor + Terminus 2) ----
   - label: sen-gpt-5-6-sol-terminal-bench
@@ -190,6 +375,42 @@ experiments:
     per_task_cap_usd: 20
     workers: 1
 
+  # Ten Fable 5.1 tasks lost to cost limits or timeouts. The engine requires a positive
+  # per-task ceiling, so 100000 is deliberately non-binding; the run-wide watchdog and Harbor
+  # agent deadline are disabled explicitly. All ten run concurrently with server-side fallback.
+  - label: sen-fable-5-1-remove-cost-limit-terminal-bench-retry-10
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-remove-cost-limit-terminal-bench-retry-10.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 10
+
+  # Unresolved tail from the two Fable retries, relaunched after replacing LiteLLM's 600s
+  # non-streaming response timeout with a 3600s read timeout. No agent deadline or practical
+  # dollar ceiling; all six run concurrently with server-side fallback.
+  - label: sen-fable-5-1-long-request-timeout-terminal-bench-retry-6
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-long-request-timeout-terminal-bench-retry-6.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 6
+
   # Same six tasks again, this time on the STREAMING transport. The previous attempt is the
   # reason this one exists: with a 3600s non-streaming read timeout it was stopped after 108
   # minutes with 57 agent steps and zero completed tasks. Measured on its own sockets, three of
@@ -219,6 +440,67 @@ experiments:
     no_budget_limit: true
     per_task_cap_usd: 100000
     workers: 6
+
+  # The 18 tasks fable-5-1 has still never produced a verdict for. The aggregate reads 68/89
+  # (76.4%) only because these are scored 0; on the 71 tasks actually measured it is 68/71
+  # (95.8%). Ten of them errored (four hit the retired $20/task cap mid-work, six died on
+  # RuntimeError) and eight never started, one of those on credit exhaustion -- $106.71 was
+  # already spent producing nothing, and no source run holds a usable attempt for any of them.
+  #
+  # Everything that broke them before is addressed here: no per-task cap and no experiment cap
+  # (the four CostLimitExceeded tasks were working when the cap cut them off), no agent deadline,
+  # server-side fallback for refusals, and the streaming transport -- the six RuntimeError tasks
+  # are plausibly the same silent-socket failure that wedged the previous two runs, which
+  # streaming fixed. See harnesses/streaming_completion.
+  #
+  # 12 workers is the concurrency this 32-vCPU class has sustained; 18 at once has not been
+  # tried. With no cost ceiling anywhere, 12 tasks in flight spend roughly $180-300/hour, so
+  # this run needs watching rather than leaving overnight.
+  - label: sen-fable-5-1-streaming-terminal-bench-gap-18
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-streaming-terminal-bench-gap-18.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 12
+
+  # The 8 tasks fable-5-1 has NO verdict for in any run. They are not failures: every one crashed
+  # before the verifier ran -- four on RuntimeError, three on BadRequestError, and
+  # break-filter-js-from-html was never in the fallback-to-opus run's 24. Whether fable passes
+  # them is simply unmeasured, and they are the entire distance between the headline 86.5% (they
+  # count as failures) and the 95.5% ceiling (they all pass). On the 81 tasks that do have a
+  # verdict, fable is at 95.1%.
+  #
+  # Supersedes the gap-18 pin, which redid the 10 tasks that already have max-effort verdicts in
+  # 20260905T010914Z-...-fallback-to-opus-...-881450e4; that run was stopped after 70 calls.
+  #
+  # Fallback stays ON and its answers COUNT: fable refuses some of these outright, the fallback
+  # model is part of the system under test, and 32% of the fallback-to-opus run's responses were
+  # served by opus-4-8/opus-5. The ledger fix shipped this morning means this run records which
+  # model served each response in logs/anthropic_fallback.jsonl, so the split is reportable
+  # rather than something to reconstruct from trajectory strings later.
+  - label: sen-fable-5-1-streaming-terminal-bench-gap-8
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-streaming-terminal-bench-gap-8.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    # One worker per task: all 8 run concurrently and the stage ends with its slowest.
+    workers: 8
 
   # ---- gpt-5.6 Terminal-Bench re-runs: the tasks the 20260903 runs lost to the clock or to a
   # broken shell, replayed on ONE VM, one after another. -------------------------------------
@@ -286,6 +568,56 @@ experiments:
     no_budget_limit: false
     per_task_cap_usd: 20
     workers: 8
+
+  # Final unbounded retries of the Sol, Terra, and Luna Terminal-Bench cases that still ended
+  # through a deadline or dead tmux session. Terra and Luna share the former SWE retry VM and run
+  # SIMULTANEOUSLY using named targets with separate remote roots and cache leases. `--no-timeout`
+  # removes the Harbor agent deadline entirely, and the $100,000 values are deliberately
+  # non-binding so the run may continue for ten hours or longer. Terminal gpt-5.6 stays at xhigh
+  # because the OpenAI chat endpoint rejects reasoning_effort=max for these model snapshots.
+  - label: sen-gpt-5-6-sol-terminal-bench-no-timeout-retry-1
+    vm: sen-agent-bench-vm
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-sol
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-sol-terminal-bench-no-timeout-retry-1.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 1
+
+  - label: sen-gpt-5-6-terra-terminal-bench-no-timeout-retry-3
+    vm: sen-gpt-5-6-docker-timeout-swe-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-terra
+    reasoning_effort: xhigh
+    provider: openai
+    backup_target: terminal-terra-concurrent
+    api_key_from: SEN_GPT_5_6_TERRA_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-terra-terminal-bench-no-timeout-retry-3.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 3
+
+  - label: sen-gpt-5-6-luna-terminal-bench-no-timeout-retry-2
+    vm: sen-gpt-5-6-docker-timeout-swe-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-luna
+    reasoning_effort: xhigh
+    provider: openai
+    backup_target: terminal-luna-concurrent
+    api_key_from: SEN_GPT_5_6_LUNA_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-luna-terminal-bench-no-timeout-retry-2.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 2
 
   # ---- gpt-5.6 Terminal-Bench: the 2 tasks OpenAI's content filter refuses, run with a
   # CLIENT-SIDE model fallback. ----------------------------------------------------------------

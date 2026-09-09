@@ -1,0 +1,23 @@
+{
+  "_note": "The 18 Terminal-Bench tasks that have never produced a genuine verdict for fable-5-1. From the FINAL-AGGREGATED canonical file: 10 status=error (4 CostLimitExceeded at the old $20/task cap, 6 RuntimeError) and 8 status=unrun (1 NotRun-CreditExhaustion). No source run holds a usable attempt for any of them; $106.71 was already spent producing nothing. They are scored 0 today, which is what holds the aggregate at 68/89 (76.4%) against 68/71 (95.8%) on tasks actually measured. All 18 verified present in the 89-task pool.",
+  "instance_ids": [
+    "adaptive-rejection-sampler",
+    "break-filter-js-from-html",
+    "build-cython-ext",
+    "crack-7z-hash",
+    "dna-assembly",
+    "extract-elf",
+    "filter-js-from-html",
+    "gcode-to-text",
+    "protein-assembly",
+    "qemu-startup",
+    "regex-chess",
+    "reshard-c4-data",
+    "sam-cell-seg",
+    "schemelike-metacircular-eval",
+    "train-fasttext",
+    "vulnerable-secret",
+    "winning-avg-corewars",
+    "write-compressor"
+  ]
+}

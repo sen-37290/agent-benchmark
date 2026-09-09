@@ -1,0 +1,13 @@
+{
+  "_note": "The 8 Terminal-Bench tasks that have NO verdict for fable-5-1 in any run. Not failures -- every one of them crashed before the verifier ran: adaptive-rejection-sampler / dna-assembly / extract-elf / write-compressor on RuntimeError, filter-js-from-html / regex-chess / sam-cell-seg on BadRequestError, and break-filter-js-from-html was never included in the fallback-to-opus run's 24. The other 10 of the original 18 already have max-effort verdicts in run 20260905T010914Z-...-fallback-to-opus-...-881450e4 (9 resolved) and are deliberately excluded here so this run does not redo them.",
+  "instance_ids": [
+    "adaptive-rejection-sampler",
+    "break-filter-js-from-html",
+    "dna-assembly",
+    "extract-elf",
+    "filter-js-from-html",
+    "regex-chess",
+    "sam-cell-seg",
+    "write-compressor"
+  ]
+}
