@@ -1,6 +1,6 @@
 # GPT/Fable benchmark run history
 
-Last reconstructed: 2026-09-09. This is the durable lineage for the closed-model SWE-bench
+Last reconstructed: 2026-09-08. This is the durable lineage for the closed-model SWE-bench
 Verified and Terminal-Bench 2.1 campaign. It records runs that were aborted or superseded as well
 as the runs that contributed to the canonical aggregate; a row being present here does not mean
 its result should be merged.
@@ -110,24 +110,17 @@ cohort is a full replacement rather than a failed-task patch:
 
 | Experiment / VM | Model | Key source | Scope | State |
 |---|---|---|---:|---|
-| `sen-gpt-5-6-sol-swe-bench-litellm-fix-max` | `gpt-5-6-sol` | `SEN_GPT_5_6_SOL_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Executing as `20260909T070133Z-sen-gpt-5-6-sol-swe-bench-litellm-fix-max-0768b836` |
-| `sen-gpt-5-6-terra-swe-bench-litellm-fix-max` | `gpt-5-6-terra` | `SEN_GPT_5_6_TERRA_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Executing as `20260909T070125Z-sen-gpt-5-6-terra-swe-bench-litellm-fix-max-fc92adf2` |
-| `sen-gpt-5-6-luna-swe-bench-litellm-fix-max` | `gpt-5-6-luna` | `SEN_GPT_5_6_LUNA_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Executing as `20260909T070133Z-sen-gpt-5-6-luna-swe-bench-litellm-fix-max-34229c79` |
+| `sen-gpt-5-6-sol-swe-bench-litellm-fix-max` | `gpt-5-6-sol` | `SEN_GPT_5_6_SOL_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Configured; launch pending network access |
+| `sen-gpt-5-6-terra-swe-bench-litellm-fix-max` | `gpt-5-6-terra` | `SEN_GPT_5_6_TERRA_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Configured; launch pending network access |
+| `sen-gpt-5-6-luna-swe-bench-litellm-fix-max` | `gpt-5-6-luna` | `SEN_GPT_5_6_LUNA_SWE_BENCH_LITELLM_FIX_MAX` | 500 | Configured; launch pending network access |
 
 Launch gates: LiteLLM must be exactly 1.100.0, all 500 task/grader images must be present before
 the first model request, and a Responses-API preflight must echo `reasoning.effort=max`. After
 completion, add each run ID, timestamps, score, cost, retry census, effort census, and archive
 location here. Do not overwrite the medium-effort aggregate until that validation is complete.
-
-The first 2026-09-09 controller attempt on each fresh VM pulled and inspected all 500 images,
-then stopped before creating a run: the effort probe sent the fleet profile alias
-(`openai/gpt-5-6-*`) instead of the profile's provider model (`openai/gpt-5.6-*`) and received a
-non-retryable `NotFoundError`. Commit `b6cd786` made the probe resolve the packaged model profile.
-After redeployment, the retained caches were inspected 500/500 and three real Responses calls on
-LiteLLM 1.100.0 each echoed `reasoning.effort=max`; only then were the run IDs above created. At
-launch, every run entered the execute stage with 30 workers and the official $3 per-task cap. An
-initial 2026-09-09T07:05Z census through the real mini-swe-agent path found `max` in 206/206 stored
-Sol responses, 178/178 Terra responses, and 397/397 Luna responses, with no stored `medium` effort.
+The 2026-09-08 implementation session could not reach `compute.googleapis.com` or the VM SSH
+endpoint because outbound DNS/network access was disabled in its execution sandbox; no remote
+state was changed and no paid request was made.
 
 ## Reconstruction references
 
