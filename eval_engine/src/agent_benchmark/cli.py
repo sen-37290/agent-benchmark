@@ -69,11 +69,15 @@ def _request(
     label: str | None = None,
     api_key_from: str | None = None,
     no_cleanup: bool = False,
+    anthropic_fallbacks: str | None = None,
+    openai_fallbacks: str | None = None,
 ) -> UserRequest:
     return UserRequest(
         label=label,
         api_key_from=api_key_from,
         no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
         benchmark=benchmark,
         sampling=sampling,
         size=size,
@@ -173,6 +177,30 @@ def plan(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
+    anthropic_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--anthropic-fallbacks",
+            help=(
+                "Enable Anthropic server-side fallback on every request: 'default' for "
+                "Anthropic's per-category recommendation, or a JSON list of up to three "
+                'models, e.g. \'[{"model": "claude-opus-5"}]\'. A refused request is then '
+                "retried on the fallback model inside the same API call."
+            ),
+        ),
+    ] = None,
+    openai_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-fallbacks",
+            help=(
+                "Enable client-side model fallback for OpenAI content-policy (cyber_policy) "
+                "refusals: a JSON list of litellm model ids to try in order, primary first, "
+                'e.g. \'["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]\'. '
+                "A refused request is re-issued on the next model in the list."
+            ),
+        ),
+    ] = None,
     per_task_cost_limit_usd: Annotated[
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
@@ -262,6 +290,8 @@ def plan(
         label=label,
         api_key_from=api_key_from,
         no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
     )
     run_id = _new_run_id(benchmark, model, label)
     with tempfile.TemporaryDirectory(prefix="agent-bench-plan-") as temporary:
@@ -291,6 +321,30 @@ def run(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
+    anthropic_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--anthropic-fallbacks",
+            help=(
+                "Enable Anthropic server-side fallback on every request: 'default' for "
+                "Anthropic's per-category recommendation, or a JSON list of up to three "
+                'models, e.g. \'[{"model": "claude-opus-5"}]\'. A refused request is then '
+                "retried on the fallback model inside the same API call."
+            ),
+        ),
+    ] = None,
+    openai_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-fallbacks",
+            help=(
+                "Enable client-side model fallback for OpenAI content-policy (cyber_policy) "
+                "refusals: a JSON list of litellm model ids to try in order, primary first, "
+                'e.g. \'["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]\'. '
+                "A refused request is re-issued on the next model in the list."
+            ),
+        ),
+    ] = None,
     per_task_cost_limit_usd: Annotated[
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
@@ -381,6 +435,8 @@ def run(
         label=label,
         api_key_from=api_key_from,
         no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
     )
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")

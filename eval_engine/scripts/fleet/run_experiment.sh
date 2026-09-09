@@ -126,6 +126,20 @@ if [ -n "${REASONING_EFFORT:-}" ]; then
   log "reasoning effort: $REASONING_EFFORT"
 fi
 
+# Anthropic server-side fallback. A refused request is retried on another model inside the same
+# API call, so a task the primary model declines is still attempted instead of being lost to the
+# empty-response parse loop that cost this benchmark 13 tasks. Only a safety-classifier refusal
+# triggers it; rate limits and server errors are returned unchanged.
+FALLBACK_ARGS=()
+if [ -n "${ANTHROPIC_FALLBACKS:-}" ]; then
+  FALLBACK_ARGS=(--anthropic-fallbacks "$ANTHROPIC_FALLBACKS")
+  log "anthropic server-side fallback: $ANTHROPIC_FALLBACKS"
+fi
+if [ -n "${OPENAI_FALLBACKS:-}" ]; then
+  FALLBACK_ARGS+=(--openai-fallbacks "$OPENAI_FALLBACKS")
+  log "openai client-side model fallback: $OPENAI_FALLBACKS"
+fi
+
 # Omitting both means the full benchmark, which is what a real experiment wants. Setting them
 # runs a small canary over the identical code path -- the only honest way to validate a VM,
 # transport and key before committing the full budget.
@@ -147,10 +161,15 @@ uv run agent-bench plan \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${FALLBACK_ARGS[@]}" \
   > "$STATE_DIR/$LABEL.resolved.yaml" || exit $?
 log "resolved spec: $STATE_DIR/$LABEL.resolved.yaml"
 
 RUN_LOG="$STATE_DIR/$LABEL.log"
+# Truncate: this file is appended to, and a redeploy of the same label on the same VM would
+# otherwise leave the PREVIOUS run's `created:` line in it -- which capture_run_id would then read
+# as this run's id, pointing the exit-trap finalize at the wrong (earlier) run.
+: > "$RUN_LOG"
 
 log "running (log: $RUN_LOG)"
 # Run in the background rather than through a pipe: a pipeline's exit status would be the
@@ -166,6 +185,7 @@ uv run agent-bench run \
   --api-key-from "$API_KEY_FROM" \
   --no-cleanup \
   "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
+  "${FALLBACK_ARGS[@]}" \
   >> "$RUN_LOG" 2>&1 &
 RUN_PID=$!
 log "pid $RUN_PID"
@@ -174,7 +194,9 @@ capture_run_id() {
   # The CLI prints `created: <run-id>` before any remote work begins. Capture it promptly: the
   # exit trap has nothing to finalize without it, and a short run can finish inside one poll.
   [ -s "$RUN_ID_FILE" ] && return 0
-  grep -m1 '^created: ' "$RUN_LOG" 2>/dev/null | sed 's/^created: //' > "$RUN_ID_FILE.tmp" || true
+  # tail -1: the current run's `created:` line is the last one written, so even a stale log
+  # (e.g. a redeploy that did not truncate) cannot make us finalize an earlier run.
+  grep '^created: ' "$RUN_LOG" 2>/dev/null | tail -1 | sed 's/^created: //' > "$RUN_ID_FILE.tmp" || true
   if [ -s "$RUN_ID_FILE.tmp" ]; then
     mv "$RUN_ID_FILE.tmp" "$RUN_ID_FILE"
     log "run id: $(cat "$RUN_ID_FILE")"
