@@ -1,0 +1,11 @@
+{
+  "_note": "The 2 Terminal-Bench tasks gpt-5.6-sol refuses under OpenAI's cyber_policy content filter (HTTP 400) -- reproduced in sen-gpt-5-6-sol-terminal-bench-retry. Run with client-side model fallback (sol -> sol -> terra -> luna) so a refused request is re-issued on a snapshot that serves it. terra/luna were never refused on these tasks in any prior run.",
+  "policy_refusals": [
+    "break-filter-js-from-html",
+    "vulnerable-secret"
+  ],
+  "instance_ids": [
+    "break-filter-js-from-html",
+    "vulnerable-secret"
+  ]
+}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import json
+import signal
 import tempfile
 import uuid
 from datetime import UTC, datetime
@@ -23,6 +25,8 @@ from agent_benchmark.exceptions import AgentBenchError
 from agent_benchmark.run.pipeline import Pipeline
 from agent_benchmark.run.remote import SSHBackend
 from agent_benchmark.run.result import read_results, write_report, write_results
+from agent_benchmark.run.snapshot import build as build_snapshot
+from agent_benchmark.run.stop import REASON_OPERATOR, request_stop
 from agent_benchmark.run.store import RunStore
 from agent_benchmark.run.worker import create_manifest, run_stage
 
@@ -59,10 +63,21 @@ def _request(
     no_budget_limit: bool,
     per_task_cost_limit_usd: float | None,
     no_timeout: bool,
+    agent_timeout_multiplier: float | None,
     error_retries: int | None,
     target: str,
+    label: str | None = None,
+    api_key_from: str | None = None,
+    no_cleanup: bool = False,
+    anthropic_fallbacks: str | None = None,
+    openai_fallbacks: str | None = None,
 ) -> UserRequest:
     return UserRequest(
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
         benchmark=benchmark,
         sampling=sampling,
         size=size,
@@ -77,9 +92,30 @@ def _request(
         no_budget_limit=no_budget_limit,
         per_task_cost_limit_usd=per_task_cost_limit_usd,
         no_timeout=no_timeout,
+        agent_timeout_multiplier=agent_timeout_multiplier,
         error_retries=error_retries,
         target=target,
     )
+
+
+def _install_stop_handlers(run_dir: Path) -> None:
+    """Turn SIGTERM/SIGINT into a cooperative stop rather than an abrupt death.
+
+    `systemctl stop` sends SIGTERM and Ctrl-C sends SIGINT. Neither is caught by the pipeline's
+    `except Exception`, so before this the process simply vanished: `state.json` was left stuck
+    at `running` and in-flight work was abandoned. Recording a stop lets the harnesses drain and
+    the controller's exit trap finalize.
+    """
+
+    def handle(signum: int, _frame: object) -> None:
+        name = signal.Signals(signum).name
+        request_stop(run_dir, REASON_OPERATOR, f"received {name}")
+        typer.echo(f"\n{name} received: winding down, no new tasks will start", err=True)
+
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        # Signals can only be installed on the main thread; ignore it elsewhere (e.g. tests).
+        with contextlib.suppress(ValueError):
+            signal.signal(signum, handle)
 
 
 def _selected_target(primary: bool, backup: str | None) -> str:
@@ -98,14 +134,15 @@ def _selected_target(primary: bool, backup: str | None) -> str:
     return name
 
 
-def _new_run_id(benchmark: str, model: str) -> str:
+def _new_run_id(benchmark: str, model: str, label: str | None = None) -> str:
     timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    slug = f"{benchmark}-{model}".replace("_", "-")
+    slug = label.strip() if label else f"{benchmark}-{model}"
+    slug = slug.replace("_", "-")
     return f"{timestamp}-{slug}-{uuid.uuid4().hex[:8]}"
 
 
 def _create_run(request: UserRequest, runs_root: Path, pools_root: Path | None = None) -> RunStore:
-    run_id = _new_run_id(request.benchmark, request.model)
+    run_id = _new_run_id(request.benchmark, request.model, request.label)
     pool_path = (pools_root or (PROJECT_ROOT / "pools")) / f"{run_id}.json"
     benchmark_plugin(benchmark_plugin_name(request.benchmark)).create_pool(
         pool_path, request.sampling, request.size
@@ -140,6 +177,30 @@ def plan(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
+    anthropic_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--anthropic-fallbacks",
+            help=(
+                "Enable Anthropic server-side fallback on every request: 'default' for "
+                "Anthropic's per-category recommendation, or a JSON list of up to three "
+                'models, e.g. \'[{"model": "claude-opus-5"}]\'. A refused request is then '
+                "retried on the fallback model inside the same API call."
+            ),
+        ),
+    ] = None,
+    openai_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-fallbacks",
+            help=(
+                "Enable client-side model fallback for OpenAI content-policy (cyber_policy) "
+                "refusals: a JSON list of litellm model ids to try in order, primary first, "
+                'e.g. \'["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]\'. '
+                "A refused request is re-issued on the next model in the list."
+            ),
+        ),
+    ] = None,
     per_task_cost_limit_usd: Annotated[
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
@@ -148,9 +209,20 @@ def plan(
         bool,
         typer.Option(
             "--no-timeout",
-            help="Disable the Harbor agent-execution deadline.",
+            help="Disable the Harbor agent-execution deadline entirely (multiplier 'inf').",
         ),
     ] = False,
+    agent_timeout_multiplier: Annotated[
+        float | None,
+        typer.Option(
+            "--agent-timeout-multiplier",
+            min=0.01,
+            help=(
+                "Scale the Harbor agent deadline instead of removing it, e.g. 6 turns the "
+                "official 900/1800/3600s limits into 1.5/3/6 hours."
+            ),
+        ),
+    ] = None,
     error_retries: Annotated[
         int | None,
         typer.Option(
@@ -167,6 +239,34 @@ def plan(
     backup: Annotated[
         str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
     ] = None,
+    label: Annotated[
+        str | None,
+        typer.Option(
+            "--label",
+            metavar="NAME",
+            help=(
+                "Experiment name; prefixes the run ID and identifies the run to the fleet monitor."
+            ),
+        ),
+    ] = None,
+    api_key_from: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key-from",
+            metavar="ENVVAR",
+            help=(
+                "Read this experiment's API key from ENVVAR instead of the model profile's "
+                "default variable. The subject agent still receives the canonical provider name."
+            ),
+        ),
+    ] = None,
+    no_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "--no-cleanup",
+            help="Retain the remote run workspace instead of removing it after a successful run.",
+        ),
+    ] = False,
 ) -> None:
     """Validate arguments and print the immutable resolved spec without creating a run."""
     request = _request(
@@ -184,10 +284,16 @@ def plan(
         no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
+        agent_timeout_multiplier,
         error_retries,
         _selected_target(primary, backup),
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
     )
-    run_id = _new_run_id(benchmark, model)
+    run_id = _new_run_id(benchmark, model, label)
     with tempfile.TemporaryDirectory(prefix="agent-bench-plan-") as temporary:
         pool_path = Path(temporary) / "pool.json"
         benchmark_plugin(benchmark_plugin_name(benchmark)).create_pool(pool_path, sampling, size)
@@ -215,6 +321,30 @@ def run(
     ] = None,
     provider_route: Annotated[str | None, typer.Option()] = None,
     byok: Annotated[bool, typer.Option()] = False,
+    anthropic_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--anthropic-fallbacks",
+            help=(
+                "Enable Anthropic server-side fallback on every request: 'default' for "
+                "Anthropic's per-category recommendation, or a JSON list of up to three "
+                'models, e.g. \'[{"model": "claude-opus-5"}]\'. A refused request is then '
+                "retried on the fallback model inside the same API call."
+            ),
+        ),
+    ] = None,
+    openai_fallbacks: Annotated[
+        str | None,
+        typer.Option(
+            "--openai-fallbacks",
+            help=(
+                "Enable client-side model fallback for OpenAI content-policy (cyber_policy) "
+                "refusals: a JSON list of litellm model ids to try in order, primary first, "
+                'e.g. \'["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]\'. '
+                "A refused request is re-issued on the next model in the list."
+            ),
+        ),
+    ] = None,
     per_task_cost_limit_usd: Annotated[
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
@@ -223,9 +353,20 @@ def run(
         bool,
         typer.Option(
             "--no-timeout",
-            help="Disable the Harbor agent-execution deadline.",
+            help="Disable the Harbor agent-execution deadline entirely (multiplier 'inf').",
         ),
     ] = False,
+    agent_timeout_multiplier: Annotated[
+        float | None,
+        typer.Option(
+            "--agent-timeout-multiplier",
+            min=0.01,
+            help=(
+                "Scale the Harbor agent deadline instead of removing it, e.g. 6 turns the "
+                "official 900/1800/3600s limits into 1.5/3/6 hours."
+            ),
+        ),
+    ] = None,
     error_retries: Annotated[
         int | None,
         typer.Option(
@@ -242,6 +383,34 @@ def run(
     backup: Annotated[
         str | None, typer.Option("--backup", metavar="NAME", help="Use a named backup VM.")
     ] = None,
+    label: Annotated[
+        str | None,
+        typer.Option(
+            "--label",
+            metavar="NAME",
+            help=(
+                "Experiment name; prefixes the run ID and identifies the run to the fleet monitor."
+            ),
+        ),
+    ] = None,
+    api_key_from: Annotated[
+        str | None,
+        typer.Option(
+            "--api-key-from",
+            metavar="ENVVAR",
+            help=(
+                "Read this experiment's API key from ENVVAR instead of the model profile's "
+                "default variable. The subject agent still receives the canonical provider name."
+            ),
+        ),
+    ] = None,
+    no_cleanup: Annotated[
+        bool,
+        typer.Option(
+            "--no-cleanup",
+            help="Retain the remote run workspace instead of removing it after a successful run.",
+        ),
+    ] = False,
     runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
 ) -> None:
     """Create and execute a complete benchmark run."""
@@ -260,14 +429,66 @@ def run(
         no_budget_limit,
         per_task_cost_limit_usd,
         no_timeout,
+        agent_timeout_multiplier,
         error_retries,
         _selected_target(primary, backup),
+        label=label,
+        api_key_from=api_key_from,
+        no_cleanup=no_cleanup,
+        anthropic_fallbacks=anthropic_fallbacks,
+        openai_fallbacks=openai_fallbacks,
     )
     store = _create_run(request, runs_root)
     typer.echo(f"created: {store.run_id}")
     typer.echo(f"run ID: {store.run_id}")
+    _install_stop_handlers(store.path)
     Pipeline(store, PROJECT_ROOT).run()
     typer.echo(f"completed: {store.run_id}")
+
+
+@app.command()
+def snapshot(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Print a small JSON progress/cost summary for one run.
+
+    Designed to be cheap enough for the fleet monitor to poll over SSH: it derives task counts
+    and spend from the artifacts the harnesses already write, so it stays accurate during the
+    execute stage where `state.json` alone only says "running".
+    """
+    typer.echo(build_snapshot(RunStore(runs_root, run_id)).to_json())
+
+
+@app.command()
+def finalize(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Grade, collect, normalize and report whatever finished, however the run ended.
+
+    Use this after a run is stopped at its cost cap, interrupted, or killed. It never cleans up
+    and never deletes anything; it only turns the artifacts already on disk into graded results
+    and a report.
+    """
+    store = RunStore(runs_root, run_id)
+    Pipeline(store, PROJECT_ROOT).finalize()
+    typer.echo(f"finalized: {store.run_id}")
+
+
+@app.command()
+def stop(
+    run_id: str,
+    runs_root: Annotated[Path, typer.Option()] = DEFAULT_RUNS_ROOT,
+) -> None:
+    """Ask a run to wind down cleanly: start no new tasks, then grade and report.
+
+    This is the safe counterpart to `cancel`. Nothing in flight is killed and nothing is
+    deleted, so use it whenever an experiment should end early.
+    """
+    store = RunStore(runs_root, run_id)
+    request_stop(store.path, REASON_OPERATOR, "requested via `agent-bench stop`")
+    typer.echo(f"stop requested: {store.run_id}")
 
 
 @app.command()

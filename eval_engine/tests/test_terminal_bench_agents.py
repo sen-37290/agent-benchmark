@@ -55,7 +55,7 @@ def test_benchmark_resolves_independent_agent_profiles(tmp_path: Path) -> None:
         "mini-swe-agent",
         "2.4.5",
     )
-    assert list_profiles()["agents"] == ["aider", "mini-swe-agent", "terminus-2"]
+    assert list_profiles()["agents"] == ["aider", "mini-swe-agent", "openhands", "terminus-2"]
 
 
 def test_model_profiles_do_not_select_agents() -> None:

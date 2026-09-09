@@ -1,0 +1,11 @@
+{
+  "_note": "The same six unresolved Fable 5.1 Terminal-Bench tasks, relaunched on the streaming transport. The previous attempt (long-request-timeout) was stopped after 108 minutes with zero completions: three of its six connections had received nothing but the TLS handshake for 47 minutes, because a non-streaming request leaves the socket silent for the whole generation and a dropped flow is indistinguishable from a slow one. See harnesses/streaming_completion.",
+  "instance_ids": [
+    "headless-terminal",
+    "cancel-async-tasks",
+    "model-extraction-relu-logits",
+    "mailman",
+    "make-doom-for-mips",
+    "make-mips-interpreter"
+  ]
+}

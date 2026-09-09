@@ -1,0 +1,22 @@
+model_id: gpt-5.5
+model_class: litellm
+api: openai
+supported_providers: [openai]
+api_key_env: OPENAI_API_KEY
+effort_path: model.model_kwargs.reasoning_effort
+# Accepted effort values are not asserted here: these runs use the provider default (the CLI
+# omits --reasoning-effort), and an empty list disables loader-side validation.
+supported_efforts: []
+config:
+  model:
+    model_name: openai/gpt-5.5
+    # The Responses API, not chat completions. gpt-5.6 rejects function tools combined with
+    # reasoning on /v1/chat/completions (HTTP 400), and it reasons by default, so a
+    # tool-calling agent cannot use that endpoint at all. Setting reasoning_effort=none would
+    # work but would disable reasoning entirely. mini-swe-agent's litellm_response class
+    # targets /v1/responses, which accepts tools and reasoning together.
+    model_class: litellm_response
+    model_kwargs:
+      # The Responses API takes max_output_tokens; max_tokens is the chat-completions name.
+      max_output_tokens: 64000
+      timeout: 1800

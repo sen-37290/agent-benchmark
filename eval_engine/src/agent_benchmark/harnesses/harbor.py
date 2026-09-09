@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import shutil
 from pathlib import Path
@@ -19,6 +20,20 @@ from agent_benchmark.run.retry import (
     save_manifest,
     select_attempt,
     wait_before_attempt,
+)
+from agent_benchmark.run.scrub import scrub_tree
+from agent_benchmark.run.stop import should_stop
+
+# Harbor is launched through the engine's bootstrap rather than its console script so a per-task
+# cost limit can be installed inside the process that issues the LLM calls. The bootstrap forwards
+# every argument to Harbor's own CLI, so the command line is otherwise unchanged.
+# The bootstrap is passed by path, not with `python -m`: Harbor's own `-m <model>` flag would
+# otherwise be ambiguous with the interpreter's, for us and for anything parsing the command.
+_HARBOR_LAUNCHER = (
+    "uv",
+    "run",
+    "python",
+    str(Path(__file__).with_name("harbor_cost_guard.py")),
 )
 
 
@@ -51,12 +66,12 @@ def build_command(
     job_name = job_name or spec.run_id
     job_dir = output_dir / job_name
     if (job_dir / "config.json").is_file():
-        return ["uv", "run", "harbor", "job", "resume", "-p", str(job_dir)]
+        return [*_HARBOR_LAUNCHER, "job", "resume", "-p", str(job_dir)]
 
     invocation = invocation or agent_adapter(spec.model.subject_agent).invocation(
         spec, run_dir, api_key
     )
-    command = ["uv", "run", "harbor", "run"]
+    command = [*_HARBOR_LAUNCHER, "run"]
     dataset_source = spec.benchmark.settings.get("dataset_source", "local")
     if dataset_source == "package":
         pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())
@@ -90,9 +105,35 @@ def build_command(
     )
     if spec.execution.no_timeout:
         command.extend(["--agent-timeout-multiplier", "inf"])
+    elif spec.execution.agent_timeout_multiplier is not None:
+        command.extend(
+            ["--agent-timeout-multiplier", f"{spec.execution.agent_timeout_multiplier:g}"]
+        )
     if spec.execution.error_retries and not engine_managed_retries:
         command.extend(["--max-retries", str(spec.execution.error_retries)])
     return command
+
+
+def _scrub_artifacts(root: Path, api_key: str, log_path: Path) -> None:
+    """Strip the provider key from a completed job's artifacts before anything else reads them.
+
+    The key is no longer given to the container (agents/terminus_2.py), so this should find
+    nothing. It stays because a hit here means a new leak path opened, and an artifact tree is
+    graded, archived and uploaded -- discovering it later is discovering it too late.
+    """
+    files, replacements, touched = scrub_tree(root, [api_key])
+    if not files:
+        return
+    message = (
+        f"SECURITY: redacted the provider key from {replacements} place(s) in {files} artifact "
+        f"file(s) under {root}: {', '.join(touched[:10])}"
+        f"{' ...' if len(touched) > 10 else ''}\n"
+    )
+    print(message, end="", flush=True)
+    with contextlib.suppress(OSError):
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(message)
 
 
 class HarborHarness(HarnessAdapter):
@@ -142,10 +183,15 @@ class HarborHarness(HarnessAdapter):
             redact_values=[api_key],
             budget_job_dir=output_dir,
             budget_usd=spec.budget.total_usd,
+            stop_dir=run_dir,
         )
 
+        _scrub_artifacts(output_dir, api_key, run_dir / "logs" / "execute.log")
+
         trial_results = sorted(output_dir.glob("*/*/result.json"))
-        if len(trial_results) != spec.benchmark.sample_size:
+        # A stop request (cost cap or operator) makes an incomplete pool the expected outcome;
+        # grading proceeds over the trials that finished.
+        if len(trial_results) != spec.benchmark.sample_size and not should_stop(run_dir):
             raise StageError(
                 "Harbor produced "
                 f"{len(trial_results)} trial results for {spec.benchmark.sample_size} tasks"
@@ -199,7 +245,9 @@ class HarborHarness(HarnessAdapter):
                 job_name=job_name,
                 engine_managed_retries=True,
             )
-            try:
+            # A failed round is recorded per task from its trial results below and retried on the
+            # next attempt; only a stop request ends the loop early.
+            with contextlib.suppress(StageError):
                 run_logged(
                     command,
                     cwd=run_dir,
@@ -208,10 +256,10 @@ class HarborHarness(HarnessAdapter):
                     redact_values=[api_key],
                     cost_reader=lambda: collected_cost(attempts_root),
                     budget_usd=spec.budget.total_usd,
+                    stop_dir=run_dir,
                 )
-            except StageError as error:
-                if "budget" in str(error).lower():
-                    raise
+            _scrub_artifacts(round_root, api_key, run_dir / "logs" / "execute.log")
+
             by_id: dict[str, tuple[Path, dict[str, object]]] = {}
             for result_path in round_root.glob("*/*/result.json"):
                 result = json.loads(result_path.read_text())
@@ -258,6 +306,9 @@ class HarborHarness(HarnessAdapter):
                 if not error_type or not retryable:
                     select_attempt(manifest, task_id, attempt)
             save_manifest(run_dir, manifest)
+            if should_stop(run_dir):
+                # Cost cap or operator stop: keep this round's results, start no more.
+                break
 
         pending_tasks(manifest, max_attempts)
         save_manifest(run_dir, manifest)
@@ -266,7 +317,11 @@ class HarborHarness(HarnessAdapter):
         for task_id in ids:
             task = manifest["tasks"][task_id]
             selected = task["selected_attempt"]
-            item = next(entry for entry in task["attempts"] if entry["attempt"] == selected)
+            item = next((entry for entry in task["attempts"] if entry["attempt"] == selected), None)
+            if item is None:
+                # The run stopped before this task was attempted. Leave no result behind so
+                # normalize records it as unrun rather than inventing a failure.
+                continue
             source = run_dir / item["artifact"]
             destination = canonical_job / task_id
             if (source / "result.json").is_file():

@@ -1,0 +1,31 @@
+{
+  "_note": "Terra's 11 officially-failed tasks from 20260903 gpt-5-6-terra-terminal-bench: 9 AgentTimeoutError plus 2 RuntimeError where the agent closed its own tmux shell (build-pov-ray, git-multibranch). Original cost of all 11: $9.85.",
+  "timeouts": [
+    "extract-moves-from-video",
+    "gcode-to-text",
+    "gpt2-codegolf",
+    "make-doom-for-mips",
+    "password-recovery",
+    "qemu-alpine-ssh",
+    "sanitize-git-repo",
+    "schemelike-metacircular-eval",
+    "train-fasttext"
+  ],
+  "tmux_runtime_failures": [
+    "build-pov-ray",
+    "git-multibranch"
+  ],
+  "instance_ids": [
+    "build-pov-ray",
+    "extract-moves-from-video",
+    "gcode-to-text",
+    "git-multibranch",
+    "gpt2-codegolf",
+    "make-doom-for-mips",
+    "password-recovery",
+    "qemu-alpine-ssh",
+    "sanitize-git-repo",
+    "schemelike-metacircular-eval",
+    "train-fasttext"
+  ]
+}

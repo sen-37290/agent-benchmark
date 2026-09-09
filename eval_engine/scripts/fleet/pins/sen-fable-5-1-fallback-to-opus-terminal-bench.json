@@ -1,0 +1,28 @@
+{
+  "instance_ids": [
+    "adaptive-rejection-sampler",
+    "build-cython-ext",
+    "cancel-async-tasks",
+    "configure-git-webserver",
+    "crack-7z-hash",
+    "dna-assembly",
+    "extract-elf",
+    "filter-js-from-html",
+    "gcode-to-text",
+    "headless-terminal",
+    "mailman",
+    "make-doom-for-mips",
+    "make-mips-interpreter",
+    "model-extraction-relu-logits",
+    "protein-assembly",
+    "qemu-startup",
+    "regex-chess",
+    "reshard-c4-data",
+    "sam-cell-seg",
+    "schemelike-metacircular-eval",
+    "train-fasttext",
+    "vulnerable-secret",
+    "winning-avg-corewars",
+    "write-compressor"
+  ]
+}

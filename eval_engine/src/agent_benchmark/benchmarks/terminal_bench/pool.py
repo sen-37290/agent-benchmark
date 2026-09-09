@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 from collections import Counter, defaultdict
 from importlib.resources import files
@@ -10,6 +11,29 @@ from agent_benchmark.exceptions import StageError
 
 DATASET_SIZE = 89
 SAMPLING_SEED = 42
+
+
+def _pinned_ids() -> list[str] | None:
+    """Task ids from TERMINAL_BENCH_PIN_INSTANCES, or None when unset.
+
+    Accepts a path to a JSON file ({"instance_ids": [...]}) or a comma-separated list. This is how
+    a subset re-run selects exactly the tasks to redo (e.g. the ones a previous run timed out on)
+    instead of resampling the whole benchmark. Mirrors CYBERGYM_PIN_INSTANCES.
+    """
+    raw = os.environ.get("TERMINAL_BENCH_PIN_INSTANCES")
+    if not raw:
+        return None
+    candidate = Path(raw)
+    if candidate.is_file():
+        data = json.loads(candidate.read_text())
+        ids = data.get("instance_ids") if isinstance(data, dict) else data
+    else:
+        ids = [part.strip() for part in raw.split(",") if part.strip()]
+    if not isinstance(ids, list) or not ids:
+        raise StageError("TERMINAL_BENCH_PIN_INSTANCES resolved to an empty instance list")
+    if len(ids) != len(set(ids)):
+        raise StageError("TERMINAL_BENCH_PIN_INSTANCES contains duplicate instance ids")
+    return [str(i) for i in ids]
 
 
 def catalog() -> dict[str, object]:
@@ -45,7 +69,15 @@ def sample(tasks: list[dict[str, str]], strategy: str, size: int) -> list[dict[s
 def create_pool(output_path: Path, sampling: str | None, size: int | None) -> None:
     source = catalog()
     tasks = sorted(source["tasks"], key=lambda task: task["id"])
-    if sampling is None and size is None:
+    pinned = _pinned_ids()
+    if pinned is not None:
+        by_id = {task["id"]: task for task in tasks}
+        unknown = [i for i in pinned if i not in by_id]
+        if unknown:
+            raise StageError(f"TERMINAL_BENCH_PIN_INSTANCES has unknown task ids: {unknown[:5]}")
+        strategy = "pinned"
+        selected = sorted((by_id[i] for i in pinned), key=lambda task: task["id"])
+    elif sampling is None and size is None:
         strategy = "full"
         selected = tasks
     else:
@@ -62,7 +94,7 @@ def create_pool(output_path: Path, sampling: str | None, size: int | None) -> No
         "dataset_id": source["dataset_id"],
         "dataset_digest": source["dataset_digest"],
         "sampling": strategy,
-        "seed": SAMPLING_SEED if strategy != "full" else None,
+        "seed": SAMPLING_SEED if strategy in {"random", "category"} else None,
         "n": len(selected),
         "instance_ids": [task["id"] for task in selected],
         "task_digests": {task["id"]: task["digest"] for task in selected},

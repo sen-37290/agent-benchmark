@@ -1,0 +1,350 @@
+# The ten concurrent experiments: one per VM, one API key each.
+#
+# This file is the single source of truth shared by deploy_experiment.sh, run_experiment.sh and
+# the fleet monitor. `label` is the join key: it names the experiment, prefixes the run ID, names
+# the systemd unit, and is what you pass to every fleet command.
+#
+# Only official pipelines are used:
+#   swebench-verified   mini-swe-agent (native) + the official hermetic SWE-bench grader
+#   terminal-bench-2.1  Harbor + Terminus 2
+#   cybergym-300-level1 OpenHands + the CyberGym submission server
+#
+# `api_key_from` names the environment variable holding that experiment's key. The subject agent
+# still receives the canonical provider variable; see `--api-key-from`.
+#
+# Worker counts follow what these VM classes have already sustained: 30 for SWE-bench and 20 for
+# CyberGym (both proven on previous full runs), 12 for Terminal-Bench, whose Docker-per-task
+# footprint is heavier on a 32-vCPU box.
+
+defaults:
+  project: gcp-test-501403
+  zone: us-central1-a
+  # Where the controller checkout and its runs live on each VM.
+  remote_root: /home/friendli/agent-benchmark
+  ssh_user: friendli
+
+experiments:
+  # ---- SWE-bench Verified (500 tasks, official mini-swe-agent + official grader) ----
+  - label: sen-gpt-5-6-sol-swe-bench
+    vm: sen-agent-bench-vm
+    benchmark: swebench-verified
+    model: gpt-5-6-sol
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_SWE_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 30
+    # per-task cap comes from the benchmark profile and is locked at the official $3.
+
+  - label: sen-gpt-5-6-terra-swe-bench
+    vm: sen-gpt-5-6-terra-swe-bench
+    benchmark: swebench-verified
+    model: gpt-5-6-terra
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_TERRA_SWE_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 30
+
+  - label: sen-gpt-5-6-luna-swe-bench
+    vm: sen-gpt-5-6-luna-swe-bench
+    benchmark: swebench-verified
+    model: gpt-5-6-luna
+    reasoning_effort: max
+    provider: openai
+    api_key_from: SEN_GPT_5_6_LUNA_SWE_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 30
+
+  - label: sen-fable-5-1-swe-bench
+    vm: sen-fable-5-1-swe-bench
+    benchmark: swebench-verified
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_SWE_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 30
+
+  # ---- Terminal-Bench 2.1 (89 tasks, Harbor + Terminus 2) ----
+  - label: sen-gpt-5-6-sol-terminal-bench
+    vm: sen-gpt-5-6-sol-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-sol
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 12
+
+  - label: sen-gpt-5-6-terra-terminal-bench
+    vm: sen-gpt-5-6-terra-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-terra
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_TERRA_TERMINAL_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 12
+
+  - label: sen-gpt-5-6-luna-terminal-bench
+    vm: sen-gpt-5-6-luna-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-luna
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_LUNA_TERMINAL_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 12
+
+  - label: sen-fable-5-1-terminal-bench
+    vm: sen-fable-5-1-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_TERMINAL_BENCH
+    experiment_cap_usd: 500
+    no_budget_limit: true  # experiment cap disabled; per-task cap still applies
+    workers: 12
+
+  # A re-run of the 24 Terminal-Bench tasks the fable run lost to infrastructure, not to the
+  # model: 14 to credit exhaustion, 5 to an input-token rate limit, 5 to API connection timeouts.
+  #
+  # COST GUARDRAILS ARE THE POINT OF THIS ROW. The original run had no per-task cap (the profile
+  # shipped enforce_per_task_cost_limit: false) and no experiment cap, and one task reached
+  # $5,019 on its own. Both caps are on here, and both are enforced independently:
+  #   per_task_cap_usd  -- inside the Harbor process, by harbor_cost_guard; stops that one task.
+  #   experiment_cap_usd -- outside, from completed trial costs; stops dispatching new tasks.
+  # Only 8 workers, not the usual 12: the outer cap can only see FINISHED trials, so concurrency
+  # is what the run can overshoot it by.
+  - label: sen-fable-5-1-terminal-bench-retry-24
+    vm: sen-fable-5-1-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_TERMINAL_BENCH_RETRY_24_CASES
+    experiment_cap_usd: 600
+    no_budget_limit: false  # experiment cap ENABLED, unlike the run this replaces
+    per_task_cap_usd: 20
+    workers: 8
+
+  # The same 24 tasks again, with Anthropic SERVER-SIDE FALLBACK on. This is the experiment the
+  # retry-24 row could not be: that run lost 13 of its 24 tasks to refusals, not to the clock or
+  # the budget.
+  #
+  # WHAT A REFUSAL DOES HERE. claude-fable-5-1 answers some of these prompts with HTTP 200,
+  # `stop_reason: "refusal"` and empty content. Terminus 2 has no refusal branch, so it reads the
+  # empty body as malformed JSON, appends "please fix your JSON" and re-asks -- forever. Input
+  # tokens grow every turn, output tokens stay at zero, and the trial ends only at the per-task
+  # cap. In the first (uncapped) run that loop reached $5,019 on a single task; 96.6% of that
+  # run's $12,746 went to refusal loops that produced no output token at all. The measured
+  # categories are `cyber` (extract-elf, vulnerable-secret, write-compressor, crack-7z-hash) and
+  # `bio` (protein-assembly).
+  #
+  # `fallbacks: default` makes the API retry a refused request on the model Anthropic recommends
+  # for that refusal category, inside the same call, and the answer comes back normally. Measured
+  # on the two reproducible prompts: cyber -> claude-opus-4-8, bio -> claude-opus-5. So the
+  # fallback model VARIES BY TASK here, and a category with no recommendation still refuses --
+  # read any result together with logs/anthropic_fallback.jsonl, which records the model that
+  # actually served each call.
+  #
+  # Caps and workers match the retry-24 row deliberately: this differs from it in one variable.
+  - label: sen-fable-5-1-fallback-to-opus-terminal-bench
+    vm: sen-fable-5-1-fallback-to-opus-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_FALLBACK_TO_OPUS_TERMINAL_BENCH
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-fallback-to-opus-terminal-bench.json  # 24 tasks
+    no_timeout: true
+    experiment_cap_usd: 600
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 8
+
+  # The one-task smoke gate for the row above: same VM, same key, same code path, one task known
+  # to refuse (write-compressor, category cyber). Run it to completion before the 24.
+  - label: sen-fable-5-1-fallback-to-opus-terminal-bench-smoke
+    vm: sen-fable-5-1-fallback-to-opus-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_FALLBACK_TO_OPUS_TERMINAL_BENCH
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-fallback-to-opus-terminal-bench-smoke.json  # 1 task
+    no_timeout: true
+    experiment_cap_usd: 25
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 1
+
+  # Same six tasks again, this time on the STREAMING transport. The previous attempt is the
+  # reason this one exists: with a 3600s non-streaming read timeout it was stopped after 108
+  # minutes with 57 agent steps and zero completed tasks. Measured on its own sockets, three of
+  # the six connections had received the TLS handshake and NOT ONE FURTHER BYTE for 47 minutes --
+  # a request that had never begun to answer, on a worker that would have waited an hour for it.
+  #
+  # A non-streaming request is silent for the entire generation, so a connection dropped by any
+  # NAT or load balancer in between looks exactly like a model still thinking, and nothing
+  # arrives to time out on until the read timeout expires an hour later. Streaming keeps bytes
+  # on the wire continuously: the flow is never idle, and httpx's read timeout becomes the
+  # inter-byte idle timer it always should have been, under a 30-minute wall-clock deadline per
+  # attempt. See harnesses/streaming_completion for the measured tail that sets the idle default.
+  #
+  # Six workers is unchanged and is no longer the risk it was: a stalled request now frees its
+  # worker in minutes rather than occupying it for an hour and retrying into the same hole.
+  - label: sen-fable-5-1-streaming-terminal-bench-retry-6
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: terminal-bench-2.1
+    model: fable-5-1
+    reasoning_effort: max
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_REMOVE_COST_LIMIT_TERMINAL_BENCH_RETRY_10
+    anthropic_fallbacks: default
+    pin_file: pins/sen-fable-5-1-streaming-terminal-bench-retry-6.json
+    no_timeout: true
+    experiment_cap_usd: 100000
+    no_budget_limit: true
+    per_task_cap_usd: 100000
+    workers: 6
+
+  # ---- gpt-5.6 Terminal-Bench re-runs: the tasks the 20260903 runs lost to the clock or to a
+  # broken shell, replayed on ONE VM, one after another. -------------------------------------
+  #
+  # One VM and one API key each, so all three run CONCURRENTLY. They were originally chained
+  # onto a single VM, which serialised ~15h of wall clock for no benefit: a VM carries one
+  # .fleet/launch.env and one controller, so two experiments cannot share it. Separate VMs remove
+  # both the serialisation and any chance of one stage's containers perturbing another's.
+  #
+  # WHY A 6x MULTIPLIER AND NOT --no-timeout. Removing the deadline sounds like the right way to
+  # re-run a timeout, but Terminus 2 permits 1,000,000 episodes, so with no deadline the only
+  # bound left is the dollar cap -- and gpt-5.6 is far too cheap for a $20 cap to be a bound.
+  # Measured from the original runs: luna's train-fasttext burned $0.089 in 5146s, i.e. $0.06/h,
+  # so it would need ~320 hours to reach $20; regex-chess ~120 hours. Three chained stages of
+  # that is weeks. 6x turns the official 900/1800/3600s limits into 1.5/3/6 hours, which is far
+  # more time than any of these tasks previously had, while still guaranteeing they end.
+  #
+  # Budget is a non-issue either way: all 29 tasks cost $17.49 combined in the original runs.
+  # The caps are there to stop a pathology, not to ration spend.
+  - label: sen-gpt-5-6-sol-terminal-bench-retry
+    vm: sen-fable-5-1-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-sol
+    reasoning_effort: xhigh   # matches the run being repaired; do not "upgrade" it
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-sol-terminal-bench-retry.json  # 6 tasks
+    agent_timeout_multiplier: 6
+    experiment_cap_usd: 100
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    # One worker per task: the whole subset runs concurrently and the stage ends with its
+    # slowest task. Well inside the 12 this 32-vCPU class has sustained.
+    workers: 6
+
+  - label: sen-gpt-5-6-terra-terminal-bench-retry
+    vm: gpt-5-6-terra-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-terra
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_TERRA_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-terra-terminal-bench-retry.json  # 11 tasks
+    agent_timeout_multiplier: 6
+    experiment_cap_usd: 100
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 11
+
+  # 8 tasks, not the 12 that officially failed. path-tracing, path-tracing-reverse, regex-chess
+  # and sanitize-git-repo already carry verifier reward 1.0; they scored 0 only because
+  # normalization discarded the reward of any trial whose agent phase raised. That is fixed in
+  # benchmarks/terminal_bench/results.py, so those four are recovered by re-normalizing the
+  # archived run. Re-running a proven pass can only lose it.
+  - label: sen-gpt-5-6-luna-terminal-bench-retry
+    vm: gpt-5-6-luna-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-luna
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_LUNA_TERMINAL_BENCH_RETRY
+    pin_file: pins/sen-gpt-5-6-luna-terminal-bench-retry.json  # 8 tasks
+    agent_timeout_multiplier: 6
+    experiment_cap_usd: 100
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 8
+
+  # ---- gpt-5.6 Terminal-Bench: the 2 tasks OpenAI's content filter refuses, run with a
+  # CLIENT-SIDE model fallback. ----------------------------------------------------------------
+  #
+  # break-filter-js-from-html and vulnerable-secret fail on gpt-5.6-sol with HTTP 400
+  # `cyber_policy` ("flagged for possible cybersecurity risk"), reproduced in
+  # sen-gpt-5-6-sol-terminal-bench-retry. The agent gets one benign turn, then the call that
+  # engages the vulnerability is refused; the 400 is not transient, so Harbor's retry only
+  # reproduces it and the trial dies error/BadRequestError.
+  #
+  # OpenAI ships NO server-side fallback (unlike Anthropic's `fallbacks` body param), so the
+  # fallback is done client-side at the litellm.acompletion seam (see openai_fallback): a refused
+  # request is re-issued, unchanged but for the model string, down this ladder --
+  #   gpt-5.6-sol  (primary)      -> refused
+  #   gpt-5.6-sol  (retry #1)     -> the filter is non-deterministic; a repeat sometimes serves
+  #   gpt-5.6-terra (fallback #1) -> never refused on these tasks in any prior run
+  #   gpt-5.6-luna  (fallback #2)
+  #   STOP -> provider_refusal
+  # VERIFIED against the live API: any one key serves all three snapshots, so only the model
+  # string changes; the key, messages and xhigh effort stay identical. logs/openai_fallback.jsonl
+  # records which snapshot actually served each call.
+  - label: sen-gpt-5-6-sol-fallback-terminal-bench
+    vm: sen-fable-5-1-failed-cases-terminal-bench
+    benchmark: terminal-bench-2.1
+    model: gpt-5-6-sol
+    reasoning_effort: xhigh
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_TERMINAL_BENCH_RETRY  # this key serves sol, terra AND luna
+    openai_fallbacks:
+      - openai/gpt-5.6-sol
+      - openai/gpt-5.6-sol
+      - openai/gpt-5.6-terra
+      - openai/gpt-5.6-luna
+    pin_file: pins/sen-gpt-5-6-sol-fallback-terminal-bench.json  # 2 tasks
+    agent_timeout_multiplier: 6
+    experiment_cap_usd: 100
+    no_budget_limit: false
+    per_task_cap_usd: 20
+    workers: 2
+
+  # ---- CyberGym (300 tasks, OpenHands). Both VMs already hold the 175G data cache and
+  # the canary/smoke gates, so prepare is a no-op there. ----
+  - label: sen-gpt-5-6-sol-cybergym-bench
+    vm: sen-agent-cyber-bench-vm
+    benchmark: cybergym-300-level1
+    # CyberGym paused: both gpt-5.6 AND gpt-5.5 hit OpenAI cyber_policy on ~80% of tasks mid-run.
+    model: gpt-5-6-sol
+    provider: openai
+    api_key_from: SEN_GPT_5_6_SOL_CYBERGYM_BENCH
+    experiment_cap_usd: 5000
+    per_task_cap_usd: 50
+    workers: 20
+
+  - label: sen-fable-5-1-cybergym-bench
+    vm: sen-agent-cyber-bench-vm-2
+    benchmark: cybergym-300-level1
+    model: fable-5-1
+    provider: anthropic
+    api_key_from: SEN_FABLE_5_1_CYBERGYM_BENCH
+    experiment_cap_usd: 5000
+    per_task_cap_usd: 50
+    workers: 20

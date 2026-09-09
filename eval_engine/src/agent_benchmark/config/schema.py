@@ -29,8 +29,26 @@ class UserRequest(BaseModel):
     no_budget_limit: bool = False
     per_task_cost_limit_usd: PositiveFloat | None = None
     no_timeout: bool = False
+    # Scale Harbor's per-task agent deadline instead of removing it. `--no-timeout` is the
+    # unbounded extreme of the same knob; see the note on ExecutionSpec.
+    agent_timeout_multiplier: PositiveFloat | None = None
     error_retries: int | None = Field(default=None, ge=0)
     target: str = "primary"
+    label: str | None = None
+    # Name of the environment variable holding this experiment's key. The model profile still
+    # decides the canonical name the subject agent reads; this only says where to read it from.
+    api_key_from: str | None = None
+    no_cleanup: bool = False
+    # Anthropic server-side fallback routing: "default" for Anthropic's per-category
+    # recommendation, or a JSON list of up to three models, e.g.
+    # '[{"model": "claude-opus-5"}]'. None leaves refusals as refusals.
+    anthropic_fallbacks: str | None = None
+    # OpenAI client-side model fallback: a JSON list of litellm model ids to try in order on a
+    # content-policy (cyber_policy) refusal, e.g.
+    # '["openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]'. OpenAI has no
+    # server-side equivalent, so the refused request is re-issued on the next model. None leaves
+    # refusals as refusals.
+    openai_fallbacks: str | None = None
 
     @field_validator("benchmark", "model", "provider", "target")
     @classmethod
@@ -40,7 +58,14 @@ class UserRequest(BaseModel):
             raise ValueError("must not be empty")
         return value
 
-    @field_validator("agent", "reasoning_effort")
+    @field_validator(
+        "agent",
+        "reasoning_effort",
+        "label",
+        "api_key_from",
+        "anthropic_fallbacks",
+        "openai_fallbacks",
+    )
     @classmethod
     def optional_nonempty(cls, value: str | None) -> str | None:
         if value is None:
@@ -52,8 +77,8 @@ class UserRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_byok(self) -> UserRequest:
-        if self.provider not in {"openrouter", "friendli", "anthropic"}:
-            raise ValueError("--provider must be openrouter, friendli, or anthropic")
+        if self.provider not in {"openrouter", "friendli", "anthropic", "openai"}:
+            raise ValueError("--provider must be openrouter, friendli, anthropic, or openai")
         if self.byok and self.provider != "friendli" and not self.provider_route:
             raise ValueError("--byok requires --provider friendli or --provider-route")
         if (self.sampling is None) != (self.size is None):
@@ -72,11 +97,29 @@ class ModelSpec(BaseModel):
     provider: str
     api: str
     api_key_env: str
+    # Where the orchestrator reads the secret from. Defaults to api_key_env; set per experiment so
+    # ten concurrent runs can each use their own key while the subject agent still sees the
+    # canonical provider variable name.
+    api_key_source_env: str = ""
     effort_path: str
     reasoning_effort: str | None = None
     provider_route: str | None = None
     byok: bool = False
+    #: Server-side fallback routing sent on every Anthropic request; see UserRequest. It is
+    #: recorded on the spec, not read from ambient environment, because a fallback that is a
+    #: property of the request cannot silently go missing on one code path.
+    anthropic_fallbacks: str | None = None
+    #: OpenAI client-side model-fallback ladder (JSON list of model ids); see UserRequest. Also
+    #: recorded on the spec rather than read from ambient environment, for the same reason.
+    openai_fallbacks: str | None = None
     config: dict[str, Any]
+
+    @model_validator(mode="after")
+    def default_key_source(self) -> ModelSpec:
+        if not self.api_key_source_env:
+            # Older resolved specs have no source field; they read the canonical variable.
+            object.__setattr__(self, "api_key_source_env", self.api_key_env)
+        return self
 
 
 class BenchmarkSpec(BaseModel):
@@ -107,8 +150,21 @@ class TargetSpec(BaseModel):
 class ExecutionSpec(BaseModel):
     workers: PositiveInt
     environment: str = "docker"
+    #: Remove Harbor's agent deadline entirely (multiplier ``inf``).
+    #:
+    #: Use with care. Terminus 2's ``max_episodes`` defaults to 1,000,000, so with no deadline
+    #: the ONLY bound left on a task is the per-task dollar cap -- and on a cheap model that is
+    #: barely a bound at all. A gpt-5.6-luna task observed burning $0.06/hour would need ~320
+    #: hours to reach a $20 cap. Prefer ``agent_timeout_multiplier`` unless unbounded really is
+    #: what you want.
     no_timeout: bool = False
+    #: Multiply Harbor's per-task agent deadline (1.0 leaves the official limits unchanged).
+    #: The bounded way to give slow tasks more room: 6.0 turns the 900/1800/3600s limits into
+    #: 1.5/3/6 hours while still guaranteeing the task ends.
+    agent_timeout_multiplier: float | None = None
     error_retries: int = Field(default=0, ge=0)
+    # Retain the remote run workspace after a successful pipeline instead of removing it.
+    no_cleanup: bool = False
 
 
 class BudgetSpec(BaseModel):
@@ -126,6 +182,9 @@ class ProvenanceSpec(BaseModel):
 class ResolvedSpec(BaseModel):
     schema_version: Literal["1"] = "1"
     run_id: str
+    # Operator-facing experiment name; the join key between experiments.yaml, the VM and the
+    # fleet monitor. Absent on runs created before labels existed.
+    label: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     benchmark: BenchmarkSpec
     model: ModelSpec
