@@ -135,7 +135,7 @@ Terminal-Bench 2.1 had never been run at `reasoning_effort=max`, and not by choi
 called `litellm.acompletion`, and OpenAI rejects `max` on `/v1/chat/completions` with HTTP 400
 `unsupported_value`. gpt-5.6 was capped at `xhigh` by the endpoint. The benchmark profile now sets
 `use_responses_api` (applied only to models whose API is `openai`, so Fable keeps chat completions)
-and `stream_llm_calls`, and the harbor pin moves to `89058afc`, which records the provider's
+and `stream_llm_calls`, and the harbor pin moves to `9f555fa9`, which records the provider's
 echoed effort per call.
 
 | label | model | key | tasks | outcome |
@@ -157,8 +157,12 @@ any run was created (`observed_effort: max`, LiteLLM 1.100.0). Harbor then launc
 no stalls, no empty streams, no errors. Reasoning depth confirms the effort was real rather than
 merely echoed: up to 6,112 reasoning tokens on terra, 3,923 on sol, 2,326 on luna, against the
 22-30 median that characterised the runs served `medium`. Cached prompt tokens reached 15,742,
-which also exercises the Responses-API cache field (`input_tokens_details.cached_tokens`); the
-pre-#3 code read that as a hardcoded zero.
+which the profile also reports.
+
+The three-model evidence above was produced by an earlier commit on the same branch, before its
+scope was trimmed to the effort audit alone; the code producing these fields is unchanged, and
+the final commit `9f555fa9` was re-checked with real calls on both transports (`served_effort:
+max`, 516 and 493 reasoning tokens).
 
 ## Reconstruction references
 
