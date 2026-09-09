@@ -37,9 +37,7 @@ def missing_images(instance_ids: list[str], workers: int = 8) -> list[str]:
             pool.submit(_inspect, image_name(instance_id)): instance_id
             for instance_id in instance_ids
         }
-        return sorted(
-            instance_id for future, instance_id in checks.items() if not future.result()
-        )
+        return sorted(instance_id for future, instance_id in checks.items() if not future.result())
 
 
 def main() -> int:

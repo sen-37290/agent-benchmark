@@ -75,9 +75,7 @@ def main() -> int:
 
     installed = importlib.metadata.version("litellm")
     if installed != args.required_litellm_version:
-        parser.error(
-            f"LiteLLM {installed} installed; {args.required_litellm_version} is required"
-        )
+        parser.error(f"LiteLLM {installed} installed; {args.required_litellm_version} is required")
     api_key = os.environ.get(args.api_key_env)
     if not api_key:
         parser.error(f"{args.api_key_env} is not set")

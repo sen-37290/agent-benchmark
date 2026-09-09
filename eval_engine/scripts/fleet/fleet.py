@@ -537,9 +537,7 @@ def cmd_env(args: argparse.Namespace) -> int:
         "FLEET_PER_TASK_CAP_USD": (
             f"{experiment.per_task_cap_usd:g}" if experiment.per_task_cap_usd else ""
         ),
-        "FLEET_ALLOW_COST_LIMIT_OVERRIDE": (
-            "1" if experiment.allow_cost_limit_override else "0"
-        ),
+        "FLEET_ALLOW_COST_LIMIT_OVERRIDE": ("1" if experiment.allow_cost_limit_override else "0"),
         "FLEET_WORKERS": str(experiment.workers),
         "FLEET_REASONING_EFFORT": experiment.reasoning_effort or "",
         "FLEET_NO_BUDGET_LIMIT": "1" if experiment.no_budget_limit else "0",
@@ -555,9 +553,7 @@ def cmd_env(args: argparse.Namespace) -> int:
         "FLEET_OPENAI_FALLBACKS": experiment.openai_fallbacks or "",
         "FLEET_REQUIRED_LITELLM_VERSION": experiment.required_litellm_version or "",
         "FLEET_STRICT_SWE_IMAGE_GATE": "1" if experiment.strict_swe_image_gate else "0",
-        "FLEET_VERIFY_RESPONSES_EFFORT": (
-            "1" if experiment.verify_responses_effort else "0"
-        ),
+        "FLEET_VERIFY_RESPONSES_EFFORT": ("1" if experiment.verify_responses_effort else "0"),
         "FLEET_REMOTE_ROOT": experiment.remote_root,
         "FLEET_SSH_USER": experiment.ssh_user,
         "FLEET_DEPENDENCY_EXTRA": experiment.dependency_extra,
