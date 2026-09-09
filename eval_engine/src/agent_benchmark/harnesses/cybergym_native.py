@@ -475,9 +475,9 @@ class CyberGymNativeHarness(HarnessAdapter):
             "NO_CHANGE_TIMEOUT_SECONDS": str(no_change_timeout),
             "DEBIAN_FRONTEND": "noninteractive",
         }
-        startup_env_toml = "{" + ", ".join(
-            f"{k} = {json.dumps(v)}" for k, v in startup_env.items()
-        ) + "}"
+        startup_env_toml = (
+            "{" + ", ".join(f"{k} = {json.dumps(v)}" for k, v in startup_env.items()) + "}"
+        )
         docker_kwargs = (
             "docker_runtime_kwargs = {auto_remove = true, "
             f"network = {json.dumps(network)}, labels = "
