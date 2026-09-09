@@ -17,3 +17,24 @@ targets:
     host_env: AGENT_BENCH_SSH_HOST
     remote_root: /tmp/agent-benchmark/luna-concurrent/runs
     cache_root: /tmp/agent-benchmark/luna-concurrent/cache
+  # Three gpt-5.6 snapshots verifying the Responses-API transport on one VM at the same time.
+  # Separate roots and cache leases are the whole requirement: the runs are otherwise identical
+  # and would collide on both.
+  terminal-responses-sol:
+    backend: ssh
+    mode: backup
+    host_env: AGENT_BENCH_SSH_HOST
+    remote_root: /tmp/agent-benchmark/responses-sol/runs
+    cache_root: /tmp/agent-benchmark/responses-sol/cache
+  terminal-responses-terra:
+    backend: ssh
+    mode: backup
+    host_env: AGENT_BENCH_SSH_HOST
+    remote_root: /tmp/agent-benchmark/responses-terra/runs
+    cache_root: /tmp/agent-benchmark/responses-terra/cache
+  terminal-responses-luna:
+    backend: ssh
+    mode: backup
+    host_env: AGENT_BENCH_SSH_HOST
+    remote_root: /tmp/agent-benchmark/responses-luna/runs
+    cache_root: /tmp/agent-benchmark/responses-luna/cache

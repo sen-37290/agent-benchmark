@@ -47,7 +47,7 @@ dev = [
 
 [tool.uv.sources]
 harbor = [
-  { git = "https://github.com/friendliai/harbor.git", rev = "d0bcab5bc8c04963cc00a4d293aba40db54fe9bc", marker = "extra == 'terminalbench'" },
+  { git = "https://github.com/friendliai/harbor.git", rev = "9f555fa9ec2c4b6c417ab07446ce219d1d5e0f2a", marker = "extra == 'terminalbench'" },
 ]
 
 [build-system]

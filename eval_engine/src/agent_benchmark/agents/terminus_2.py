@@ -28,27 +28,60 @@ TERMINUS_2_VERSION = "2.0.0"
 HARBOR_DEFAULT_STREAM_DEADLINE_SECONDS = 1800.0
 
 
-def _require_harbor_streaming_support() -> None:
-    """Fail now if the installed Harbor cannot stream, rather than quietly not streaming.
+def _require_harbor_agent_option(option: str, setting: str) -> None:
+    """Fail now if the installed Harbor cannot honour an agent kwarg, rather than dropping it.
 
     Harbor's ``Terminus2.__init__`` ends in ``**kwargs``, so an agent kwarg it does not know is
-    accepted and dropped. On a Harbor without the ``stream`` option -- the pin was on
-    ``d0bcab5b``, the commit before it -- a run asking to stream would launch, report nothing
-    unusual, and go out over exactly the silent transport this setting exists to avoid. The
-    artifacts of a streamed and a non-streamed run are identical, so nothing afterwards would
-    reveal it either.
+    accepted and silently discarded. A run configured for a transport the installed Harbor does
+    not have would launch, report nothing unusual, and quietly use the old one -- and since the
+    artifacts of both are identical, nothing afterwards would reveal it either.
     """
     try:
         from harbor.agents.terminus_2.terminus_2 import Terminus2
     except ImportError:
         # Harbor is an optional extra; the harness that runs it installs it. Nothing to check.
         return
-    if "stream" not in inspect.signature(Terminus2.__init__).parameters:
+    if option not in inspect.signature(Terminus2.__init__).parameters:
         raise StageError(
-            "stream_llm_calls is set but the installed Harbor has no Terminus 2 `stream` "
-            "option, and unknown agent kwargs are silently dropped -- the run would not "
-            "stream. Move the harbor pin in eval_engine/pyproject.toml to a revision that "
-            "includes it."
+            f"{setting} is set but the installed Harbor has no Terminus 2 `{option}` option, "
+            "and unknown agent kwargs are silently dropped -- the run would not use it. Move "
+            "the harbor pin in eval_engine/pyproject.toml to a revision that includes it."
+        )
+
+
+#: Reasoning efforts OpenAI will not serve on /v1/chat/completions. The endpoint validates the
+#: field rather than ignoring it -- an unsupported value is an HTTP 400 `unsupported_value`
+#: naming the ones it does accept -- so this is a hard boundary, not a preference.
+_CHAT_COMPLETIONS_REJECTED_EFFORTS = frozenset({"max"})
+
+
+def _apply_responses_api(spec: ResolvedSpec, kwargs: dict[str, object]) -> None:
+    """Route Terminus 2 through /v1/responses when the benchmark asks for it.
+
+    The switch is scoped to OpenAI models on purpose. `use_responses_api` makes Harbor call
+    `litellm.aresponses` and send a Responses-shaped body; Anthropic has no such endpoint, so
+    turning it on benchmark-wide would break every Fable run in the same profile. Keying it to
+    the model's API lets one setting cover the gpt-5.6 family and leave the rest alone.
+
+    It also closes the door that produced a whole cohort of mismeasured runs. `max` is a hard
+    HTTP 400 on chat completions, and the SWE runs that asked for it were served `medium`
+    instead by a client-side mapper that dropped the value -- 72,188 of 72,188 responses, none
+    of them distinguishable from a correct one. An effort chat completions cannot serve is
+    therefore refused up front rather than left to fail, or worse, not fail.
+    """
+    if spec.model.api != "openai":
+        return
+    effort = spec.model.reasoning_effort
+    if spec.benchmark.settings.get("use_responses_api", False):
+        _require_harbor_agent_option("use_responses_api", "use_responses_api")
+        kwargs["use_responses_api"] = True
+        return
+    if effort in _CHAT_COMPLETIONS_REJECTED_EFFORTS:
+        raise StageError(
+            f"reasoning effort {effort!r} is not available on chat completions for "
+            f"{spec.model.model_id} -- OpenAI rejects it with HTTP 400 unsupported_value. Set "
+            "use_responses_api on the benchmark profile to reach it, or choose an effort chat "
+            "completions serves."
         )
 
 
@@ -73,6 +106,7 @@ class Terminus2Adapter(AgentAdapter):
         provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
         if spec.model.api == "openrouter" and isinstance(provider, dict):
             kwargs["llm_call_kwargs"] = {"extra_body": {"provider": provider}}
+        _apply_responses_api(spec, kwargs)
         # Streaming transport, off unless the benchmark asks for it.
         #
         # Terminus 2 issues every model call as one non-streaming request, so on a long
@@ -84,7 +118,7 @@ class Terminus2Adapter(AgentAdapter):
         # and still returns one complete response, so nothing else about the run changes.
         stream_deadline_seconds = HARBOR_DEFAULT_STREAM_DEADLINE_SECONDS
         if spec.benchmark.settings.get("stream_llm_calls", False):
-            _require_harbor_streaming_support()
+            _require_harbor_agent_option("stream", "stream_llm_calls")
             kwargs["stream"] = True
             idle_seconds = spec.benchmark.settings.get("stream_idle_timeout_seconds")
             if idle_seconds is not None:

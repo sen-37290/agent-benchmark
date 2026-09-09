@@ -129,6 +129,41 @@ launch, every run entered the execute stage with 30 workers and the official $3 
 initial 2026-09-09T07:05Z census through the real mini-swe-agent path found `max` in 206/206 stored
 Sol responses, 178/178 Terra responses, and 397/397 Luna responses, with no stored `medium` effort.
 
+## Terminal-Bench on the Responses API at max effort
+
+Terminal-Bench 2.1 had never been run at `reasoning_effort=max`, and not by choice: Terminus 2
+called `litellm.acompletion`, and OpenAI rejects `max` on `/v1/chat/completions` with HTTP 400
+`unsupported_value`. gpt-5.6 was capped at `xhigh` by the endpoint. The benchmark profile now sets
+`use_responses_api` (applied only to models whose API is `openai`, so Fable keeps chat completions)
+and `stream_llm_calls`, and the harbor pin moves to `9f555fa9`, which records the provider's
+echoed effort per call.
+
+| label | model | key | tasks | outcome |
+|---|---|---|---|---|
+| `sen-gpt-5-6-sol-terminal-bench-responses-max` | `gpt-5-6-sol` | `SEN_GPT_5_6_SOL_SWE_BENCH_LITELLM_FIX_MAX` | 1 (pinned `cancel-async-tasks`) | transport verified, stopped by request |
+| `sen-gpt-5-6-terra-terminal-bench-responses-max` | `gpt-5-6-terra` | `SEN_GPT_5_6_TERRA_SWE_BENCH_LITELLM_FIX_MAX` | 1 (pinned `cancel-async-tasks`) | transport verified, stopped by request |
+| `sen-gpt-5-6-luna-terminal-bench-responses-max` | `gpt-5-6-luna` | `SEN_GPT_5_6_LUNA_SWE_BENCH_LITELLM_FIX_MAX` | 1 (pinned `cancel-async-tasks`) | transport verified, stopped by request |
+
+All three ran concurrently on `sen-agent-bench-vm` (2026-09-09T22:13Z) through separate concurrent
+targets, at 4 workers with the profile's $20 per-task cap and a $60 experiment cap. These were
+deliberately not scored: the question was whether the transport carries `max`, and the runs were
+stopped once it was answered.
+
+**What was verified.** The controller's `verify_responses_effort` gate passed for all three before
+any run was created (`observed_effort: max`, LiteLLM 1.100.0). Harbor then launched with
+`--ak reasoning_effort=max --ak use_responses_api=true --ak stream=true`, and its per-call
+`llm_stream.jsonl` recorded **20 of 20 calls** (sol 4, terra 5, luna 11) as `api: responses`,
+`streamed: true`, `served_effort: max`, `effort_matched: true`, with **zero non-`ok` outcomes** --
+no stalls, no empty streams, no errors. Reasoning depth confirms the effort was real rather than
+merely echoed: up to 6,112 reasoning tokens on terra, 3,923 on sol, 2,326 on luna, against the
+22-30 median that characterised the runs served `medium`. Cached prompt tokens reached 15,742,
+which the profile also reports.
+
+The three-model evidence above was produced by an earlier commit on the same branch, before its
+scope was trimmed to the effort audit alone; the code producing these fields is unchanged, and
+the final commit `9f555fa9` was re-checked with real calls on both transports (`served_effort:
+max`, 516 and 493 reasoning tokens).
+
 ## Reconstruction references
 
 - Claude session `8c4fb3ce-1f11-4d65-93a8-fb0abeb0f0bb`: initial fleet creation and launch.
@@ -139,4 +174,6 @@ Sol responses, 178/178 Terra responses, and 397/397 Luna responses, with no stor
 - Session `a719ecbe-da5d-4cc6-9566-be4c3fc6ca05`: SWE failure audit, image pre-pull, and cap override.
 - Session `3eb3d0d7-b1dd-4da3-9068-289536f8bb88`: streaming repair and final aggregation.
 - Session `488fd984-62ee-4584-8ef5-4de153fb626e`: proof that requested `max` was served as `medium`.
+- Session `378bde40-01b7-4b2b-9c81-eecfb5f0ea63`: Terminal-Bench on the Responses API at max
+  effort, and the harbor-side reasoning-effort audit (friendliai/harbor `feat/responses-effort-audit`).
 - Git commits `5b3750e`, `79003ac`, `44f8b09`, `a4268c6`, `5bdfc51`, and `cdf71a7`.

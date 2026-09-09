@@ -17,3 +17,21 @@ settings:
   attempts: 1
   error_retries: 3
   fail_on_trial_exception: false
+  # Call OpenAI models through /v1/responses instead of chat completions. The Terminus 2 adapter
+  # applies this only to models whose API is `openai`; Anthropic has no Responses endpoint and
+  # Fable keeps using chat completions under the same profile.
+  #
+  # Chat completions cannot serve the highest reasoning effort at all -- `max` comes back as
+  # HTTP 400 `unsupported_value`, listing none/low/medium/high/xhigh as the alternatives -- so
+  # gpt-5.6 on Terminal-Bench was capped at xhigh by the endpoint, not by choice. The Responses
+  # API accepts `max` and, unlike chat completions, echoes back the effort it actually applied.
+  # Terminus 2 needs nothing else from either endpoint: it uses no function tools and parses
+  # JSON out of the response text.
+  use_responses_api: true
+  # Stream every model call. A max-effort turn spends minutes producing no output tokens, and a
+  # non-streaming socket in that state is byte-for-byte indistinguishable from one an
+  # intermediary has silently dropped -- the failure that left a six-task run at zero
+  # completions for 108 minutes with three connections frozen at the TLS handshake. Streaming
+  # turns the read timeout into an inter-byte idle timer. Harbor consumes the stream internally
+  # and still returns one complete response, so only the transport changes.
+  stream_llm_calls: true
