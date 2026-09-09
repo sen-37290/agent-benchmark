@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import inspect
+import os
 from pathlib import Path
 
 from agent_benchmark.agents.base import AgentAdapter, AgentInvocation, litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
+from agent_benchmark.harnesses.harbor_cost_guard import (
+    BUDGET_ENV as LLM_RETRY_BUDGET_ENV,
+)
+from agent_benchmark.harnesses.harbor_cost_guard import (
+    DEFAULT_BUDGET_SECONDS as DEFAULT_LLM_RETRY_BUDGET_SECONDS,
+)
 from agent_benchmark.harnesses.openai_fallback import (
     FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
 )
@@ -15,6 +23,33 @@ from agent_benchmark.harnesses.openai_fallback import (
 from agent_benchmark.run.costguard import LIMIT_ENV
 
 TERMINUS_2_VERSION = "2.0.0"
+#: Harbor's own default ceiling on one streaming request. Mirrored here only to keep the retry
+#: budget above it; Harbor stays authoritative when the benchmark sets no deadline.
+HARBOR_DEFAULT_STREAM_DEADLINE_SECONDS = 1800.0
+
+
+def _require_harbor_streaming_support() -> None:
+    """Fail now if the installed Harbor cannot stream, rather than quietly not streaming.
+
+    Harbor's ``Terminus2.__init__`` ends in ``**kwargs``, so an agent kwarg it does not know is
+    accepted and dropped. On a Harbor without the ``stream`` option -- the pin was on
+    ``d0bcab5b``, the commit before it -- a run asking to stream would launch, report nothing
+    unusual, and go out over exactly the silent transport this setting exists to avoid. The
+    artifacts of a streamed and a non-streamed run are identical, so nothing afterwards would
+    reveal it either.
+    """
+    try:
+        from harbor.agents.terminus_2.terminus_2 import Terminus2
+    except ImportError:
+        # Harbor is an optional extra; the harness that runs it installs it. Nothing to check.
+        return
+    if "stream" not in inspect.signature(Terminus2.__init__).parameters:
+        raise StageError(
+            "stream_llm_calls is set but the installed Harbor has no Terminus 2 `stream` "
+            "option, and unknown agent kwargs are silently dropped -- the run would not "
+            "stream. Move the harbor pin in eval_engine/pyproject.toml to a revision that "
+            "includes it."
+        )
 
 
 class Terminus2Adapter(AgentAdapter):
@@ -38,6 +73,26 @@ class Terminus2Adapter(AgentAdapter):
         provider = spec.model.config.get("model", {}).get("model_kwargs", {}).get("provider")
         if spec.model.api == "openrouter" and isinstance(provider, dict):
             kwargs["llm_call_kwargs"] = {"extra_body": {"provider": provider}}
+        # Streaming transport, off unless the benchmark asks for it.
+        #
+        # Terminus 2 issues every model call as one non-streaming request, so on a long
+        # generation the socket carries no application bytes for minutes at a time -- which is
+        # indistinguishable from a flow an intermediary has silently dropped, and is what left
+        # a six-task Fable run with zero completions after 108 minutes while three of its six
+        # connections sat frozen at the TLS handshake. Streaming keeps bytes moving and turns
+        # the read timeout into an inter-byte idle timer. Harbor consumes the stream internally
+        # and still returns one complete response, so nothing else about the run changes.
+        stream_deadline_seconds = HARBOR_DEFAULT_STREAM_DEADLINE_SECONDS
+        if spec.benchmark.settings.get("stream_llm_calls", False):
+            _require_harbor_streaming_support()
+            kwargs["stream"] = True
+            idle_seconds = spec.benchmark.settings.get("stream_idle_timeout_seconds")
+            if idle_seconds is not None:
+                kwargs["stream_idle_timeout_seconds"] = float(idle_seconds)
+            configured_deadline = spec.benchmark.settings.get("stream_deadline_seconds")
+            if configured_deadline is not None:
+                stream_deadline_seconds = float(configured_deadline)
+                kwargs["stream_deadline_seconds"] = stream_deadline_seconds
         # The provider key is deliberately HOST-ONLY, and `environment` stays empty.
         #
         # Terminus 2 issues its LLM calls from the Harbor process on the host: it builds its
@@ -56,6 +111,17 @@ class Terminus2Adapter(AgentAdapter):
         # Keeping it host-only removes the exposure at the source, independently of how Harbor
         # chooses to seed the tmux session.
         process_environment = {spec.model.api_key_env: api_key}
+        if kwargs.get("stream"):
+            # One stalled attempt must not consume the whole retry budget. Harbor bounds a single
+            # streaming request by its wall-clock deadline and raises litellm.Timeout, which the
+            # cost guard classifies as transient and retries -- but only while the budget for the
+            # logical turn has time left in it. With both at 1800s the first deadline would use
+            # every second of it and the retry would never happen, turning a recoverable stall
+            # into a failed trial. Leave an explicit setting alone; it is the operator's call.
+            required_budget = stream_deadline_seconds * 3
+            already_configured = os.environ.get(LLM_RETRY_BUDGET_ENV, "").strip()
+            if not already_configured and required_budget > DEFAULT_LLM_RETRY_BUDGET_SECONDS:
+                process_environment[LLM_RETRY_BUDGET_ENV] = f"{required_budget:.0f}"
         # Terminus 2 has no dollar limit of its own, so the engine's cost guard enforces one inside
         # the Harbor process. It reads the limit from the environment; see harbor_cost_guard.
         # A benchmark may opt out of the per-task cap entirely, in which case the limit env var is
