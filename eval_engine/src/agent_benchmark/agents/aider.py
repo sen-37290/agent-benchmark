@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from agent_benchmark.agents.base import AgentAdapter, AgentInvocation
+from agent_benchmark.agents.base import AgentAdapter, AgentInvocation, litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
 
@@ -25,9 +25,7 @@ class AiderAdapter(AgentAdapter):
                 f"Aider version mismatch: expected {AIDER_VERSION}, "
                 f"got {spec.model.subject_agent_version}"
             )
-        model_name = spec.model.model_id
-        if spec.model.api == "openrouter":
-            model_name = f"openrouter/{model_name}"
+        model_name = litellm_model_name(spec)
 
         model_setting: dict[str, object] = {
             "name": model_name,

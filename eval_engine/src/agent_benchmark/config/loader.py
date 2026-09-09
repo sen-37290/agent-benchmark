@@ -107,6 +107,18 @@ def list_profiles() -> dict[str, list[str]]:
     return result
 
 
+def model_profile(name: str) -> dict[str, Any]:
+    """Return an isolated copy of a packaged model profile.
+
+    Fleet preflights use this to address the same provider-facing model as the
+    benchmark harness.  The profile name is a CLI alias (for example,
+    ``gpt-5-6-sol``), while ``config.model.model_name`` is the LiteLLM request
+    name (``openai/gpt-5.6-sol``); treating those as interchangeable produces
+    a provider 404.
+    """
+    return copy.deepcopy(_load_yaml("models", name))
+
+
 def benchmark_plugin_name(profile: str) -> str:
     return str(_load_yaml("benchmarks", profile)["plugin"])
 
@@ -202,6 +214,7 @@ def resolve(
         "openrouter": ("openrouter", None),
         "friendli": ("openrouter", "friendli"),
         "anthropic": ("anthropic", None),
+        "openai": ("openai", None),
     }
     supported_providers = set(model.get("supported_providers", [model["api"]]))
     if request.provider not in supported_providers:
@@ -229,6 +242,14 @@ def resolve(
         raise ConfigurationError(f"generated pool does not exist: {generated_pool}")
     if request.no_timeout and benchmark["harness"] != "harbor":
         raise ConfigurationError("--no-timeout is supported only by Harbor benchmark profiles")
+    if request.agent_timeout_multiplier is not None and benchmark["harness"] != "harbor":
+        raise ConfigurationError(
+            "--agent-timeout-multiplier is supported only by Harbor benchmark profiles"
+        )
+    if request.no_timeout and request.agent_timeout_multiplier is not None:
+        raise ConfigurationError(
+            "--no-timeout and --agent-timeout-multiplier set the same Harbor knob; pass one"
+        )
     pool_data = yaml.safe_load(generated_pool.read_text())
     instance_ids = pool_data.get("instance_ids") if isinstance(pool_data, dict) else None
     if not isinstance(instance_ids, list) or not instance_ids:
@@ -238,12 +259,15 @@ def resolve(
 
     benchmark_cost_limit = float(benchmark.get("per_task_cost_limit_usd", 5.0))
     per_task_cost_limit = request.per_task_cost_limit_usd or benchmark_cost_limit
-    if benchmark.get("lock_per_task_cost_limit", False) and (
-        per_task_cost_limit != benchmark_cost_limit
+    if (
+        benchmark.get("lock_per_task_cost_limit", False)
+        and per_task_cost_limit != benchmark_cost_limit
+        and not request.allow_cost_limit_override
     ):
         raise ConfigurationError(
             f"benchmark {request.benchmark!r} requires "
-            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}"
+            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}; "
+            "pass --allow-cost-limit-override to depart from the official cap on purpose"
         )
 
     config = copy.deepcopy(model["config"])
@@ -269,12 +293,21 @@ def resolve(
 
     return ResolvedSpec(
         run_id=run_id,
+        label=request.label,
         benchmark=BenchmarkSpec(
             profile=request.benchmark,
             plugin=benchmark["plugin"],
             harness=benchmark["harness"],
             dataset_id=benchmark["dataset_id"],
-            sampling=request.sampling or "full",
+            # A pinned subset is not a sampling strategy the CLI can express: the pool plugin
+            # decides it from the benchmark's PIN_INSTANCES variable, so the request still says
+            # "full". Take the strategy from the pool it actually generated, or a 18-task re-run
+            # would be recorded -- and later reported -- as a full 500-task one.
+            sampling=(
+                "pinned"
+                if str(pool_data.get("sampling") or "") == "pinned"
+                else request.sampling or "full"
+            ),
             sample_size=len(instance_ids),
             pool_path="inputs/pool.json",
             pool_sha256=hashlib.sha256(generated_pool.read_bytes()).hexdigest(),
@@ -290,21 +323,26 @@ def resolve(
             provider=request.provider,
             api=model["api"],
             api_key_env=model["api_key_env"],
+            api_key_source_env=request.api_key_from or model["api_key_env"],
             effort_path=model["effort_path"],
             reasoning_effort=request.reasoning_effort,
             provider_route=provider_route,
             byok=request.byok,
+            anthropic_fallbacks=request.anthropic_fallbacks,
+            openai_fallbacks=request.openai_fallbacks,
             config=config,
         ),
         target=target,
         execution=ExecutionSpec(
             workers=request.workers,
             no_timeout=request.no_timeout,
+            agent_timeout_multiplier=request.agent_timeout_multiplier,
             error_retries=(
                 request.error_retries
                 if request.error_retries is not None
                 else int(benchmark.get("settings", {}).get("error_retries", 0))
             ),
+            no_cleanup=request.no_cleanup,
         ),
         budget=BudgetSpec(
             total_usd=None if request.no_budget_limit else request.budget_usd,
