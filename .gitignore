@@ -33,3 +33,8 @@ usecase/graph/*
 
 # Local fleet monitor cache (last-known VM state; regenerated on every poll)
 eval_engine/scripts/fleet/.fleet-cache/
+
+# Pinned task-id subsets for one-off re-runs. These are operator-local run history:
+# useful to keep on disk so experiments.yaml pin_file paths resolve, but not shipped
+# in a public repo.
+eval_engine/scripts/fleet/pins/
