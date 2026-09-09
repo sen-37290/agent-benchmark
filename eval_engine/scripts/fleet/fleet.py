@@ -340,7 +340,9 @@ def render(experiments: list[Experiment], records: dict[str, dict[str, Any]]) ->
         f"{'$' + format(total_cost, ',.2f') + suffix:>11}"
         f"{'$' + format(int(total_cap), ','):>8}{share:>7}{'':>6}"
     )
-    unrun = sum((records.get(e.label, {}).get("snapshot") or {}).get("unrun", 0) for e in experiments)
+    unrun = sum(
+        (records.get(e.label, {}).get("snapshot") or {}).get("unrun", 0) for e in experiments
+    )
     if unrun:
         lines.append(f"\n{unrun} task(s) unrun across the fleet (stopped before they started).")
     if incomplete_cost:

@@ -162,7 +162,10 @@ def unpack_session(root: str, entry: dict) -> dict:
         return {"dir": entry["dir"], "error": f"{JSONL_NAME} does not match the manifest"}
 
     items = rebuild(payload.rstrip(b"\n").split(b"\n"), set(entry["nl_ids"]))
-    if digest([(i, b[:-1] if i in set(entry["nl_ids"]) else b) for i, b in items]) != entry["sha256"]:
+    if (
+        digest([(i, b[:-1] if i in set(entry["nl_ids"]) else b) for i, b in items])
+        != entry["sha256"]
+    ):
         return {"dir": entry["dir"], "error": "rebuilt bytes do not match the manifest"}
 
     events_dir.mkdir(parents=True, exist_ok=True)
@@ -206,7 +209,7 @@ def run_parallel(fn, jobs: int, tasks: list) -> list[dict]:
     if jobs <= 1:
         return [fn(*t) for t in tasks]
     with futures.ProcessPoolExecutor(max_workers=jobs) as pool:
-        return list(pool.map(fn, *zip(*tasks))) if tasks else []
+        return list(pool.map(fn, *zip(*tasks, strict=True))) if tasks else []
 
 
 def cmd_pack(args) -> int:
@@ -232,7 +235,9 @@ def cmd_pack(args) -> int:
     }
     (root / MANIFEST_NAME).write_text(json.dumps(manifest, indent=1) + "\n")
 
-    print(f"packed  {len(packed)} sessions / {manifest['event_files']} events -> {len(packed)} files")
+    print(
+        f"packed  {len(packed)} sessions / {manifest['event_files']} events -> {len(packed)} files"
+    )
     if skipped:
         print(f"skipped {len(skipped)} sessions (left untouched):")
         for r in skipped[:20]:
@@ -266,7 +271,9 @@ def cmd_unpack(args) -> int:
 def cmd_verify(args) -> int:
     root = Path(args.root).resolve()
     manifest = load_manifest(root)
-    results = run_parallel(verify_session, args.jobs, [(str(root), e) for e in manifest["sessions"]])
+    results = run_parallel(
+        verify_session, args.jobs, [(str(root), e) for e in manifest["sessions"]]
+    )
     failed = [r for r in results if "error" in r]
     ok = len(results) - len(failed)
     print(f"verified {ok}/{len(results)} sessions reproduce their originals byte-for-byte")

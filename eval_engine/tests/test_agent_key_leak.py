@@ -16,11 +16,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from test_terminal_bench_agents import resolved_spec
+
 from agent_benchmark.agents import agent_adapter
 from agent_benchmark.harnesses.harbor import build_command
 from agent_benchmark.run.scrub import find_secrets, scrub_text, scrub_tree, secret_spans
-
-from test_terminal_bench_agents import resolved_spec
 
 # Shaped like a real key, and long enough to exercise the wrap-tolerant matcher.
 FAKE_KEY = "sk-ant-api03-" + "Xy7z" * 23 + "AA"
@@ -99,7 +99,9 @@ def test_scrub_tree_cleans_the_artifacts_a_run_actually_publishes(tmp_path: Path
     (job / "agent" / "trajectory.json").write_text(
         json.dumps({"steps": [{"output": f"ANTHROPIC_API_KEY={FAKE_KEY[:60]}\\n{FAKE_KEY[60:]}"}]})
     )
-    (job / "agent" / "terminus_2.pane").write_text(f"$ env | grep API\nANTHROPIC_API_KEY={FAKE_KEY}\n")
+    (job / "agent" / "terminus_2.pane").write_text(
+        f"$ env | grep API\nANTHROPIC_API_KEY={FAKE_KEY}\n"
+    )
     (job / "agent" / "recording.cast").write_text(f'[1.0, "o", "{FAKE_KEY}"]\n')
     (job / "trial.log").write_text(f"starting agent with {FAKE_KEY}\n")
     (job / "result.json").write_text(json.dumps({"task_name": "terminal-bench/crack-7z-hash"}))
