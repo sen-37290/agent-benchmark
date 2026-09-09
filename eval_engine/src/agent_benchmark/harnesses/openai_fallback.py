@@ -14,13 +14,22 @@ model. That is sound here because the three gpt-5.6 snapshots -- sol, terra, lun
 addressable by a single key (verified: every key serves every snapshot), so only the model
 string changes; the key, messages, effort and every other parameter stay identical.
 
-The wrap is installed at LiteLLM's provider seam, ``litellm.acompletion``, the same way
-harbor_cost_guard installs its retry and anthropic_fallback installs its body parameter.
-That seam sits BELOW Harbor's own tenacity retry and cost guard, so a refusal is resolved
+The wrap is installed at LiteLLM's provider seams -- ``litellm.acompletion`` AND
+``litellm.aresponses`` -- the same way harbor_cost_guard installs its retry and
+anthropic_fallback installs its body parameter. Both are needed because which one Harbor
+calls is a configuration choice: Terminus 2 switches to ``aresponses`` whenever
+``use_responses_api`` is set, which is how the highest reasoning efforts are reached at all
+(chat completions rejects ``max`` outright). Wrapping only ``acompletion`` would leave the
+ladder installed, reported as installed, and never invoked -- the refused tasks would simply
+start dying again on a run that looks configured to survive them.
+
+Those seams sit BELOW Harbor's own tenacity retry and cost guard, so a refusal is resolved
 per underlying HTTP call and is transparent to everything above it. The wrapper is a pure
 function of the call's kwargs -- it never mutates the ``LiteLLM`` instance -- so every new
 agent turn starts again at the primary model and only climbs the ladder for the calls that
-are actually refused.
+are actually refused. Streaming needs no special handling: a content-policy refusal is
+raised by the ``await`` that opens the request, before any chunk is yielded, so it is caught
+here exactly as a non-streaming one is.
 
 The ladder is the ordered list of models to try, primary first, each attempted once:
 
@@ -106,16 +115,10 @@ def _record(entry: dict[str, Any]) -> None:
             pass
 
 
-def install(fallbacks: list[str]) -> bool:
-    """Retry a content-policy refusal down ``fallbacks``. Returns True when applied."""
-    import litellm
+def _wrap(original: Any, fallbacks: list[str], api: str) -> Any:
+    """Return ``original`` with the refusal ladder around it, for one LiteLLM entry point."""
 
-    if getattr(litellm, "_agent_bench_openai_fallback", False):
-        return True
-
-    original = litellm.acompletion
-
-    async def acompletion_with_fallback(*args, **kwargs):  # type: ignore[no-untyped-def]
+    async def call_with_fallback(*args, **kwargs):  # type: ignore[no-untyped-def]
         requested_model = kwargs.get("model")
         # The ladder is the configured list. When the caller's model is already its head (the
         # common case -- the run's primary model), the list IS the full sequence. Otherwise the
@@ -137,6 +140,7 @@ def install(fallbacks: list[str]) -> bool:
                 last_error = error
                 _record(
                     {
+                        "api": api,
                         "requested_model": requested_model,
                         "attempted_model": model,
                         "ladder_index": index,
@@ -147,9 +151,12 @@ def install(fallbacks: list[str]) -> bool:
                 continue
             _record(
                 {
+                    "api": api,
                     "requested_model": requested_model,
                     "attempted_model": model,
                     "ladder_index": index,
+                    # A streamed request has yielded nothing yet, so there is no served model to
+                    # read off it. The attempted model is the honest answer, not a guess.
                     "served_model": _response_model(response) or model,
                     "outcome": "served",
                     "served_by_fallback": index > 0,
@@ -161,6 +168,7 @@ def install(fallbacks: list[str]) -> bool:
         # the last refusal so it surfaces as the trial's provider_refusal.
         _record(
             {
+                "api": api,
                 "requested_model": requested_model,
                 "ladder": ladder,
                 "outcome": "provider_refusal",
@@ -169,7 +177,24 @@ def install(fallbacks: list[str]) -> bool:
         assert last_error is not None  # the loop only exits here after at least one refusal
         raise last_error
 
-    litellm.acompletion = acompletion_with_fallback  # type: ignore[assignment]
+    return call_with_fallback
+
+
+def install(fallbacks: list[str]) -> bool:
+    """Retry a content-policy refusal down ``fallbacks``. Returns True when applied."""
+    import litellm
+
+    if getattr(litellm, "_agent_bench_openai_fallback", False):
+        return True
+
+    # Both seams, because which one Harbor uses is a configuration choice and a ladder that is
+    # only installed on the unused one is worse than none: it reports as installed.
+    litellm.acompletion = _wrap(  # type: ignore[assignment]
+        litellm.acompletion, fallbacks, "chat_completions"
+    )
+    litellm.aresponses = _wrap(  # type: ignore[assignment]
+        litellm.aresponses, fallbacks, "responses"
+    )
     litellm._agent_bench_openai_fallback = True  # type: ignore[attr-defined]
     return True
 

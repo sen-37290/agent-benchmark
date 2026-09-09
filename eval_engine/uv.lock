@@ -41,9 +41,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "harbor", marker = "extra == 'swebench' and extra == 'terminalbench'", git = "https://github.com/friendliai/harbor.git?rev=d0bcab5bc8c04963cc00a4d293aba40db54fe9bc" },
+    { name = "harbor", marker = "extra == 'swebench' and extra == 'terminalbench'", git = "https://github.com/friendliai/harbor.git?rev=89058afcec24f1f0849ab43f52474a8e76b2df05" },
     { name = "harbor", marker = "extra == 'swebench' and extra != 'terminalbench'", specifier = "==0.20.0" },
-    { name = "harbor", marker = "extra == 'terminalbench'", git = "https://github.com/friendliai/harbor.git?rev=d0bcab5bc8c04963cc00a4d293aba40db54fe9bc" },
+    { name = "harbor", marker = "extra == 'terminalbench'", git = "https://github.com/friendliai/harbor.git?rev=89058afcec24f1f0849ab43f52474a8e76b2df05" },
     { name = "litellm", marker = "extra == 'swebench'", specifier = "==1.100.0" },
     { name = "litellm", marker = "extra == 'terminalbench'", specifier = "==1.100.0" },
     { name = "mini-swe-agent", marker = "extra == 'swebench'", specifier = "==2.4.5" },
@@ -840,7 +840,7 @@ wheels = [
 [[package]]
 name = "harbor"
 version = "0.21.0"
-source = { git = "https://github.com/friendliai/harbor.git?rev=d0bcab5bc8c04963cc00a4d293aba40db54fe9bc#d0bcab5bc8c04963cc00a4d293aba40db54fe9bc" }
+source = { git = "https://github.com/friendliai/harbor.git?rev=89058afcec24f1f0849ab43f52474a8e76b2df05#89058afcec24f1f0849ab43f52474a8e76b2df05" }
 dependencies = [
     { name = "dirhash" },
     { name = "fastapi" },

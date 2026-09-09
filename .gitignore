@@ -25,6 +25,7 @@ eval_engine/tests/*
 !eval_engine/tests/conftest.py
 !eval_engine/tests/test_agent_key_leak.py
 !eval_engine/tests/test_experiment_options.py
+!eval_engine/tests/test_openai_fallback_seams.py
 usecase/tmp
 usecase/.cache/
 usecase/.venv/

@@ -398,12 +398,19 @@ def harbor_supports_streaming(monkeypatch):
     """
     from agent_benchmark.agents import terminus_2 as adapter_module
 
-    monkeypatch.setattr(adapter_module, "_require_harbor_streaming_support", lambda: None)
+    monkeypatch.setattr(adapter_module, "_require_harbor_agent_option", lambda *_: None)
 
 
 def test_streaming_is_off_unless_the_benchmark_asks(tmp_path: Path) -> None:
-    """The transport swap must be opt-in: an unchanged profile keeps the old behaviour."""
+    """The transport swap is a setting, not a default of the adapter.
+
+    Terminal-Bench 2.1 now switches it on, so this covers the mechanism rather than the shipped
+    value: a profile that does not ask must still get the plain transport. The shipped value is
+    asserted separately, in test_terminal_bench_profile_streams_and_uses_the_responses_api.
+    """
     spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings.pop("stream_llm_calls", None)
+
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
 
     assert not any(argument.startswith("stream=") for argument in command)
@@ -500,4 +507,115 @@ def test_streaming_fails_loudly_on_an_unsupporting_harbor(tmp_path: Path, monkey
     spec.benchmark.settings["stream_llm_calls"] = True
 
     with pytest.raises(StageError, match="stream_llm_calls"):
+        Terminus2Adapter().invocation(spec, run_dir, "secret")
+
+
+# --- The Responses API, and the reasoning efforts only it can reach --------------------------
+#
+# OpenAI validates reasoning_effort on /v1/chat/completions rather than ignoring it: `max` is an
+# HTTP 400 unsupported_value naming none/low/medium/high/xhigh as the alternatives. So the top
+# effort is reachable only through /v1/responses, which additionally echoes back the effort it
+# served -- the evidence a whole SWE-bench cohort turned out to lack.
+
+
+def _openai_terminal_spec(tmp_path: Path, effort: str = "max", model: str = "gpt-5-6-sol"):
+    pool = tmp_path / "pool.json"
+    create_pool(pool, "random", 2)
+    request = UserRequest(
+        benchmark="terminal-bench-2.1",
+        sampling="random",
+        size=2,
+        model=model,
+        reasoning_effort=effort,
+        provider="openai",
+        workers=2,
+        budget_usd=10,
+    )
+    spec = resolve(request, "test-terminal-responses", ROOT, pool)
+    run_dir = tmp_path / "run"
+    (run_dir / "inputs").mkdir(parents=True)
+    (run_dir / spec.benchmark.pool_path).write_text(pool.read_text())
+    return spec, run_dir
+
+
+def test_terminal_bench_profile_streams_and_uses_the_responses_api() -> None:
+    """The shipped profile must actually ask for both, or nothing above matters."""
+    import yaml
+
+    from agent_benchmark.config.loader import CONFIG_ROOT
+
+    profile = yaml.safe_load((CONFIG_ROOT / "benchmarks" / "terminal-bench-2.1.yaml").read_text())
+    settings = profile["settings"]
+
+    assert settings["use_responses_api"] is True
+    assert settings["stream_llm_calls"] is True
+
+
+def test_responses_api_reaches_harbor_for_an_openai_model(tmp_path: Path) -> None:
+    spec, run_dir = _openai_terminal_spec(tmp_path)
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert "use_responses_api=true" in command
+    assert "reasoning_effort=max" in command
+
+
+def test_responses_api_is_not_applied_to_a_non_openai_model(tmp_path: Path) -> None:
+    """Anthropic has no Responses endpoint, so one benchmark-wide setting must not reach it.
+
+    Fable runs this same profile. Sending it a Responses-shaped request would break every one
+    of its trials, which is why the switch is keyed to the model's API rather than the profile
+    alone.
+    """
+    spec, run_dir = terminal_spec(tmp_path)  # glm-5.2 over openrouter
+    assert spec.benchmark.settings["use_responses_api"] is True
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert not any(argument.startswith("use_responses_api=") for argument in command)
+
+
+def test_max_effort_is_refused_on_chat_completions(tmp_path: Path) -> None:
+    """An effort the endpoint rejects must fail before a run starts, not during it.
+
+    This is the guard against repeating the SWE-bench cohort: those runs requested `max`, were
+    served `medium`, and produced artifacts indistinguishable from correct ones. Asking for an
+    effort chat completions cannot serve is now a configuration error.
+    """
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+    from agent_benchmark.exceptions import StageError
+
+    spec, run_dir = _openai_terminal_spec(tmp_path)
+    spec.benchmark.settings["use_responses_api"] = False
+
+    with pytest.raises(StageError, match="not available on chat completions"):
+        Terminus2Adapter().invocation(spec, run_dir, "secret")
+
+
+def test_lower_efforts_still_run_on_chat_completions(tmp_path: Path) -> None:
+    """Only the efforts the endpoint actually rejects are refused."""
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+
+    spec, run_dir = _openai_terminal_spec(tmp_path, effort="xhigh")
+    spec.benchmark.settings["use_responses_api"] = False
+
+    invocation = Terminus2Adapter().invocation(spec, run_dir, "secret")
+
+    assert invocation.kwargs["reasoning_effort"] == "xhigh"
+    assert "use_responses_api" not in invocation.kwargs
+
+
+def test_responses_api_fails_loudly_on_an_unsupporting_harbor(tmp_path: Path, monkeypatch) -> None:
+    """Harbor drops agent kwargs it does not know, so an unsupporting pin must be caught here."""
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+    from agent_benchmark.exceptions import StageError
+
+    class HarborWithoutResponsesApi:
+        def __init__(self, logs_dir, model_name=None, *, stream=False, **kwargs):
+            pass
+
+    monkeypatch.setattr("harbor.agents.terminus_2.terminus_2.Terminus2", HarborWithoutResponsesApi)
+    spec, run_dir = _openai_terminal_spec(tmp_path)
+
+    with pytest.raises(StageError, match="use_responses_api"):
         Terminus2Adapter().invocation(spec, run_dir, "secret")
