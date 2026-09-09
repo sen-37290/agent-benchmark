@@ -8,6 +8,8 @@ from agent_benchmark.exceptions import StageError
 from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
 from agent_benchmark.harnesses.openai_fallback import (
     FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+)
+from agent_benchmark.harnesses.openai_fallback import (
     LEDGER_ENV as OPENAI_LEDGER_ENV,
 )
 from agent_benchmark.run.costguard import LIMIT_ENV
@@ -79,9 +81,7 @@ class Terminus2Adapter(AgentAdapter):
             # A content-policy refusal is a 400 that leaves no successful-call record, and a
             # fallback-served answer is indistinguishable downstream. The ledger is the only
             # record of which model actually served each call.
-            process_environment[OPENAI_LEDGER_ENV] = str(
-                run_dir / "logs" / "openai_fallback.jsonl"
-            )
+            process_environment[OPENAI_LEDGER_ENV] = str(run_dir / "logs" / "openai_fallback.jsonl")
         return AgentInvocation(
             model_name=model_name,
             kwargs=kwargs,

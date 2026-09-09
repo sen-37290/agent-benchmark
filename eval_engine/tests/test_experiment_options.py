@@ -210,7 +210,14 @@ def test_anthropic_fallbacks_reaches_the_harbor_process(tmp_path: Path, value: s
 
 
 @pytest.mark.parametrize(
-    "value", ["[]", "{}", "not-json", '[{"no_model": "x"}]', '[{"model": "a"}, {"model": "b"}, {"model": "c"}, {"model": "d"}]']
+    "value",
+    [
+        "[]",
+        "{}",
+        "not-json",
+        '[{"no_model": "x"}]',
+        '[{"model": "a"}, {"model": "b"}, {"model": "c"}, {"model": "d"}]',
+    ],
 )
 def test_anthropic_fallbacks_rejects_malformed_routing(value: str) -> None:
     """A bad routing string must fail here, not as a 400 on every request of a long run."""
@@ -244,7 +251,10 @@ def test_openai_fallbacks_absent_by_default(tmp_path: Path) -> None:
 
 def test_openai_fallbacks_reaches_the_harbor_process(tmp_path: Path) -> None:
     """The client-side ladder travels on the invocation, not through ambient environment."""
-    value = '["openai/gpt-5.6-sol", "openai/gpt-5.6-sol", "openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]'
+    value = (
+        '["openai/gpt-5.6-sol", "openai/gpt-5.6-sol", '
+        '"openai/gpt-5.6-terra", "openai/gpt-5.6-luna"]'
+    )
     spec = _resolved(tmp_path, provider="openai", model="gpt-5-6-sol", openai_fallbacks=value)
     assert spec.model.openai_fallbacks == value
 
@@ -253,7 +263,11 @@ def test_openai_fallbacks_reaches_the_harbor_process(tmp_path: Path) -> None:
     from agent_benchmark.agents.terminus_2 import ADAPTER
     from agent_benchmark.harnesses.openai_fallback import (
         FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
+    )
+    from agent_benchmark.harnesses.openai_fallback import (
         LEDGER_ENV as OPENAI_LEDGER_ENV,
+    )
+    from agent_benchmark.harnesses.openai_fallback import (
         configured_fallbacks as configured_openai_fallbacks,
     )
 

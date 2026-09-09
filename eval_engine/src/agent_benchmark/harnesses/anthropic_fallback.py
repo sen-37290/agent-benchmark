@@ -38,7 +38,7 @@ from __future__ import annotations
 import json
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 #: Fallback routing for the run: ``default`` for Anthropic's per-category recommendation,
@@ -83,7 +83,7 @@ def _record(entry: dict[str, Any]) -> None:
     path = os.environ.get(LEDGER_ENV, "").strip()
     if not path:
         return
-    entry["at"] = datetime.now(timezone.utc).isoformat()
+    entry["at"] = datetime.now(UTC).isoformat()
     line = json.dumps(entry, separators=(",", ":"))
     # One Harbor process runs every trial of the job, so concurrent workers share this file.
     with _ledger_lock:

@@ -35,15 +35,19 @@ import time
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.getcwd()) != _HERE]
 
-from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit  # noqa: E402
 from agent_benchmark.harnesses.anthropic_fallback import (  # noqa: E402
     configured_fallbacks,
+)
+from agent_benchmark.harnesses.anthropic_fallback import (  # noqa: E402
     install as install_anthropic_fallback,
 )
 from agent_benchmark.harnesses.openai_fallback import (  # noqa: E402
     configured_fallbacks as configured_openai_fallbacks,
+)
+from agent_benchmark.harnesses.openai_fallback import (  # noqa: E402
     install as install_openai_fallback,
 )
+from agent_benchmark.run.costguard import CostLimitExceeded, configured_limit  # noqa: E402
 from agent_benchmark.run.retry import is_transient  # noqa: E402
 
 #: How many times one LLM request may be attempted before the trial is allowed to fail.
@@ -193,8 +197,7 @@ def main() -> None:
     if openai_fallbacks is not None:
         install_openai_fallback(openai_fallbacks)
         print(
-            f"[openai-fallback] client-side model fallback enabled: "
-            f"{json.dumps(openai_fallbacks)}",
+            f"[openai-fallback] client-side model fallback enabled: {json.dumps(openai_fallbacks)}",
             file=sys.stderr,
             flush=True,
         )

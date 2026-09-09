@@ -43,7 +43,7 @@ from __future__ import annotations
 import json
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 #: Ordered JSON list of litellm model ids to try, primary first. Empty/unset disables the wrap.
@@ -82,13 +82,11 @@ def configured_fallbacks() -> list[str] | None:
 
 def _is_content_policy_refusal(error: BaseException) -> bool:
     """True only for OpenAI's cyber content-policy 400, never a generic bad request."""
-    status = getattr(error, "status_code", None) or getattr(error, "code", None)
     text = str(error).lower()
-    if any(marker in text for marker in _REFUSAL_MARKERS):
-        return True
     # A 400 alone is never enough -- an oversized context or a bad parameter is a 400 too, and
-    # retrying those on another model would only hide a real error. The markers above are required.
-    return False
+    # retrying those on another model would only hide a real error. The markers are required, and
+    # the status code is deliberately not consulted.
+    return any(marker in text for marker in _REFUSAL_MARKERS)
 
 
 def _record(entry: dict[str, Any]) -> None:
@@ -96,7 +94,7 @@ def _record(entry: dict[str, Any]) -> None:
     path = os.environ.get(LEDGER_ENV, "").strip()
     if not path:
         return
-    entry["at"] = datetime.now(timezone.utc).isoformat()
+    entry["at"] = datetime.now(UTC).isoformat()
     line = json.dumps(entry, separators=(",", ":"))
     # One Harbor process runs every trial of the job, so concurrent workers share this file.
     with _ledger_lock:
