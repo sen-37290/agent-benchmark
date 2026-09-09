@@ -247,15 +247,12 @@ def resolve(
 
     benchmark_cost_limit = float(benchmark.get("per_task_cost_limit_usd", 5.0))
     per_task_cost_limit = request.per_task_cost_limit_usd or benchmark_cost_limit
-    if (
-        benchmark.get("lock_per_task_cost_limit", False)
-        and per_task_cost_limit != benchmark_cost_limit
-        and not request.allow_cost_limit_override
+    if benchmark.get("lock_per_task_cost_limit", False) and (
+        per_task_cost_limit != benchmark_cost_limit
     ):
         raise ConfigurationError(
             f"benchmark {request.benchmark!r} requires "
-            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}; "
-            "pass --allow-cost-limit-override to depart from the official cap on purpose"
+            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}"
         )
 
     config = copy.deepcopy(model["config"])
@@ -287,15 +284,7 @@ def resolve(
             plugin=benchmark["plugin"],
             harness=benchmark["harness"],
             dataset_id=benchmark["dataset_id"],
-            # A pinned subset is not a sampling strategy the CLI can express: the pool plugin
-            # decides it from the benchmark's PIN_INSTANCES variable, so the request still says
-            # "full". Take the strategy from the pool it actually generated, or a 18-task re-run
-            # would be recorded -- and later reported -- as a full 500-task one.
-            sampling=(
-                "pinned"
-                if str(pool_data.get("sampling") or "") == "pinned"
-                else request.sampling or "full"
-            ),
+            sampling=request.sampling or "full",
             sample_size=len(instance_ids),
             pool_path="inputs/pool.json",
             pool_sha256=hashlib.sha256(generated_pool.read_bytes()).hexdigest(),

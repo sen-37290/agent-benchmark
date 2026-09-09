@@ -16,15 +16,12 @@ ENGINE_DIR="$CONTROLLER_DIR/eval_engine"
 STATE_DIR="$CONTROLLER_DIR/.fleet"
 mkdir -p "$STATE_DIR"
 
-# Concurrent services on one VM receive a label-specific LAUNCH_ENV from systemd. Retain the
-# shared path as a backwards-compatible fallback for older units.
-LAUNCH_ENV="${LAUNCH_ENV:-$STATE_DIR/launch.env}"
-if [ -f "$LAUNCH_ENV" ]; then
+if [ -f "$STATE_DIR/launch.env" ]; then
   set -a
   # shellcheck disable=SC1091
-  . "$LAUNCH_ENV"
+  . "$STATE_DIR/launch.env"
   set +a
-  rm -f "$LAUNCH_ENV"
+  rm -f "$STATE_DIR/launch.env"
 fi
 
 : "${LABEL:?LABEL is required}"
@@ -88,30 +85,9 @@ if [ -z "${!API_KEY_FROM:-}" ]; then
   exit 78  # EX_CONFIG
 fi
 
-# Dependency-specific campaigns must never fall back to whatever version happens to be in the
-# VM cache. `uv run` performs its normal frozen-project sync first; inspect that exact environment
-# and stop before creating a run if the repaired dependency is not active.
-if [ -n "${REQUIRED_LITELLM_VERSION:-}" ]; then
-  INSTALLED_LITELLM_VERSION="$(
-    uv run python -c 'import importlib.metadata; print(importlib.metadata.version("litellm"))'
-  )" || exit $?
-  if [ "$INSTALLED_LITELLM_VERSION" != "$REQUIRED_LITELLM_VERSION" ]; then
-    log "FATAL: LiteLLM $INSTALLED_LITELLM_VERSION installed; $REQUIRED_LITELLM_VERSION required"
-    exit 78
-  fi
-  log "verified LiteLLM $INSTALLED_LITELLM_VERSION"
-fi
-
 PER_TASK_ARGS=()
 if [ -n "${PER_TASK_CAP_USD:-}" ]; then
   PER_TASK_ARGS=(--per-task-cost-limit-usd "$PER_TASK_CAP_USD")
-fi
-# SWE-bench Verified locks the per-task cap to the official $3 so nobody drifts off-protocol by
-# accident. Departing from it has to be stated in the experiment row, never inferred from the cap
-# alone -- that is the difference between a deliberate re-run and a silent protocol change.
-if [ "${ALLOW_COST_LIMIT_OVERRIDE:-0}" = "1" ]; then
-  PER_TASK_ARGS+=(--allow-cost-limit-override)
-  log "per-task cap \$${PER_TASK_CAP_USD:-?} overrides the benchmark's locked official value"
 fi
 
 # Two ways to give slow tasks more room, and they are not equivalent. --no-timeout removes the
@@ -133,39 +109,8 @@ if [ -n "${PIN_INSTANCES:-}" ] && [ -f "${PIN_INSTANCES}" ]; then
   case "$BENCHMARK" in
     terminal-bench*) export TERMINAL_BENCH_PIN_INSTANCES="$PIN_INSTANCES" ;;
     cybergym*)       export CYBERGYM_PIN_INSTANCES="$PIN_INSTANCES" ;;
-    swebench*)       export SWEBENCH_PIN_INSTANCES="$PIN_INSTANCES" ;;
   esac
   log "pinned subset: $(python3 -c "import json;print(len(json.load(open('$PIN_INSTANCES'))['instance_ids']))" 2>/dev/null) tasks from $PIN_INSTANCES"
-fi
-
-# This runs outside the benchmark process, before its first model request. It creates the exact
-# full/pinned SWE pool, pulls each generation/grading image with bounded concurrency, verifies
-# every tag through Docker, and exits non-zero after three retries if anything is unavailable.
-if [ "${STRICT_SWE_IMAGE_GATE:-0}" = "1" ]; then
-  IMAGE_POOL="$STATE_DIR/$LABEL.image-pool.json"
-  IMAGE_LOG="$STATE_DIR/$LABEL.image-prepull.log"
-  log "strict SWE image gate: all images must be local before any LLM request"
-  uv run python scripts/fleet/strict_swe_preflight.py \
-    --pool "$IMAGE_POOL" \
-    --log "$IMAGE_LOG" \
-    --workers "$WORKERS" \
-    --retries 3 || exit $?
-  log "strict SWE image gate passed"
-fi
-
-# Probe the same LiteLLM Responses mapper that silently dropped `max` in 1.94.0. This is the first
-# LLM request made by the controller, and it only runs after the complete image gate above.
-if [ "${VERIFY_RESPONSES_EFFORT:-0}" = "1" ]; then
-  EFFORT_LOG="$STATE_DIR/$LABEL.reasoning-effort-preflight.json"
-  log "verifying provider-echoed reasoning effort: ${REASONING_EFFORT:-<unset>}"
-  uv run python scripts/fleet/verify_responses_effort.py \
-    --model "$MODEL" \
-    --api-key-env "$API_KEY_FROM" \
-    --expected "$REASONING_EFFORT" \
-    --required-litellm-version "$REQUIRED_LITELLM_VERSION" \
-    --log "$EFFORT_LOG" \
-    --retries 3 || exit $?
-  log "reasoning-effort preflight passed"
 fi
 
 BUDGET_ARGS=(--budget-usd "$EXPERIMENT_CAP_USD")
@@ -179,12 +124,6 @@ EFFORT_ARGS=()
 if [ -n "${REASONING_EFFORT:-}" ]; then
   EFFORT_ARGS=(--reasoning-effort "$REASONING_EFFORT")
   log "reasoning effort: $REASONING_EFFORT"
-fi
-
-TARGET_ARGS=()
-if [ -n "${BACKUP_TARGET:-}" ]; then
-  TARGET_ARGS=(--backup "$BACKUP_TARGET")
-  log "isolated execution target: $BACKUP_TARGET"
 fi
 
 # Anthropic server-side fallback. A refused request is retried on another model inside the same
@@ -222,7 +161,7 @@ uv run agent-bench plan \
   --label "$LABEL" \
   --api-key-from "$API_KEY_FROM" \
   "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
-  "${FALLBACK_ARGS[@]}" "${TARGET_ARGS[@]}" \
+  "${FALLBACK_ARGS[@]}" \
   > "$STATE_DIR/$LABEL.resolved.yaml" || exit $?
 log "resolved spec: $STATE_DIR/$LABEL.resolved.yaml"
 
@@ -246,7 +185,7 @@ uv run agent-bench run \
   --api-key-from "$API_KEY_FROM" \
   --no-cleanup \
   "${PER_TASK_ARGS[@]}" "${EFFORT_ARGS[@]}" "${TIMEOUT_ARGS[@]}" "${SCOPE_ARGS[@]}" \
-  "${FALLBACK_ARGS[@]}" "${TARGET_ARGS[@]}" \
+  "${FALLBACK_ARGS[@]}" \
   >> "$RUN_LOG" 2>&1 &
 RUN_PID=$!
 log "pid $RUN_PID"

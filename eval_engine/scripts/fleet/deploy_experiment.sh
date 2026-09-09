@@ -108,24 +108,8 @@ if [ -n "$GH_TOKEN_VALUE" ]; then
 fi
 cd '$FLEET_REMOTE_ROOT/eval_engine'
 uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}
-if [ -n '${FLEET_REQUIRED_LITELLM_VERSION:-}' ]; then
-  installed="\$(uv run python -c 'import importlib.metadata; print(importlib.metadata.version("litellm"))')"
-  if [ "\$installed" != '${FLEET_REQUIRED_LITELLM_VERSION}' ]; then
-    echo "FATAL: LiteLLM \$installed installed; ${FLEET_REQUIRED_LITELLM_VERSION} is required" >&2
-    exit 78
-  fi
-  echo "verified LiteLLM \$installed"
-fi
 EOF
 unset GH_TOKEN_VALUE
-
-# Named concurrent targets use independent remote roots/cache leases even when their controllers
-# share one physical VM. The normal local targets file is restored by every repo sync, so install
-# this explicit superset only for rows that request one of these targets.
-if [ -n "${FLEET_BACKUP_TARGET:-}" ]; then
-  scp "${SSH_OPTS[@]}" "$HERE/targets.concurrent.yaml" \
-    "$SSH_TARGET:$FLEET_REMOTE_ROOT/eval_engine/.agent-bench/targets.local.yaml" >/dev/null
-fi
 
 # The pinned subset comes from the experiment row; PIN_FILE in the environment still overrides
 # it for a one-off.
@@ -141,7 +125,7 @@ if [ -n "$PIN_FILE" ]; then
   say "pinned subset uploaded: $REMOTE_PIN_PATH ($(python3 -c "import json;print(len(json.load(open('$PIN_FILE'))['instance_ids']))" 2>/dev/null) tasks)"
 fi
 
-say "writing label-specific launch environment"
+say "writing launch.env"
 # 0600, and run_experiment.sh deletes it as soon as it has been sourced, so the key does not sit
 # on disk for the life of the run. It is piped over stdin so it never appears in a process list.
 API_KEY_VALUE="$(cd "$REPO_ROOT" && python3 - "$FLEET_API_KEY_FROM" <<'PY'
@@ -166,7 +150,7 @@ if [ -z "$API_KEY_VALUE" ]; then
 fi
 
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" \
-  "mkdir -p '$FLEET_REMOTE_ROOT/.fleet' && umask 077 && cat > '$FLEET_REMOTE_ROOT/.fleet/$LABEL.launch.env'" <<EOF
+  "mkdir -p '$FLEET_REMOTE_ROOT/.fleet' && umask 077 && cat > '$FLEET_REMOTE_ROOT/.fleet/launch.env'" <<EOF
 LABEL=$LABEL
 BENCHMARK=$FLEET_BENCHMARK
 MODEL=$FLEET_MODEL
@@ -174,7 +158,6 @@ PROVIDER=$FLEET_PROVIDER
 API_KEY_FROM=$FLEET_API_KEY_FROM
 EXPERIMENT_CAP_USD=$FLEET_EXPERIMENT_CAP_USD
 PER_TASK_CAP_USD=${FLEET_PER_TASK_CAP_USD:-}
-ALLOW_COST_LIMIT_OVERRIDE=${FLEET_ALLOW_COST_LIMIT_OVERRIDE:-0}
 WORKERS=$FLEET_WORKERS
 REASONING_EFFORT=${FLEET_REASONING_EFFORT:-}
 NO_BUDGET_LIMIT=${FLEET_NO_BUDGET_LIMIT:-0}
@@ -186,11 +169,7 @@ OPENAI_FALLBACKS='${FLEET_OPENAI_FALLBACKS:-}'
 SAMPLING=${CANARY_SAMPLING:-}
 SIZE=${CANARY_SIZE:-}
 CONTROLLER_DIR=$FLEET_REMOTE_ROOT
-REQUIRED_LITELLM_VERSION=${FLEET_REQUIRED_LITELLM_VERSION:-}
-STRICT_SWE_IMAGE_GATE=${FLEET_STRICT_SWE_IMAGE_GATE:-0}
-VERIFY_RESPONSES_EFFORT=${FLEET_VERIFY_RESPONSES_EFFORT:-0}
 AGENT_BENCH_SSH_HOST=localhost
-BACKUP_TARGET=${FLEET_BACKUP_TARGET:-}
 $FLEET_API_KEY_FROM=$API_KEY_VALUE
 EOF
 unset API_KEY_VALUE
@@ -212,7 +191,6 @@ WorkingDirectory=$FLEET_REMOTE_ROOT/eval_engine
 Environment=HOME=/home/$FLEET_SSH_USER
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/$FLEET_SSH_USER/.local/bin
 Environment=CONTROLLER_DIR=$FLEET_REMOTE_ROOT
-Environment=LAUNCH_ENV=$FLEET_REMOTE_ROOT/.fleet/%i.launch.env
 ExecStart=/bin/bash $FLEET_REMOTE_ROOT/eval_engine/scripts/fleet/run_experiment.sh
 Restart=no
 KillSignal=SIGTERM

@@ -8,13 +8,6 @@ import yaml
 from agent_benchmark.agents.base import AgentAdapter, AgentInvocation
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import StageError
-from agent_benchmark.harnesses.anthropic_fallback import FALLBACKS_ENV, LEDGER_ENV
-from agent_benchmark.harnesses.openai_fallback import (
-    FALLBACKS_ENV as OPENAI_FALLBACKS_ENV,
-)
-from agent_benchmark.harnesses.openai_fallback import (
-    LEDGER_ENV as OPENAI_LEDGER_ENV,
-)
 
 
 class MiniSweAgentAdapter(AgentAdapter):
@@ -44,15 +37,6 @@ class MiniSweAgentAdapter(AgentAdapter):
             spec.model.api_key_env: api_key,
             "MSWEA_GLOBAL_COST_LIMIT": str(spec.budget.per_task_usd),
         }
-        # Provider fallbacks travel in the environment of the runner subprocess, where
-        # mini_swe_agent_bootstrap installs them. The ledger is the only record that a fallback
-        # fired: a refusal and a fallback-served answer are both HTTP 200.
-        if spec.model.anthropic_fallbacks:
-            process_environment[FALLBACKS_ENV] = spec.model.anthropic_fallbacks
-            process_environment[LEDGER_ENV] = str(run_dir / "logs" / "anthropic_fallback.jsonl")
-        if spec.model.openai_fallbacks:
-            process_environment[OPENAI_FALLBACKS_ENV] = spec.model.openai_fallbacks
-            process_environment[OPENAI_LEDGER_ENV] = str(run_dir / "logs" / "openai_fallback.jsonl")
         if spec.model.api == "openrouter":
             environment["MSWEA_API_KEY"] = api_key
             process_environment["MSWEA_API_KEY"] = api_key

@@ -62,7 +62,6 @@ def _request(
     budget_usd: float | None,
     no_budget_limit: bool,
     per_task_cost_limit_usd: float | None,
-    allow_cost_limit_override: bool,
     no_timeout: bool,
     agent_timeout_multiplier: float | None,
     error_retries: int | None,
@@ -92,7 +91,6 @@ def _request(
         budget_usd=budget_usd,
         no_budget_limit=no_budget_limit,
         per_task_cost_limit_usd=per_task_cost_limit_usd,
-        allow_cost_limit_override=allow_cost_limit_override,
         no_timeout=no_timeout,
         agent_timeout_multiplier=agent_timeout_multiplier,
         error_retries=error_retries,
@@ -207,16 +205,6 @@ def plan(
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
     ] = None,
-    allow_cost_limit_override: Annotated[
-        bool,
-        typer.Option(
-            "--allow-cost-limit-override",
-            help=(
-                "Permit --per-task-cost-limit-usd to differ from a benchmark profile that locks "
-                "it to the official value. Required to depart from the official cap on purpose."
-            ),
-        ),
-    ] = False,
     no_timeout: Annotated[
         bool,
         typer.Option(
@@ -295,7 +283,6 @@ def plan(
         budget_usd,
         no_budget_limit,
         per_task_cost_limit_usd,
-        allow_cost_limit_override,
         no_timeout,
         agent_timeout_multiplier,
         error_retries,
@@ -362,16 +349,6 @@ def run(
         float | None,
         typer.Option(min=0.01, help="Per-task limit; defaults to the benchmark profile value."),
     ] = None,
-    allow_cost_limit_override: Annotated[
-        bool,
-        typer.Option(
-            "--allow-cost-limit-override",
-            help=(
-                "Permit --per-task-cost-limit-usd to differ from a benchmark profile that locks "
-                "it to the official value. Required to depart from the official cap on purpose."
-            ),
-        ),
-    ] = False,
     no_timeout: Annotated[
         bool,
         typer.Option(
@@ -451,7 +428,6 @@ def run(
         budget_usd,
         no_budget_limit,
         per_task_cost_limit_usd,
-        allow_cost_limit_override,
         no_timeout,
         agent_timeout_multiplier,
         error_retries,

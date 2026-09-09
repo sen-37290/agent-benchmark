@@ -28,10 +28,6 @@ class UserRequest(BaseModel):
     budget_usd: PositiveFloat | None = None
     no_budget_limit: bool = False
     per_task_cost_limit_usd: PositiveFloat | None = None
-    # Deliberately deviate from a benchmark whose profile locks the per-task cap to the official
-    # value. The lock exists so nobody drifts off-protocol by accident; this flag makes the
-    # deviation explicit, and it is recorded in the resolved spec so any result carries it.
-    allow_cost_limit_override: bool = False
     no_timeout: bool = False
     # Scale Harbor's per-task agent deadline instead of removing it. `--no-timeout` is the
     # unbounded extreme of the same knob; see the note on ExecutionSpec.

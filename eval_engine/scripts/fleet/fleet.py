@@ -3,7 +3,7 @@
 # requires-python = ">=3.11"
 # dependencies = ["pyyaml"]
 # ///
-"""Monitor and control benchmark experiments from a laptop.
+"""Monitor and control the ten concurrent experiments from a laptop.
 
 Each VM is an execution worker, not the source of truth. This tool polls every VM in parallel for
 the small status file its controller keeps fresh, and caches each poll locally, so a VM that has
@@ -70,19 +70,12 @@ class Experiment:
     experiment_cap_usd: float
     workers: int
     per_task_cap_usd: float | None
-    # Permit per_task_cap_usd to differ from a benchmark profile that locks it to the official
-    # value (SWE-bench Verified locks $3). Stated in the row so the deviation is visible where
-    # the experiment is defined, not buried in a shell variable.
-    allow_cost_limit_override: bool
     reasoning_effort: str | None
     no_budget_limit: bool
     # Scale Harbor's per-task agent deadline (6 -> the 900/1800/3600s limits become 1.5/3/6h).
     # Mutually exclusive with no_timeout, which removes the deadline altogether.
     agent_timeout_multiplier: float | None
     no_timeout: bool
-    # Optional named backup target. Used when concurrent runs share a physical VM but require
-    # separate remote roots and cache leases.
-    backup_target: str | None
     # A subset re-run: path, relative to this directory, of a {"instance_ids": [...]} file
     # naming exactly the tasks to run. Declared here rather than passed as a shell variable so
     # the row alone says what the experiment covers.
@@ -93,12 +86,6 @@ class Experiment:
     # OpenAI client-side model-fallback ladder (JSON list of litellm model ids) for the run.
     # Only a content-policy (cyber_policy) refusal triggers it; everything else is unchanged.
     openai_fallbacks: str | None
-    # Optional exact dependency gate for campaigns repairing a dependency-specific defect.
-    # The controller refuses to create a run when the installed version differs.
-    required_litellm_version: str | None
-    # Paid-run gates used by the true-max SWE replacement cohort.
-    strict_swe_image_gate: bool
-    verify_responses_effort: bool
     project: str
     zone: str
     remote_root: str
@@ -127,7 +114,6 @@ def load_experiments() -> list[Experiment]:
                 per_task_cap_usd=(
                     float(row["per_task_cap_usd"]) if row.get("per_task_cap_usd") else None
                 ),
-                allow_cost_limit_override=bool(row.get("allow_cost_limit_override", False)),
                 reasoning_effort=row.get("reasoning_effort") or None,
                 no_budget_limit=bool(row.get("no_budget_limit", False)),
                 agent_timeout_multiplier=(
@@ -136,7 +122,6 @@ def load_experiments() -> list[Experiment]:
                     else None
                 ),
                 no_timeout=bool(row.get("no_timeout", False)),
-                backup_target=row.get("backup_target") or None,
                 pin_file=row.get("pin_file") or None,
                 anthropic_fallbacks=(
                     row["anthropic_fallbacks"]
@@ -152,13 +137,6 @@ def load_experiments() -> list[Experiment]:
                     if row.get("openai_fallbacks")
                     else None
                 ),
-                required_litellm_version=(
-                    str(row["required_litellm_version"])
-                    if row.get("required_litellm_version")
-                    else None
-                ),
-                strict_swe_image_gate=bool(row.get("strict_swe_image_gate", False)),
-                verify_responses_effort=bool(row.get("verify_responses_effort", False)),
                 project=defaults["project"],
                 zone=defaults["zone"],
                 remote_root=defaults["remote_root"],
@@ -185,15 +163,6 @@ def vm_ip(experiment: Experiment) -> str:
     """External IP of the experiment's VM, resolved once per process via gcloud."""
     if experiment.vm in _IP_CACHE:
         return _IP_CACHE[experiment.vm]
-    # A lapsed gcloud token must not block a deploy whose IP is already known: SSH uses the
-    # google_compute_engine key and keeps working long after the API token expires. The override
-    # is deliberately VM-scoped -- a bare FLEET_VM_IP would silently point every VM in the fleet
-    # at one address the next time `status` polled them all.
-    override = os.environ.get("FLEET_VM_IP_" + experiment.vm.upper().replace("-", "_"))
-    if override:
-        _IP_CACHE[experiment.vm] = override
-        return override
-
     result = subprocess.run(
         [
             "gcloud",
@@ -392,10 +361,7 @@ def render(experiments: list[Experiment], records: dict[str, dict[str, Any]]) ->
         f"{'$' + format(total_cost, ',.2f') + suffix:>11}"
         f"{'$' + format(int(total_cap), ','):>8}{share:>7}{'':>6}"
     )
-    unrun = sum(
-        (records.get(e.label, {}).get("snapshot") or {}).get("unrun", 0)
-        for e in experiments
-    )
+    unrun = sum((records.get(e.label, {}).get("snapshot") or {}).get("unrun", 0) for e in experiments)
     if unrun:
         lines.append(f"\n{unrun} task(s) unrun across the fleet (stopped before they started).")
     if incomplete_cost:
@@ -458,20 +424,10 @@ def _terminate_escaped_executor(experiment: Experiment, grace: int) -> None:
 
     One experiment per VM is the fleet's design, so any surviving executor and any leftover
     task container belongs to the run being stopped.
-
-    EVERY executor needs matching here, not just Harbor's. SWE-bench runs `mini-extra swebench`
-    over the same ssh-to-localhost backend and escapes exactly the same way: a stop left it
-    running the whole pinned subset against the old configuration, with the controller gone and
-    nothing collecting its results. It was caught at $3.93 only because someone looked.
     """
-    # The pattern must not match this very command: `pgrep -f` sees the ssh command line too, so
-    # a literal "mini-extra swebench" here would match itself, report an escaped executor forever
-    # and then SIGKILL the shell running the check. Bracketing one character defeats that without
-    # changing what the pattern matches.
-    pattern = "[h]arbor_cost_guard.py|[m]ini-extra swebench|[m]ini_swe_agent_bootstrap.py"
     script = f"""
 set -u
-pids=$(pgrep -f '{pattern}' || true)
+pids=$(pgrep -f harbor_cost_guard.py || true)
 if [ -z "$pids" ]; then
   echo "no escaped executor"
 else
@@ -479,9 +435,9 @@ else
   kill -TERM $pids 2>/dev/null || true
   for _ in $(seq 1 {grace}); do
     sleep 1
-    pgrep -f '{pattern}' >/dev/null 2>&1 || break
+    pgrep -f harbor_cost_guard.py >/dev/null 2>&1 || break
   done
-  remaining=$(pgrep -f '{pattern}' || true)
+  remaining=$(pgrep -f harbor_cost_guard.py || true)
   if [ -n "$remaining" ]; then
     echo "still alive after {grace}s; sending SIGKILL"
     kill -KILL $remaining 2>/dev/null || true
@@ -538,14 +494,10 @@ def cmd_env(args: argparse.Namespace) -> int:
         "FLEET_PER_TASK_CAP_USD": (
             f"{experiment.per_task_cap_usd:g}" if experiment.per_task_cap_usd else ""
         ),
-        "FLEET_ALLOW_COST_LIMIT_OVERRIDE": (
-            "1" if experiment.allow_cost_limit_override else "0"
-        ),
         "FLEET_WORKERS": str(experiment.workers),
         "FLEET_REASONING_EFFORT": experiment.reasoning_effort or "",
         "FLEET_NO_BUDGET_LIMIT": "1" if experiment.no_budget_limit else "0",
         "FLEET_NO_TIMEOUT": "1" if experiment.no_timeout else "0",
-        "FLEET_BACKUP_TARGET": experiment.backup_target or "",
         "FLEET_AGENT_TIMEOUT_MULTIPLIER": (
             f"{experiment.agent_timeout_multiplier:g}"
             if experiment.agent_timeout_multiplier
@@ -554,11 +506,6 @@ def cmd_env(args: argparse.Namespace) -> int:
         "FLEET_PIN_FILE": str(HERE / experiment.pin_file) if experiment.pin_file else "",
         "FLEET_ANTHROPIC_FALLBACKS": experiment.anthropic_fallbacks or "",
         "FLEET_OPENAI_FALLBACKS": experiment.openai_fallbacks or "",
-        "FLEET_REQUIRED_LITELLM_VERSION": experiment.required_litellm_version or "",
-        "FLEET_STRICT_SWE_IMAGE_GATE": "1" if experiment.strict_swe_image_gate else "0",
-        "FLEET_VERIFY_RESPONSES_EFFORT": (
-            "1" if experiment.verify_responses_effort else "0"
-        ),
         "FLEET_REMOTE_ROOT": experiment.remote_root,
         "FLEET_SSH_USER": experiment.ssh_user,
         "FLEET_DEPENDENCY_EXTRA": experiment.dependency_extra,

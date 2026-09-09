@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import random
 from collections import defaultdict
 from pathlib import Path
@@ -24,30 +23,6 @@ PREFIX_TO_DOMAIN = {
     "psf": "Web & HTTP",
     "pallets": "Web & HTTP",
 }
-
-
-def _pinned_ids() -> list[str] | None:
-    """Instance ids from SWEBENCH_PIN_INSTANCES, or None when unset.
-
-    Accepts a path to a JSON file ({"instance_ids": [...]}) or a comma-separated list. This is how
-    a subset re-run selects exactly the tasks to redo -- e.g. the matplotlib instances a previous
-    run lost to a container-start timeout -- instead of resampling the whole benchmark. Mirrors
-    TERMINAL_BENCH_PIN_INSTANCES and CYBERGYM_PIN_INSTANCES.
-    """
-    raw = os.environ.get("SWEBENCH_PIN_INSTANCES")
-    if not raw:
-        return None
-    candidate = Path(raw)
-    if candidate.is_file():
-        data = json.loads(candidate.read_text())
-        ids = data.get("instance_ids") if isinstance(data, dict) else data
-    else:
-        ids = [part.strip() for part in raw.split(",") if part.strip()]
-    if not isinstance(ids, list) or not ids:
-        raise StageError("SWEBENCH_PIN_INSTANCES resolved to an empty instance list")
-    if len(ids) != len(set(ids)):
-        raise StageError("SWEBENCH_PIN_INSTANCES contains duplicate instance ids")
-    return [str(i) for i in ids]
 
 
 def domain_of(instance_id: str) -> str:
@@ -88,15 +63,7 @@ def create_pool(output_path: Path, sampling: str | None, size: int | None) -> No
     if len(all_ids) != DATASET_SIZE:
         raise StageError(f"expected {DATASET_SIZE} Verified tasks, got {len(all_ids)}")
 
-    pinned = _pinned_ids()
-    if pinned is not None:
-        known = set(all_ids)
-        unknown = [i for i in pinned if i not in known]
-        if unknown:
-            raise StageError(f"SWEBENCH_PIN_INSTANCES has unknown instance ids: {unknown[:5]}")
-        strategy = "pinned"
-        selected = sorted(pinned)
-    elif sampling is None and size is None:
+    if sampling is None and size is None:
         strategy = "full"
         selected = all_ids
     else:
@@ -115,7 +82,7 @@ def create_pool(output_path: Path, sampling: str | None, size: int | None) -> No
         "benchmark": "swebench_verified",
         "dataset_id": "princeton-nlp/SWE-bench_Verified",
         "sampling": strategy,
-        "seed": SAMPLING_SEED if strategy in {"random", "domain"} else None,
+        "seed": SAMPLING_SEED if strategy != "full" else None,
         "n": len(selected),
         "instance_ids": sorted(selected),
         "by_domain": dict(sorted(by_domain.items())),
