@@ -14,7 +14,6 @@ from agent_benchmark.run.retry import (
     attempt_exhausted,
     is_transient,
     load_manifest,
-    missing_output_is_retryable,
     pending_tasks,
     record_attempt,
     retry_delay,
@@ -64,13 +63,6 @@ def test_transient_provider_failures_are_retryable(error_type: str, message: str
 )
 def test_nontransient_failures_are_not_retryable(error_type: str) -> None:
     assert not is_transient(error_type, "HTTP 503")
-
-
-def test_missing_output_retries_unknown_and_timeout_failures_but_not_hard_limits() -> None:
-    assert missing_output_is_retryable(None)
-    assert missing_output_is_retryable("TimeoutExpired", exit_status="TimeExceeded")
-    assert not missing_output_is_retryable("AuthenticationError")
-    assert not missing_output_is_retryable(None, exit_status="LimitsExceeded")
 
 
 def test_retry_backoff_is_exponential_and_capped() -> None:

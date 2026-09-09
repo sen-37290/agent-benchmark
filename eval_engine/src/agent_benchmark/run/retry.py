@@ -7,12 +7,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from agent_benchmark.run.costguard import COST_LIMIT_MARKER
-
 TRANSIENT_TYPES = frozenset(
     {
         "APIConnectionError",
-        "APIError",
         "ApiConnectionClosedError",
         "AgentConnectionError",
         "AgentRateLimitError",
@@ -21,12 +18,6 @@ TRANSIENT_TYPES = frozenset(
         "OpenRouterRateLimitError",
         "RateLimitError",
         "ServiceUnavailableError",
-        # litellm raises a bare `Timeout` for a read/connect timeout. It was absent here, and its
-        # message ("Connection timed out") matched no text marker either, so timed-out tasks were
-        # scored as model failures instead of being retried.
-        "Timeout",
-        "TimeoutExpired",
-        "APITimeoutError",
     }
 )
 NON_RETRYABLE_TYPES = frozenset(
@@ -37,16 +28,6 @@ NON_RETRYABLE_TYPES = frozenset(
         "ModelNotFoundError",
         "OpenRouterAuthenticationError",
         "VerifierTimeoutError",
-        # litellm's own names, which Harbor's retry policy also refuses. A bad key or an
-        # oversized context does not heal with time; retrying only burns the wall clock.
-        "AuthenticationError",
-        "PermissionDeniedError",
-        "ContextLengthExceededError",
-        "ContextWindowExceededError",
-        "OutputLengthExceededError",
-        # A task stopped by its own dollar cap must never be retried: each attempt gets a fresh
-        # cost meter, so retrying would spend the cap again. Checked before TRANSIENT_TYPES.
-        "CostLimitExceeded",
     }
 )
 TRANSIENT_TEXT = (
@@ -58,13 +39,6 @@ TRANSIENT_TEXT = (
     "stream closed",
     "temporarily unavailable",
     "timed out connecting",
-    "connection timed out",
-    "read timed out",
-    "overloaded",
-    # A billing outage is infrastructure, not a model failure. The rejected request is never
-    # billed, so retrying it is free, and the backoff gives a topped-up balance time to land.
-    "credit balance",
-    "internal server error",
     "http 408",
     "http 429",
     "http 500",
@@ -79,34 +53,12 @@ TRANSIENT_TEXT = (
 
 
 def is_transient(error_type: str | None, message: str | None = None) -> bool:
-    # The cost cap is authoritative however it is reported. Harbor may surface the guard's stop
-    # wrapped in another exception type, so match the marker in the message too -- otherwise a
-    # text marker below (or a generic type) could re-run a task that already spent its cap.
-    if message and COST_LIMIT_MARKER in message:
-        return False
     if not error_type or error_type in NON_RETRYABLE_TYPES:
         return False
     if error_type in TRANSIENT_TYPES and error_type != "OpenRouterAPIError":
         return True
     text = f"{error_type} {message or ''}".lower()
     return any(marker in text for marker in TRANSIENT_TEXT)
-
-
-def missing_output_is_retryable(
-    error_type: str | None,
-    message: str | None = None,
-    exit_status: str | None = None,
-) -> bool:
-    """Whether an attempt with no final submission should be tried again.
-
-    Missing output is normally an infrastructure-shaped failure: the runner may have died before
-    it could serialize the prediction, and retrying only that task is safer than silently losing
-    it. Explicit hard failures are the exception. Authentication/context failures cannot heal,
-    and a cost-limited attempt must not receive a fresh budget on every retry.
-    """
-    if exit_status == "LimitsExceeded" or (message and COST_LIMIT_MARKER in message):
-        return False
-    return error_type not in NON_RETRYABLE_TYPES
 
 
 def retry_delay(attempt: int, *, minimum: float = 30, maximum: float = 240) -> float:
