@@ -164,6 +164,30 @@ scope was trimmed to the effort audit alone; the code producing these fields is 
 the final commit `9f555fa9` was re-checked with real calls on both transports (`served_effort:
 max`, 516 and 493 reasoning tokens).
 
+## Full Terminal-Bench at max effort, on the Responses API
+
+The first full Terminal-Bench 2.1 runs at `reasoning_effort=max`. Earlier gpt-5.6 runs topped out
+at `xhigh` because chat completions rejects `max` outright; these go through `/v1/responses`.
+
+| label | model | key | VM |
+|---|---|---|---|
+| `sen-gpt-5-6-sol-terminal-bench-response-api-max` | `gpt-5-6-sol` | `SEN_GPT_5_6_SOL_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+| `sen-gpt-5-6-terra-terminal-bench-response-api-max` | `gpt-5-6-terra` | `SEN_GPT_5_6_TERRA_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+| `sen-gpt-5-6-luna-terminal-bench-response-api-max` | `gpt-5-6-luna` | `SEN_GPT_5_6_LUNA_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+
+Launched 2026-09-09T23:38-23:40Z, 89 tasks each, 12 workers, harbor `9f555fa9`, LiteLLM 1.100.0.
+The agent deadline is disabled (`no_timeout`): a max-effort turn is long, and a task cut off at
+the deadline can score 0 with a passing verifier. The $20 per-task cap therefore bounds any one
+task, and the **$1,500 experiment cap is enforced**, not disabled, as the bound on the run.
+
+Only sol carries the `cyber_policy` refusal ladder (sol -> sol -> terra -> luna). terra and luna
+let a refusal fail, so their scores are entirely their own snapshot's work.
+
+`verify_responses_effort` passed on all three before any run was created. Fifteen minutes in, the
+per-call audit read **377 of 377 calls** at `served_effort: max` on `api: responses`, streamed,
+zero non-`ok` outcomes and zero mismatches, with reasoning depth up to 15,812 tokens on a single
+call -- against the 22-30 median that characterised the cohort silently served `medium`.
+
 ## Reconstruction references
 
 - Claude session `8c4fb3ce-1f11-4d65-93a8-fb0abeb0f0bb`: initial fleet creation and launch.
