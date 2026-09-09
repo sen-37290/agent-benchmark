@@ -8,6 +8,12 @@ from pathlib import Path
 
 from agent_benchmark.benchmarks.base import BenchmarkPlugin
 from agent_benchmark.benchmarks.paths import benchmark_dataset_dir
+from agent_benchmark.benchmarks.swebench_verified.images import (
+    DEFAULT_PULL_ATTEMPTS,
+    DEFAULT_PULL_TIMEOUT_SECONDS,
+    DEFAULT_PULL_WORKERS,
+    prepull,
+)
 from agent_benchmark.benchmarks.swebench_verified.pool import create_pool
 from agent_benchmark.benchmarks.swebench_verified.results import (
     instance_id,
@@ -58,6 +64,7 @@ class SwebenchVerified(BenchmarkPlugin):
     def prepare(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
         if spec.benchmark.harness == "mini-swe-agent-native":
             self._validate_official_agent(spec)
+            self._prepull_images(spec, run_dir)
             return
 
         adapter_ref = str(spec.benchmark.settings["harbor_adapter_ref"])
@@ -145,6 +152,49 @@ class SwebenchVerified(BenchmarkPlugin):
             )
             + "\n"
         )
+
+    @staticmethod
+    def _prepull_images(spec: ResolvedSpec, run_dir: Path) -> None:
+        """Warm the local image cache before any task starts.
+
+        mini-swe-agent pulls each instance image implicitly from `docker run`, under a
+        `pull_timeout` wall clock. Left to itself it launches one first-touch pull per worker, and
+        a wave of the largest images (matplotlib) never lands inside that clock -- which is how
+        the 20260903 runs lost 18 tasks apiece on terra and luna, at $0.00 and with no
+        trajectory. Pulling the same bytes here, a few at a time, means `docker run` finds the
+        image locally and returns at once. The official grader resolves the identical reference,
+        so this warms grading too.
+
+        A pull that cannot be completed fails prepare. The pipeline retries prepare, while images
+        already downloaded remain cached and are skipped. Execution therefore never begins --
+        and no model request is made -- until the complete generation/grading image set is local.
+        """
+        settings = spec.benchmark.settings
+        if not bool(settings.get("prepull_images", True)):
+            return
+        ids = pool_ids(spec, run_dir)
+        failed = prepull(
+            ids,
+            run_dir / "logs" / "prepare.log",
+            timeout=int(settings.get("image_pull_timeout_seconds", DEFAULT_PULL_TIMEOUT_SECONDS)),
+            # Never more concurrent pulls than the run has workers: a deliberately serial run
+            # should not suddenly saturate the link with four parallel image pulls.
+            workers=max(
+                1,
+                min(
+                    int(settings.get("image_pull_workers", DEFAULT_PULL_WORKERS)),
+                    spec.execution.workers,
+                ),
+            ),
+            attempts=int(settings.get("image_pull_attempts", DEFAULT_PULL_ATTEMPTS)),
+        )
+        if failed:
+            examples = ", ".join(failed[:5])
+            suffix = " ..." if len(failed) > 5 else ""
+            raise StageError(
+                f"SWE-bench image pre-pull left {len(failed)}/{len(ids)} image(s) unavailable; "
+                f"execution has not started (examples: {examples}{suffix})"
+            )
 
     @staticmethod
     def _validate_official_agent(spec: ResolvedSpec) -> None:

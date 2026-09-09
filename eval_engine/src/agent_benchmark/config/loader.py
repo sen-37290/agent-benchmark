@@ -107,6 +107,18 @@ def list_profiles() -> dict[str, list[str]]:
     return result
 
 
+def model_profile(name: str) -> dict[str, Any]:
+    """Return an isolated copy of a packaged model profile.
+
+    Fleet preflights use this to address the same provider-facing model as the
+    benchmark harness.  The profile name is a CLI alias (for example,
+    ``gpt-5-6-sol``), while ``config.model.model_name`` is the LiteLLM request
+    name (``openai/gpt-5.6-sol``); treating those as interchangeable produces
+    a provider 404.
+    """
+    return copy.deepcopy(_load_yaml("models", name))
+
+
 def benchmark_plugin_name(profile: str) -> str:
     return str(_load_yaml("benchmarks", profile)["plugin"])
 
@@ -247,12 +259,15 @@ def resolve(
 
     benchmark_cost_limit = float(benchmark.get("per_task_cost_limit_usd", 5.0))
     per_task_cost_limit = request.per_task_cost_limit_usd or benchmark_cost_limit
-    if benchmark.get("lock_per_task_cost_limit", False) and (
-        per_task_cost_limit != benchmark_cost_limit
+    if (
+        benchmark.get("lock_per_task_cost_limit", False)
+        and per_task_cost_limit != benchmark_cost_limit
+        and not request.allow_cost_limit_override
     ):
         raise ConfigurationError(
             f"benchmark {request.benchmark!r} requires "
-            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}"
+            f"--per-task-cost-limit-usd {benchmark_cost_limit:g}; "
+            "pass --allow-cost-limit-override to depart from the official cap on purpose"
         )
 
     config = copy.deepcopy(model["config"])
@@ -284,7 +299,15 @@ def resolve(
             plugin=benchmark["plugin"],
             harness=benchmark["harness"],
             dataset_id=benchmark["dataset_id"],
-            sampling=request.sampling or "full",
+            # A pinned subset is not a sampling strategy the CLI can express: the pool plugin
+            # decides it from the benchmark's PIN_INSTANCES variable, so the request still says
+            # "full". Take the strategy from the pool it actually generated, or a 18-task re-run
+            # would be recorded -- and later reported -- as a full 500-task one.
+            sampling=(
+                "pinned"
+                if str(pool_data.get("sampling") or "") == "pinned"
+                else request.sampling or "full"
+            ),
             sample_size=len(instance_ids),
             pool_path="inputs/pool.json",
             pool_sha256=hashlib.sha256(generated_pool.read_bytes()).hexdigest(),

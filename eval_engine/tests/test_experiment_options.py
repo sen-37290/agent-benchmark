@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from agent_benchmark.cli import _new_run_id, _request
-from agent_benchmark.config.loader import resolve
+from agent_benchmark.config.loader import model_profile, resolve
 from agent_benchmark.exceptions import ConfigurationError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +23,7 @@ def _pool(tmp_path: Path, ids: list[str]) -> Path:
 def _make_request(**overrides):
     """Build a UserRequest from named defaults.
 
-    Keyword-only on purpose: _request takes seventeen parameters, and calling it positionally
+    Keyword-only on purpose: _request takes eighteen parameters, and calling it positionally
     meant every new option silently shifted the remaining arguments along.
     """
     defaults: dict = {
@@ -40,6 +40,7 @@ def _make_request(**overrides):
         "budget_usd": 500.0,
         "no_budget_limit": False,
         "per_task_cost_limit_usd": None,
+        "allow_cost_limit_override": False,
         "no_timeout": False,
         "agent_timeout_multiplier": None,
         "error_retries": None,
@@ -109,6 +110,17 @@ def test_openai_models_resolve_with_provider_default_effort(tmp_path: Path) -> N
     assert "reasoning_effort" not in spec.model.config["model"].get("model_kwargs", {})
 
 
+@pytest.mark.parametrize("name", ["gpt-5-6-sol", "gpt-5-6-terra", "gpt-5-6-luna"])
+def test_effort_preflight_can_resolve_provider_model_name(name: str) -> None:
+    profile = model_profile(name)
+    request_model = profile["config"]["model"]["model_name"]
+    assert request_model == f"openai/{profile['model_id']}"
+
+    # Callers receive a copy and cannot mutate the packaged profile used by a later run.
+    profile["config"]["model"]["model_name"] = "changed"
+    assert model_profile(name)["config"]["model"]["model_name"] == request_model
+
+
 def test_model_cannot_use_a_mismatched_transport(tmp_path: Path) -> None:
     request = _make_request(model="gpt-5-6-sol", provider="anthropic")
     with pytest.raises(ConfigurationError):
@@ -147,7 +159,6 @@ def test_terminus_per_task_limit_follows_the_benchmark_setting(tmp_path: Path) -
     # Host-only: the key must never be in `environment`, which is what crosses into the container.
     assert invocation.environment == {}
     assert invocation.process_environment["ANTHROPIC_API_KEY"] == "secret-key"
-
     # A benchmark that opts out passes no limit, and the guard then installs nothing.
     spec.benchmark.settings["enforce_per_task_cost_limit"] = False
     invocation = agent_adapter("terminus-2").invocation(spec, tmp_path, "secret-key")

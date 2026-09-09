@@ -6,6 +6,8 @@ import re
 import shutil
 from pathlib import Path
 
+import yaml
+
 from agent_benchmark.agents import agent_adapter
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
@@ -14,6 +16,7 @@ from agent_benchmark.run.process import run_logged
 from agent_benchmark.run.retry import (
     is_transient,
     load_manifest,
+    missing_output_is_retryable,
     pending_tasks,
     record_attempt,
     save_manifest,
@@ -27,8 +30,52 @@ VALID_TERMINAL_STATUSES = frozenset(
 )
 
 
+# Anything the ENGINE has to impose on the official agent config, kept apart from
+# subject-config.yaml so the two stay readable: that file is the model profile, this one is the
+# harness. mini-swe-agent merges `--config` files recursively with the last one winning, so this
+# is applied on top of the official swebench.yaml.
+HARNESS_CONFIG_NAME = "harness-config.yaml"
+# The official swebench.yaml leaves DockerEnvironmentConfig.pull_timeout at its 120-second
+# default, which wraps `docker run` -- image pull included. `prepare` now pre-pulls every image
+# in the pool, so this bound should never be reached; it is raised anyway so that a cache miss
+# (a task added later, an evicted layer, a fresh VM) costs time instead of costing the task.
+PULL_TIMEOUT_SECONDS = 1800
+
+
 def output_dir(run_dir: Path) -> Path:
     return run_dir / "artifacts" / "minisweagent_swebench"
+
+
+def harness_config_path(run_dir: Path) -> Path:
+    return run_dir / HARNESS_CONFIG_NAME
+
+
+def write_harness_config(spec: ResolvedSpec, run_dir: Path) -> Path:
+    """Write the engine's overrides of the official agent config, and return its path.
+
+    Two settings live here:
+
+    `agent.cost_limit` -- until now the per-task dollar cap for this harness came only from
+    mini-swe-agent's builtin swebench.yaml, because the adapter's MSWEA_GLOBAL_COST_LIMIT is
+    popped below (it applies to the whole batch process, not per task) and subject-config.yaml
+    never set it. `--per-task-cost-limit-usd` was therefore decorative here: it was validated
+    against the benchmark profile and then never reached the agent. Writing it makes the resolved
+    spec authoritative, which is what lets a re-run raise the cap deliberately.
+
+    `environment.pull_timeout` -- see PULL_TIMEOUT_SECONDS.
+    """
+    path = harness_config_path(run_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "agent": {"cost_limit": float(spec.budget.per_task_usd)},
+                "environment": {"pull_timeout": PULL_TIMEOUT_SECONDS},
+            },
+            sort_keys=False,
+        )
+    )
+    return path
 
 
 def _pool_ids(spec: ResolvedSpec, run_dir: Path) -> list[str]:
@@ -68,6 +115,20 @@ def task_failures(directory: Path, ids: list[str]) -> dict[str, str]:
     return failures
 
 
+def _runner(spec: ResolvedSpec) -> list[str]:
+    """How to invoke the official SWE-bench runner.
+
+    Normally the console script, unchanged. When the run asks for a provider fallback, the same
+    Typer command has to be reached through a bootstrap instead, because the LiteLLM monkeypatch
+    must be installed inside this subprocess before its first request -- `mini-extra` offers no
+    hook for that. Every other run keeps the byte-identical official invocation.
+    """
+    if spec.model.anthropic_fallbacks or spec.model.openai_fallbacks:
+        bootstrap = Path(__file__).with_name("mini_swe_agent_bootstrap.py")
+        return ["uv", "run", "python", str(bootstrap)]
+    return ["uv", "run", "mini-extra", "swebench"]
+
+
 def build_command(
     spec: ResolvedSpec,
     run_dir: Path,
@@ -76,10 +137,7 @@ def build_command(
 ) -> list[str]:
     ids = ids or _pool_ids(spec, run_dir)
     return [
-        "uv",
-        "run",
-        "mini-extra",
-        "swebench",
+        *_runner(spec),
         "--subset",
         spec.benchmark.dataset_id,
         "--split",
@@ -94,6 +152,10 @@ def build_command(
         "swebench.yaml",
         "--config",
         str(run_dir / "subject-config.yaml"),
+        # Last wins in mini-swe-agent's recursive merge, so the engine's overrides sit on top of
+        # both the official config and the model profile.
+        "--config",
+        str(harness_config_path(run_dir)),
     ]
 
 
@@ -120,6 +182,7 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
         # global limit is appropriate when Harbor launches one process per task, not for this
         # shared batch process; the engine monitors the separate run-wide budget below.
         process_environment.pop("MSWEA_GLOBAL_COST_LIMIT", None)
+        write_harness_config(spec, run_dir)
         budget_usd = (
             None if spec.model.provider == "friendli" and spec.model.byok else spec.budget.total_usd
         )
@@ -164,21 +227,24 @@ class MiniSweAgentNativeHarness(HarnessAdapter):
                 trajectory_path = round_dir / task_id / f"{task_id}.traj.json"
                 cost = None
                 message = None
+                exit_status = None
                 if trajectory_path.is_file():
                     try:
                         trajectory = json.loads(trajectory_path.read_text())
                         info = trajectory.get("info", {})
+                        exit_status = str(info.get("exit_status") or "") or None
                         value = info.get("model_stats", {}).get("instance_cost")
                         cost = float(value) if value is not None else None
                         message = str(info.get("exception_str") or "")
                     except (OSError, TypeError, ValueError, json.JSONDecodeError):
                         pass
                 error_type = failures.get(task_id)
-                retryable = error_type in {
-                    "MissingTrajectory",
-                    "InvalidTrajectory",
-                } or is_transient(error_type, message)
                 valid_prediction = isinstance(predictions.get(task_id), dict)
+                retryable = (
+                    missing_output_is_retryable(error_type, message, exit_status)
+                    if not valid_prediction
+                    else is_transient(error_type, message)
+                )
                 status = "completed" if error_type is None and valid_prediction else "error"
                 record_attempt(
                     manifest,
