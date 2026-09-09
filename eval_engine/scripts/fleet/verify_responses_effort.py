@@ -13,6 +13,7 @@ from typing import Any
 
 import litellm
 
+from agent_benchmark.config.loader import model_profile
 from agent_benchmark.run.retry import is_transient, retry_delay
 
 
@@ -49,6 +50,19 @@ def _write_log(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps({"attempts": attempts}, indent=2, sort_keys=True) + "\n")
 
 
+def _request_model(profile_name: str) -> str:
+    """Resolve a CLI model profile to the LiteLLM name used by the subject agent."""
+    profile = model_profile(profile_name)
+    config = profile.get("config")
+    model_config = config.get("model") if isinstance(config, dict) else None
+    value = model_config.get("model_name") if isinstance(model_config, dict) else None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(
+            f"model profile {profile_name!r} has no config.model.model_name request target"
+        )
+    return value.strip()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
@@ -70,7 +84,10 @@ def main() -> int:
     if args.retries < 0:
         parser.error("--retries must be non-negative")
 
-    model = args.model if "/" in args.model else f"openai/{args.model}"
+    try:
+        model = _request_model(args.model)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
     attempts = args.retries + 1
     for attempt in range(1, attempts + 1):
         started = time.monotonic()
@@ -88,6 +105,7 @@ def main() -> int:
             _write_log(
                 args.log,
                 {
+                    "model_profile": args.model,
                     "model": model,
                     "litellm_version": installed,
                     "expected_effort": args.expected,
@@ -112,6 +130,7 @@ def main() -> int:
         _write_log(
             args.log,
             {
+                "model_profile": args.model,
                 "model": model,
                 "litellm_version": installed,
                 "expected_effort": args.expected,

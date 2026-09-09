@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from agent_benchmark.cli import _new_run_id, _request
-from agent_benchmark.config.loader import resolve
+from agent_benchmark.config.loader import model_profile, resolve
 from agent_benchmark.exceptions import ConfigurationError
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +108,17 @@ def test_openai_models_resolve_with_provider_default_effort(tmp_path: Path) -> N
     assert spec.model.reasoning_effort is None
     # An unset effort must not be materialised anywhere in the subject agent's config.
     assert "reasoning_effort" not in spec.model.config["model"].get("model_kwargs", {})
+
+
+@pytest.mark.parametrize("name", ["gpt-5-6-sol", "gpt-5-6-terra", "gpt-5-6-luna"])
+def test_effort_preflight_can_resolve_provider_model_name(name: str) -> None:
+    profile = model_profile(name)
+    request_model = profile["config"]["model"]["model_name"]
+    assert request_model == f"openai/{profile['model_id']}"
+
+    # Callers receive a copy and cannot mutate the packaged profile used by a later run.
+    profile["config"]["model"]["model_name"] = "changed"
+    assert model_profile(name)["config"]["model"]["model_name"] == request_model
 
 
 def test_model_cannot_use_a_mismatched_transport(tmp_path: Path) -> None:
