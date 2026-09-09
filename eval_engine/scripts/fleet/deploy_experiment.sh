@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+# Deploy and start one experiment on its VM. Run this from the laptop; once it returns, the VM is
+# self-driving and the laptop can be closed.
+#
+#     ./deploy_experiment.sh <label> [--provision] [--no-start]
+#
+# The controller runs ON the execution VM, not on the laptop. The engine's backend is an SSH
+# driver, so co-locating it with the executor (via self-ssh to localhost) costs nothing and makes
+# the run independent of the laptop's network and lid. Results stay on the VM: nothing is ever
+# pulled to local.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$HERE/../../.." && pwd)"
+EXPERIMENTS="$HERE/experiments.yaml"
+
+LABEL="${1:-}"
+shift || true
+PROVISION=0
+START=1
+for arg in "$@"; do
+  case "$arg" in
+    --provision) PROVISION=1 ;;
+    --no-start) START=0 ;;
+    # A canary runs the identical pipeline over a handful of tasks, to validate a VM,
+    # transport and key before committing the experiment's full budget.
+    --canary) CANARY_SAMPLING="${CANARY_SAMPLING:-category}"; CANARY_SIZE="${CANARY_SIZE:-2}" ;;
+    *) echo "unknown option: $arg" >&2; exit 64 ;;
+  esac
+done
+
+if [ -z "$LABEL" ]; then
+  echo "usage: $0 <label> [--provision] [--no-start]" >&2
+  echo "labels:" >&2
+  "$HERE/fleet.py" labels >&2
+  exit 64
+fi
+
+# Read this experiment's row once, as shell assignments.
+eval "$("$HERE/fleet.py" env "$LABEL")"
+: "${FLEET_VM:?unknown label $LABEL}"
+
+SSH_TARGET="${FLEET_SSH_USER}@${FLEET_VM_IP}"
+SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -o ServerAliveInterval=15)
+if [ -n "${FLEET_SSH_KEY:-}" ]; then
+  SSH_OPTS+=(-i "$FLEET_SSH_KEY")
+fi
+
+say() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
+
+say "$LABEL -> $FLEET_VM ($FLEET_VM_IP)"
+
+if [ "$PROVISION" = "1" ]; then
+  say "provisioning"
+  # CyberGym needs the heavier toolchain (7z, Node 22, Poetry, Python 3.12).
+  profile=base
+  case "$FLEET_BENCHMARK" in cybergym*) profile=cybergym ;; esac
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$FLEET_REMOTE_ROOT'"
+  scp "${SSH_OPTS[@]}" "$HERE/provision_vm.sh" "$SSH_TARGET:/tmp/provision_vm.sh" >/dev/null
+  # Forward Docker Hub credentials over stdin so `docker login` can lift the anonymous pull
+  # limit. Piped, never in argv.
+  DH_USER="$(sed -n 's/^DOCKERHUB_USERNAME=//p' "$REPO_ROOT/.env" | tr -d '"'"'"'"' | head -1)"
+  DH_TOKEN="$(sed -n 's/^DOCKERHUB_TOKEN=//p' "$REPO_ROOT/.env" | tr -d '"'"'"'"' | head -1)"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s <<EOF
+export DOCKERHUB_USERNAME='$DH_USER'
+export DOCKERHUB_TOKEN='$DH_TOKEN'
+bash /tmp/provision_vm.sh $profile
+EOF
+  unset DH_USER DH_TOKEN
+fi
+
+say "syncing the repo"
+# The working branch is local-only, so `git clone` on the VM is not an option: transfer the tree
+# directly. `.env` and `.agent-bench/targets.local.yaml` are untracked but required, so they must
+# ride along. An ABSOLUTE destination is required -- a relative one has silently landed nothing.
+#
+# `.fleet` is excluded because it is VM-side controller state, not repo content: it does not
+# exist locally, so --delete would remove it and take the previous experiment's log, resolved
+# spec and pin file with it. That matters whenever experiments share a VM in sequence.
+rsync -az --delete \
+  --exclude '.venv' --exclude '__pycache__' --exclude '.pytest_cache' --exclude '.ruff_cache' \
+  --exclude 'eval_engine/runs' --exclude 'eval_engine/pools' --exclude 'eval_engine/dist' \
+  --exclude 'results' --exclude 'usecase' --exclude '.DS_Store' \
+  --exclude 'fable-verify' --exclude '.fleet' \
+  -e "ssh ${SSH_OPTS[*]}" \
+  "$REPO_ROOT/" "$SSH_TARGET:$FLEET_REMOTE_ROOT/"
+
+say "installing dependencies"
+# Terminal-Bench depends on harbor, which lives in a PRIVATE GitHub repo, so a bare VM cannot
+# fetch it ("could not read Username for 'https://github.com'"). Forward a short-lived token
+# instead of installing credentials on the VM: it is passed over stdin (never in argv, never
+# written to disk) and reaches git through GIT_CONFIG_* env vars, which write no config file.
+# uv caches the built wheel, so later syncs on this VM need no token at all.
+GH_TOKEN_VALUE=""
+if command -v gh >/dev/null 2>&1; then
+  GH_TOKEN_VALUE="$(gh auth token 2>/dev/null || true)"
+fi
+if [ -z "$GH_TOKEN_VALUE" ]; then
+  GH_TOKEN_VALUE="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+fi
+
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" bash -s <<EOF
+set -euo pipefail
+if [ -n "$GH_TOKEN_VALUE" ]; then
+  export GIT_CONFIG_COUNT=1
+  export GIT_CONFIG_KEY_0='url.https://x-access-token:$GH_TOKEN_VALUE@github.com/.insteadOf'
+  export GIT_CONFIG_VALUE_0='https://github.com/'
+fi
+cd '$FLEET_REMOTE_ROOT/eval_engine'
+uv sync --frozen --extra ${FLEET_DEPENDENCY_EXTRA}
+EOF
+unset GH_TOKEN_VALUE
+
+# The pinned subset comes from the experiment row; PIN_FILE in the environment still overrides
+# it for a one-off.
+PIN_FILE="${PIN_FILE:-${FLEET_PIN_FILE:-}}"
+if [ -n "$PIN_FILE" ]; then
+  if [ ! -f "$PIN_FILE" ]; then
+    echo "FATAL: pin file not found: $PIN_FILE" >&2
+    exit 66
+  fi
+  REMOTE_PIN_PATH="$FLEET_REMOTE_ROOT/.fleet/$LABEL.pin.json"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$FLEET_REMOTE_ROOT/.fleet'"
+  scp "${SSH_OPTS[@]}" "$PIN_FILE" "$SSH_TARGET:$REMOTE_PIN_PATH" >/dev/null
+  say "pinned subset uploaded: $REMOTE_PIN_PATH ($(python3 -c "import json;print(len(json.load(open('$PIN_FILE'))['instance_ids']))" 2>/dev/null) tasks)"
+fi
+
+say "writing launch.env"
+# 0600, and run_experiment.sh deletes it as soon as it has been sourced, so the key does not sit
+# on disk for the life of the run. It is piped over stdin so it never appears in a process list.
+API_KEY_VALUE="$(cd "$REPO_ROOT" && python3 - "$FLEET_API_KEY_FROM" <<'PY'
+import sys
+name = sys.argv[1]
+for line in open(".env"):
+    line = line.strip()
+    if line.startswith(f"{name}="):
+        print(line.split("=", 1)[1].strip().strip('"').strip("'"))
+        break
+PY
+)"
+if [ -z "$API_KEY_VALUE" ]; then
+  echo "FATAL: $FLEET_API_KEY_FROM has no value in $REPO_ROOT/.env" >&2
+  exit 78
+fi
+
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" \
+  "mkdir -p '$FLEET_REMOTE_ROOT/.fleet' && umask 077 && cat > '$FLEET_REMOTE_ROOT/.fleet/launch.env'" <<EOF
+LABEL=$LABEL
+BENCHMARK=$FLEET_BENCHMARK
+MODEL=$FLEET_MODEL
+PROVIDER=$FLEET_PROVIDER
+API_KEY_FROM=$FLEET_API_KEY_FROM
+EXPERIMENT_CAP_USD=$FLEET_EXPERIMENT_CAP_USD
+PER_TASK_CAP_USD=${FLEET_PER_TASK_CAP_USD:-}
+WORKERS=$FLEET_WORKERS
+REASONING_EFFORT=${FLEET_REASONING_EFFORT:-}
+NO_BUDGET_LIMIT=${FLEET_NO_BUDGET_LIMIT:-0}
+NO_TIMEOUT=${NO_TIMEOUT:-${FLEET_NO_TIMEOUT:-0}}
+AGENT_TIMEOUT_MULTIPLIER=${AGENT_TIMEOUT_MULTIPLIER:-${FLEET_AGENT_TIMEOUT_MULTIPLIER:-}}
+PIN_INSTANCES=${REMOTE_PIN_PATH:-}
+SAMPLING=${CANARY_SAMPLING:-}
+SIZE=${CANARY_SIZE:-}
+CONTROLLER_DIR=$FLEET_REMOTE_ROOT
+AGENT_BENCH_SSH_HOST=localhost
+$FLEET_API_KEY_FROM=$API_KEY_VALUE
+EOF
+unset API_KEY_VALUE
+
+say "installing systemd unit agent-bench@$LABEL"
+# systemd rather than the previous ad-hoc `screen`: it survives a VM reboot, gives journalctl, and
+# cannot be lost to a stray `screen -wipe`. TimeoutStopSec is generous because SIGTERM triggers a
+# cooperative drain -- in-flight tasks are allowed to finish and be graded, never killed.
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo tee /etc/systemd/system/agent-bench@.service >/dev/null" <<EOF
+[Unit]
+Description=agent-bench experiment %i
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$FLEET_SSH_USER
+WorkingDirectory=$FLEET_REMOTE_ROOT/eval_engine
+Environment=HOME=/home/$FLEET_SSH_USER
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/home/$FLEET_SSH_USER/.local/bin
+Environment=CONTROLLER_DIR=$FLEET_REMOTE_ROOT
+ExecStart=/bin/bash $FLEET_REMOTE_ROOT/eval_engine/scripts/fleet/run_experiment.sh
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=3600
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo systemctl daemon-reload"
+
+if [ "$START" = "1" ]; then
+  say "starting"
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sudo systemctl restart 'agent-bench@$LABEL'"
+  sleep 3
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "systemctl is-active 'agent-bench@$LABEL' || true"
+  cat <<EOF
+
+started. The VM is now self-driving; you can close the laptop.
+
+  monitor:  $HERE/fleet.py watch
+  logs:     $HERE/fleet.py logs $LABEL -f
+  shell:    $HERE/fleet.py ssh $LABEL
+  stop:     $HERE/fleet.py stop $LABEL     (drains cleanly, then grades)
+EOF
+else
+  say "deployed but not started"
+  echo "start it with: ssh $SSH_TARGET \"sudo systemctl start 'agent-bench@$LABEL'\""
+fi

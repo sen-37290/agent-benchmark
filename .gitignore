@@ -19,8 +19,22 @@ eval_engine/tests/*
 !eval_engine/tests/test_terminal_bench_*.py
 !eval_engine/tests/test_result_reporting.py
 !eval_engine/tests/test_retry_pipeline.py
+# Required by the tracked tests above: test_result_reporting, test_swebench_normalize and
+# test_terminal_bench_harbor all use its `pool_file` fixture, so without it a fresh clone
+# cannot collect them.
+!eval_engine/tests/conftest.py
+!eval_engine/tests/test_agent_key_leak.py
+!eval_engine/tests/test_experiment_options.py
 usecase/tmp
 usecase/.cache/
 usecase/.venv/
 usecase/graph/*
 !usecase/graph/.gitkeep
+
+# Local fleet monitor cache (last-known VM state; regenerated on every poll)
+eval_engine/scripts/fleet/.fleet-cache/
+
+# Pinned task-id subsets for one-off re-runs. These are operator-local run history:
+# useful to keep on disk so experiments.yaml pin_file paths resolve, but not shipped
+# in a public repo.
+eval_engine/scripts/fleet/pins/

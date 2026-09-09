@@ -10,8 +10,10 @@ from agent_benchmark.benchmarks.cybergym.pool import catalog, create_pool
 from agent_benchmark.benchmarks.cybergym.results import normalize
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
+from agent_benchmark.harnesses.cybergym_grades import fold_grades
 from agent_benchmark.run.process import run_logged
 from agent_benchmark.run.result import TaskResult
+from agent_benchmark.run.stop import stop_reason
 
 CYBERGYM_REVISION = "7656b71d07da6694e262f9c34ea994cd4849c0eb"
 AGENT_EXAMPLES_REVISION = "6660f3f5a0193e7f142f23f998677429edb3d18c"
@@ -300,13 +302,23 @@ class CyberGym(BenchmarkPlugin):
         marker.write_text("ready\n")
 
     def grade(self, spec: ResolvedSpec, run_dir: Path, cache_root: Path) -> None:
-        grade_path = run_dir / "artifacts" / "cybergym" / "grades.json"
-        if not grade_path.is_file():
+        out = run_dir / "artifacts" / "cybergym"
+        # Rebuild grades.json from the append-only ledger when execute did not finish. For a clean
+        # run this is a no-op: grades.json already holds every task and wins over the ledger.
+        grades = fold_grades(out)
+        if not grades:
             raise StageError("CyberGym native harness did not produce grades.json")
-        grades = json.loads(grade_path.read_text())
         ids = _ids(run_dir, spec)
-        if set(grades) != set(ids):
-            raise StageError("CyberGym grades do not match the pool")
+        missing = set(ids) - set(grades)
+        if set(grades) - set(ids):
+            raise StageError("CyberGym grades contain tasks that are not in the pool")
+        if missing:
+            reason = stop_reason(run_dir)
+            if reason is None:
+                raise StageError("CyberGym grades do not match the pool")
+            # The run was deliberately stopped (cost cap, operator stop). Grade what finished and
+            # let normalize record the remainder as unrun rather than discarding the whole run.
+            _log_partial(run_dir, reason, graded=len(grades), total=len(ids))
         if spec.benchmark.sample_size == 1:
             self._write_gate(cache_root, "canary", spec, grades)
         elif spec.benchmark.sample_size == 10:
@@ -316,6 +328,8 @@ class CyberGym(BenchmarkPlugin):
     def _write_gate(cache_root: Path, name: str, spec: ResolvedSpec, grades: dict) -> None:
         if any(item.get("infrastructure_error") for item in grades.values()):
             return
+        if len(grades) != spec.benchmark.sample_size:
+            return  # a partial run must never certify a canary/smoke gate
         gate = cache_root / "cybergym" / "gates" / f"{name}.json"
         gate.parent.mkdir(parents=True, exist_ok=True)
         gate.write_text(
@@ -332,3 +346,13 @@ class CyberGym(BenchmarkPlugin):
 
     def normalize(self, spec: ResolvedSpec, run_dir: Path) -> list[TaskResult]:
         return normalize(spec, run_dir)
+
+
+def _log_partial(run_dir: Path, reason: str, *, graded: int, total: int) -> None:
+    """Record that grading ran over an intentionally incomplete pool."""
+    note = f"grading a partial pool: {graded}/{total} tasks completed (stop reason: {reason})\n"
+    log = run_dir / "logs" / "grade.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write(note)
+    print(note, end="", flush=True)

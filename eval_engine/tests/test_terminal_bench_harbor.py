@@ -41,7 +41,10 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
     pool = json.loads((run_dir / spec.benchmark.pool_path).read_text())
 
-    assert command[:4] == ["uv", "run", "harbor", "run"]
+    assert command[:3] == ["uv", "run", "python"]
+    # Harbor runs behind the engine's cost-guard bootstrap so a per-task dollar limit is enforced.
+    assert command[3].endswith("harbor_cost_guard.py")
+    assert command[4] == "run"
     assert command[command.index("-d") + 1] == spec.benchmark.dataset_id
     assert command[command.index("-a") + 1] == "terminus-2"
     assert command[command.index("-m") + 1] == "openrouter/z-ai/glm-5.2"
@@ -63,6 +66,32 @@ def test_builds_native_package_dataset_command(tmp_path: Path) -> None:
 def test_no_timeout_disables_harbor_agent_deadline(tmp_path: Path) -> None:
     spec, run_dir = terminal_spec(tmp_path)
     spec.execution.no_timeout = True
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--agent-timeout-multiplier") + 1] == "inf"
+
+
+def test_finite_multiplier_scales_the_agent_deadline(tmp_path: Path) -> None:
+    """The bounded alternative to --no-timeout.
+
+    Removing the deadline leaves the per-task dollar cap as the only bound on a task, and
+    Terminus 2 allows 1,000,000 episodes -- on a cheap model that is effectively no bound at
+    all. A multiplier gives a slow task more room without giving it forever.
+    """
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.agent_timeout_multiplier = 6
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert command[command.index("--agent-timeout-multiplier") + 1] == "6"
+
+
+def test_no_timeout_wins_over_a_multiplier(tmp_path: Path) -> None:
+    # The CLI rejects passing both, so this only pins the precedence of a spec built by hand.
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.execution.no_timeout = True
+    spec.execution.agent_timeout_multiplier = 6
 
     command = build_command(spec, run_dir, tmp_path / "cache", "secret")
 
@@ -123,7 +152,8 @@ def test_terminal_bench_runs_mini_swe_agent(tmp_path: Path) -> None:
     assert command[command.index("-a") + 1] == "mini-swe-agent"
     assert any("config_file=" in argument for argument in command)
     assert "version=2.4.5" in command
-    assert "cost_limit=5.0" in command
+    # The per-task cap comes from the benchmark profile, raised to an enforced $20.
+    assert "cost_limit=20.0" in command
 
 
 def test_resumes_existing_native_job(tmp_path: Path) -> None:
@@ -132,15 +162,10 @@ def test_resumes_existing_native_job(tmp_path: Path) -> None:
     job_dir.mkdir(parents=True)
     (job_dir / "config.json").write_text("{}")
 
-    assert build_command(spec, run_dir, tmp_path / "cache", "secret") == [
-        "uv",
-        "run",
-        "harbor",
-        "job",
-        "resume",
-        "-p",
-        str(job_dir),
-    ]
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+    assert command[:3] == ["uv", "run", "python"]
+    assert command[3].endswith("harbor_cost_guard.py")
+    assert command[4:] == ["job", "resume", "-p", str(job_dir)]
 
 
 @pytest.mark.parametrize(
@@ -243,6 +268,7 @@ def test_swebench_runs_default_mini_swe_agent(tmp_path: Path) -> None:
     assert command[command.index("-a") + 1] == "mini-swe-agent"
     assert any("config_file=" in argument for argument in command)
     assert "version=2.4.5" in command
+    # This is the swebench-verified-harbor profile, whose per-task cap is unchanged at $5.
     assert "cost_limit=5.0" in command
 
 
@@ -304,6 +330,44 @@ def test_cli_plan_records_no_timeout() -> None:
     assert result.exit_code == 0, result.output
     assert "no_timeout: true" in result.output
     assert "subject_agent_version: 2.0.0" in result.output
+
+
+def _plan_argv(*extra: str) -> list[str]:
+    return [
+        "plan",
+        "--benchmark",
+        "terminal-bench-2.1",
+        "--model",
+        "kimi-k3",
+        "--reasoning-effort",
+        "max",
+        "--provider",
+        "openrouter",
+        "--workers",
+        "1",
+        "--budget-usd",
+        "5",
+        "--sampling",
+        "random",
+        "--size",
+        "1",
+        *extra,
+    ]
+
+
+def test_cli_plan_records_the_agent_timeout_multiplier() -> None:
+    result = CliRunner().invoke(app, _plan_argv("--agent-timeout-multiplier", "6"))
+
+    assert result.exit_code == 0, result.output
+    assert "agent_timeout_multiplier: 6.0" in result.output
+
+
+def test_cli_plan_rejects_both_timeout_options() -> None:
+    result = CliRunner().invoke(app, _plan_argv("--no-timeout", "--agent-timeout-multiplier", "6"))
+
+    assert result.exit_code != 0
+    # The CLI lets ConfigurationError propagate, so the message is on the exception.
+    assert "set the same Harbor knob" in str(result.exception)
 
 
 def test_remote_deploy_selects_terminalbench_extra(tmp_path: Path, monkeypatch) -> None:

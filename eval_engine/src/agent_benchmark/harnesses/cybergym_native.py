@@ -15,12 +15,99 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from agent_benchmark.agents import agent_adapter
+from agent_benchmark.agents.base import litellm_model_name
 from agent_benchmark.config.schema import ResolvedSpec
 from agent_benchmark.exceptions import ConfigurationError, StageError
 from agent_benchmark.harnesses.base import HarnessAdapter
+from agent_benchmark.harnesses.cybergym_grades import append_grade, write_grades
+from agent_benchmark.harnesses.openhands_provider_pin import DROP_PARAMS_ENV
+from agent_benchmark.run.costguard import (
+    COST_LIMIT_MARKER,
+    LIMIT_ENV,
+    TASK_ID_ENV,
+    USAGE_LOG_ENV,
+)
+from agent_benchmark.run.stop import REASON_COST_CAP, request_stop, should_stop, stop_reason
 
 CYBERGYM_SALT = "CyberGym"
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+#: Recorded on a task the engine stopped for exhausting its per-task dollar limit.
+COST_LIMIT_ERROR_TYPE = "CostLimitExceeded"
+
+
+def _read_usage_ledger(path: Path) -> dict[str, object]:
+    """Summarise a task's ``llm_usage.jsonl`` into result fields.
+
+    CyberGym previously reported no cost at all. ``cost_complete`` is False when any priced call
+    was missing from LiteLLM's price table, so a partial total is never mistaken for the truth.
+    """
+    if not path.is_file():
+        return {"cost_usd": None, "llm_requests": 0, "cost_complete": False}
+    cost = 0.0
+    requests = 0
+    unpriced = 0
+    input_tokens = 0
+    output_tokens = 0
+    for line in path.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        requests += 1
+        value = record.get("cost_usd")
+        if isinstance(value, int | float):
+            cost += float(value)
+        else:
+            unpriced += 1
+        input_tokens += int(record.get("input_tokens") or 0)
+        output_tokens += int(record.get("output_tokens") or 0)
+    return {
+        "cost_usd": round(cost, 6) if requests else None,
+        "llm_requests": requests,
+        "input_tokens": input_tokens or None,
+        "output_tokens": output_tokens or None,
+        "cost_complete": requests > 0 and unpriced == 0,
+    }
+
+
+def _drop_params(spec: ResolvedSpec) -> str:
+    """Request parameters to strip for this transport, as a comma-separated list.
+
+    OpenHands sends these from its own config defaults with no way to omit them, and a model that
+    refuses one fails every single request. OpenRouter models accept them all and were used this
+    way by previous experiments, so nothing is stripped there.
+
+    * ``temperature``/``top_p`` -- current OpenAI and Anthropic models reject them outright.
+    * ``stop`` -- gpt-5.6 rejects it ("Unsupported parameter: 'stop' is not supported with this
+      model"). OpenHands uses stop sequences to terminate its non-native tool-call format; without
+      them the model may write past the closing tag, which its regex parser tolerates because it
+      matches the first complete ``<function=...></function>`` block.
+    """
+    if spec.model.api == "openrouter":
+        return ""
+    names = ["temperature", "top_p"]
+    if spec.model.api == "openai":
+        names.append("stop")
+    return ",".join(names)
+
+
+def _max_output_tokens(spec: ResolvedSpec) -> int:
+    """The output-token ceiling to request, taken from the model profile.
+
+    Every model caps this differently and exceeding the cap is a hard 400 on every single
+    request, so it must not be hardcoded. Profiles record it as either `max_output_tokens`
+    (Responses API naming) or `max_tokens` (chat-completions naming).
+    """
+    kwargs = spec.model.config.get("model", {}).get("model_kwargs", {})
+    for key in ("max_output_tokens", "max_tokens"):
+        value = kwargs.get(key)
+        if isinstance(value, int) and value > 0:
+            return value
+    return 64000
 
 
 def _safe(value: str) -> str:
@@ -132,35 +219,69 @@ class CyberGymNativeHarness(HarnessAdapter):
             ids = _ids(spec, run_dir)
             max_workers = max(1, min(spec.execution.workers, len(ids)))
             grades: dict[str, dict] = {}
+            # Unlike the third-party batch harnesses, this executor owns its own dispatch loop,
+            # so the experiment cost cap can be honoured by simply not starting more tasks.
+            # Nothing in flight is killed and no artifact is lost.
+            pending = iter(ids)
+            futures: dict = {}
             with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                futures = {
-                    pool.submit(
-                        self._run_task,
-                        task_id,
-                        spec,
-                        run_dir,
-                        tmp,
-                        source,
-                        data,
-                        examples,
-                        server_url,
-                        network,
-                        model_api_key,
-                        server_key,
-                    ): task_id
-                    for task_id in ids
-                }
-                for future in as_completed(futures):
-                    task_id = futures[future]
+
+                def submit_next() -> bool:
+                    if should_stop(run_dir):
+                        return False
+                    task_id = next(pending, None)
+                    if task_id is None:
+                        return False
+                    futures[
+                        pool.submit(
+                            self._run_task,
+                            task_id,
+                            spec,
+                            run_dir,
+                            tmp,
+                            source,
+                            data,
+                            examples,
+                            server_url,
+                            network,
+                            model_api_key,
+                            server_key,
+                        )
+                    ] = task_id
+                    return True
+
+                for _ in range(max_workers):
+                    if not submit_next():
+                        break
+                while futures:
+                    future = next(as_completed(list(futures)))
+                    task_id = futures.pop(future)
                     try:
-                        grades[task_id] = future.result()
+                        grade = future.result()
                     except Exception as error:  # preserve per-task failures and continue the pool
-                        grades[task_id] = {
+                        grade = {
                             "infrastructure_error": True,
                             "error_type": type(error).__name__,
                             "error_message": str(error),
                         }
-            (out / "grades.json").write_text(json.dumps(grades, indent=2) + "\n")
+                    grades[task_id] = grade
+                    # Append before the pool drains. A kill mid-run used to lose the grade of
+                    # every finished task because the aggregate was only written at the end;
+                    # `grade` folds this ledger back into grades.json.
+                    append_grade(out, task_id, grade)
+                    # Check the experiment cap against measured spend, then refill the freed
+                    # slot. Once the cap is reached submit_next() declines and the pool drains.
+                    self._enforce_experiment_cap(spec, run_dir, grades)
+                    submit_next()
+            write_grades(out, grades)
+            if should_stop(run_dir):
+                unrun = [task_id for task_id in ids if task_id not in grades]
+                if unrun:
+                    print(
+                        f"stopped with {len(unrun)} task(s) unrun "
+                        f"({stop_reason(run_dir)}); grading the {len(grades)} completed",
+                        flush=True,
+                    )
         finally:
             if server is not None:
                 server.terminate()
@@ -361,6 +482,15 @@ class CyberGymNativeHarness(HarnessAdapter):
                 # Resolve the in-project 3.12 virtualenv built during prepare, never the
                 # engine's 3.14 environment.
                 "POETRY_VIRTUALENVS_IN_PROJECT": "true",
+                # OpenHands enforces no dollar limit of its own and records no cost, so the
+                # bootstrap meters every LiteLLM call against this ceiling and writes the ledger.
+                LIMIT_ENV: f"{spec.budget.per_task_usd:.6f}",
+                USAGE_LOG_ENV: str(log_dir / "llm_usage.jsonl"),
+                TASK_ID_ENV: task_id,
+                # OpenHands always sends temperature from an LLMConfig default; current OpenAI
+                # and Anthropic models reject it outright, which killed every task on its first
+                # call. OpenRouter models accept it, so only strip it where it is refused.
+                DROP_PARAMS_ENV: _drop_params(spec),
             }
         )
         provider_pin = self._provider_pin(spec)
@@ -385,6 +515,10 @@ class CyberGymNativeHarness(HarnessAdapter):
                 env=process_env,
                 timeout=invocation.kwargs["timeout"],  # None => no wall-clock limit
             )
+            # A cost-limit stop is a deliberate terminal state, never a transient failure: retrying
+            # would spend the limit again on the same task.
+            if COST_LIMIT_MARKER in output:
+                break
             if final_path.is_file() or attempt > retries or not _transient_llm_error(output):
                 break
             # Keep the aborted attempt's log, then retry from a clean agent run.
@@ -401,19 +535,53 @@ class CyberGymNativeHarness(HarnessAdapter):
             task_id,
             server_key,
         )
+        usage = _read_usage_ledger(log_dir / "llm_usage.jsonl")
         grade.update(
             {
                 "duration_seconds": time.monotonic() - started,
                 "agent_exit_code": code,
                 "agent_attempts": attempts,
+                **usage,
                 "raw_artifacts": [
                     str(path.relative_to(run_dir)) for path in log_dir.rglob("*") if path.is_file()
                 ],
             }
         )
-        if code and "AgentTimeoutError" in output:
+        if COST_LIMIT_MARKER in output:
+            # The task stopped because it exhausted its own budget. Everything produced up to that
+            # point is kept and graded; only this task ends.
+            grade["error_type"] = COST_LIMIT_ERROR_TYPE
+            grade["terminal_reason"] = COST_LIMIT_ERROR_TYPE
+        elif code and "AgentTimeoutError" in output:
             grade.setdefault("error_type", "AgentTimeoutError")
         return grade
+
+    @staticmethod
+    def _enforce_experiment_cap(spec: ResolvedSpec, run_dir: Path, grades: dict[str, dict]) -> None:
+        """Request a clean stop once measured spend reaches the experiment's total cap.
+
+        CyberGym was previously outside the engine's budget watchdog entirely, because that
+        watchdog polls a Harbor job directory. Spend is summed from the per-task ledgers the
+        cost guard writes, so it is measured rather than estimated.
+        """
+        cap = spec.budget.total_usd
+        if cap is None or should_stop(run_dir):
+            return
+        spent = 0.0
+        complete = True
+        for grade in grades.values():
+            cost = grade.get("cost_usd")
+            if isinstance(cost, int | float):
+                spent += float(cost)
+            if not grade.get("cost_complete", False):
+                complete = False
+        if spent < cap:
+            return
+        detail = f"measured ${spent:.2f} reached the ${cap:.2f} cap"
+        if not complete:
+            detail += " (some calls could not be priced, so true spend is at least this)"
+        request_stop(run_dir, REASON_COST_CAP, detail)
+        print(f"experiment cost cap reached: {detail}; starting no further tasks", flush=True)
 
     @staticmethod
     def _provider_pin(spec: ResolvedSpec) -> dict | None:
@@ -454,13 +622,14 @@ class CyberGymNativeHarness(HarnessAdapter):
 
     @staticmethod
     def _config_toml(workspace: Path, log_dir: Path, network: str, spec: ResolvedSpec) -> str:
-        model = spec.model.model_id
-        if spec.model.api == "openrouter":
-            model = f"openrouter/{model}"
-            base_url = "https://openrouter.ai/api/v1"
-        else:
-            base_url = ""
-        effort = spec.model.reasoning_effort or "max"
+        model = litellm_model_name(spec)
+        base_url = {
+            "openrouter": "https://openrouter.ai/api/v1",
+            "openai": "https://api.openai.com/v1",
+        }.get(spec.model.api, "")
+        # An unset effort means "use the provider default" and must not be silently promoted to
+        # a concrete value here.
+        effort = spec.model.reasoning_effort
         # The sandbox bash session hands control back to the model with a "no new output"
         # prompt after NO_CHANGE_TIMEOUT_SECONDS (OpenHands default 10s). That is far too
         # short for the installs/builds these tasks run: the command is still working, but
@@ -493,11 +662,22 @@ class CyberGymNativeHarness(HarnessAdapter):
             "[llm]",
             f"model = {json.dumps(model)}",
             f"base_url = {json.dumps(base_url)}",
-            # No artificial output cap: use the model's own maximum so a reasoning model's
-            # thinking tokens can't exhaust the budget before it emits its tool call.
-            "max_output_tokens = 131072",
+            # Generous but model-specific: a reasoning model's thinking tokens must not exhaust
+            # the budget before it emits its tool call, but exceeding the model's own ceiling is
+            # a hard 400 on every request ("max_tokens: 131072 > 128000, which is the maximum
+            # allowed number of output tokens"). Take the value from the model profile.
+            f"max_output_tokens = {_max_output_tokens(spec)}",
             "log_completions = true",
-            f"reasoning_effort = {json.dumps(effort)}",
+        ]
+        if spec.model.api == "openai":
+            # gpt-5.6 rejects function tools combined with reasoning on /v1/chat/completions,
+            # which is the only endpoint OpenHands speaks. Disabling native tool calling makes it
+            # emit the <function=...> text format instead -- the format this bootstrap already
+            # parses and repairs -- so the model keeps its reasoning.
+            lines.append("native_tool_calling = false")
+        if effort is not None:
+            lines.append(f"reasoning_effort = {json.dumps(effort)}")
+        lines += [
             "[sandbox]",
             'runtime_container_image = "docker.all-hands.dev/all-hands-ai/runtime:0.33-nikolaik"',
             'runtime_binding_address = "127.0.0.1"',
