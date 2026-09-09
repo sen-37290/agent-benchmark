@@ -23,7 +23,7 @@ def _pool(tmp_path: Path, ids: list[str]) -> Path:
 def _make_request(**overrides):
     """Build a UserRequest from named defaults.
 
-    Keyword-only on purpose: _request takes seventeen parameters, and calling it positionally
+    Keyword-only on purpose: _request takes eighteen parameters, and calling it positionally
     meant every new option silently shifted the remaining arguments along.
     """
     defaults: dict = {
@@ -40,6 +40,7 @@ def _make_request(**overrides):
         "budget_usd": 500.0,
         "no_budget_limit": False,
         "per_task_cost_limit_usd": None,
+        "allow_cost_limit_override": False,
         "no_timeout": False,
         "agent_timeout_multiplier": None,
         "error_retries": None,
@@ -147,7 +148,6 @@ def test_terminus_per_task_limit_follows_the_benchmark_setting(tmp_path: Path) -
     # Host-only: the key must never be in `environment`, which is what crosses into the container.
     assert invocation.environment == {}
     assert invocation.process_environment["ANTHROPIC_API_KEY"] == "secret-key"
-
     # A benchmark that opts out passes no limit, and the guard then installs nothing.
     spec.benchmark.settings["enforce_per_task_cost_limit"] = False
     invocation = agent_adapter("terminus-2").invocation(spec, tmp_path, "secret-key")
