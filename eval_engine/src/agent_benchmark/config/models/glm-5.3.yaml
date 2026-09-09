@@ -4,7 +4,7 @@ api: openrouter
 supported_providers: [openrouter]
 api_key_env: OPENROUTER_API_KEY
 effort_path: model.model_kwargs.reasoning.effort
-supported_efforts: [high, xhigh]
+supported_efforts: [high, xhigh, max]
 config:
   model:
     model_name: z-ai/glm-5.3
