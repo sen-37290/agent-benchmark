@@ -54,7 +54,7 @@ requires-dist = [
     { name = "swebench", marker = "extra == 'swebench'", specifier = "==4.0.3" },
     { name = "typer", specifier = ">=0.15,<1" },
 ]
-provides-extras = ["swebench", "terminalbench", "cybergym"]
+provides-extras = ["swebench", "terminalbench"]
 
 [package.metadata.requires-dev]
 dev = [
