@@ -387,3 +387,117 @@ def test_remote_deploy_selects_terminalbench_extra(tmp_path: Path, monkeypatch) 
     backend.deploy(run_dir)
 
     assert any("uv sync --frozen --extra terminalbench" in command for command in commands)
+
+
+@pytest.fixture
+def harbor_supports_streaming(monkeypatch):
+    """Isolate argument construction from the installed Harbor's own capability.
+
+    These tests are about what the adapter asks for. Whether the pinned Harbor can honour it is
+    a separate concern, covered by test_streaming_fails_loudly_on_an_unsupporting_harbor.
+    """
+    from agent_benchmark.agents import terminus_2 as adapter_module
+
+    monkeypatch.setattr(adapter_module, "_require_harbor_streaming_support", lambda: None)
+
+
+def test_streaming_is_off_unless_the_benchmark_asks(tmp_path: Path) -> None:
+    """The transport swap must be opt-in: an unchanged profile keeps the old behaviour."""
+    spec, run_dir = terminal_spec(tmp_path)
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert not any(argument.startswith("stream=") for argument in command)
+
+
+def test_streaming_reaches_harbor_when_the_benchmark_asks(
+    tmp_path: Path, harbor_supports_streaming
+) -> None:
+    """A benchmark that sets stream_llm_calls must actually turn Harbor's streaming on.
+
+    Harbor consumes the stream internally and returns one complete response, so the run's
+    artifacts look identical either way -- this argument is the only place the transport is
+    visible before the fact.
+    """
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings["stream_llm_calls"] = True
+    spec.benchmark.settings["stream_idle_timeout_seconds"] = 240
+    spec.benchmark.settings["stream_deadline_seconds"] = 900
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert "stream=true" in command
+    assert "stream_idle_timeout_seconds=240.0" in command
+    assert "stream_deadline_seconds=900.0" in command
+
+
+def test_streaming_leaves_unset_timeouts_to_harbor(
+    tmp_path: Path, harbor_supports_streaming
+) -> None:
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings["stream_llm_calls"] = True
+
+    command = build_command(spec, run_dir, tmp_path / "cache", "secret")
+
+    assert "stream=true" in command
+    assert not any(argument.startswith("stream_idle_timeout_seconds=") for argument in command)
+    assert not any(argument.startswith("stream_deadline_seconds=") for argument in command)
+
+
+def test_streaming_raises_the_retry_budget_above_one_attempt(
+    tmp_path: Path, monkeypatch, harbor_supports_streaming
+) -> None:
+    """A stalled streaming attempt must leave time in the budget to be retried.
+
+    Harbor bounds one streaming request by a wall-clock deadline and raises litellm.Timeout,
+    which the cost guard treats as transient. With the deadline and the retry budget both at
+    1800s, the first stall would spend the entire budget and the retry would never happen --
+    turning a recoverable stall into a failed trial.
+    """
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+    from agent_benchmark.harnesses.harbor_cost_guard import BUDGET_ENV
+
+    monkeypatch.delenv(BUDGET_ENV, raising=False)
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings["stream_llm_calls"] = True
+
+    invocation = Terminus2Adapter().invocation(spec, run_dir, "secret")
+
+    assert float(invocation.process_environment[BUDGET_ENV]) > 1800.0
+
+
+def test_streaming_leaves_an_operator_set_retry_budget_alone(
+    tmp_path: Path, monkeypatch, harbor_supports_streaming
+) -> None:
+    """process_environment overrides the inherited environment, so it must not clobber a choice."""
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+    from agent_benchmark.harnesses.harbor_cost_guard import BUDGET_ENV
+
+    monkeypatch.setenv(BUDGET_ENV, "600")
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings["stream_llm_calls"] = True
+
+    invocation = Terminus2Adapter().invocation(spec, run_dir, "secret")
+
+    assert BUDGET_ENV not in invocation.process_environment
+
+
+def test_streaming_fails_loudly_on_an_unsupporting_harbor(tmp_path: Path, monkeypatch) -> None:
+    """Harbor drops agent kwargs it does not know, so an unsupporting pin must be caught here.
+
+    Otherwise a run asking to stream launches, reports nothing unusual, and goes out over the
+    silent transport the setting exists to avoid -- and its artifacts are indistinguishable
+    from a streamed run's afterwards.
+    """
+    from agent_benchmark.agents.terminus_2 import Terminus2Adapter
+    from agent_benchmark.exceptions import StageError
+
+    class HarborWithoutStreaming:
+        def __init__(self, logs_dir, model_name=None, **kwargs):
+            pass
+
+    monkeypatch.setattr("harbor.agents.terminus_2.terminus_2.Terminus2", HarborWithoutStreaming)
+    spec, run_dir = terminal_spec(tmp_path)
+    spec.benchmark.settings["stream_llm_calls"] = True
+
+    with pytest.raises(StageError, match="stream_llm_calls"):
+        Terminus2Adapter().invocation(spec, run_dir, "secret")
