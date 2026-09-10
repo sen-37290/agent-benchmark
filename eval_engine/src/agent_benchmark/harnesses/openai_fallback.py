@@ -27,9 +27,28 @@ Those seams sit BELOW Harbor's own tenacity retry and cost guard, so a refusal i
 per underlying HTTP call and is transparent to everything above it. The wrapper is a pure
 function of the call's kwargs -- it never mutates the ``LiteLLM`` instance -- so every new
 agent turn starts again at the primary model and only climbs the ladder for the calls that
-are actually refused. Streaming needs no special handling: a content-policy refusal is
-raised by the ``await`` that opens the request, before any chunk is yielded, so it is caught
-here exactly as a non-streaming one is.
+are actually refused.
+
+STREAMING NEEDS ITS OWN HANDLING, and an earlier version of this file wrongly claimed it did
+not. A streamed refusal does NOT come out of the ``await`` that opens the request: that call
+succeeds and returns an iterator, and the refusal surfaces while the iterator is being
+consumed, as ``litellm.MidStreamFallbackError``. The wrap had already returned by then, so it
+never saw it. Measured on a real run: the ladder was installed, logged 1,029 served calls and
+recorded ZERO refusals, while both cyber tasks died anyway.
+
+So a streaming call returns a generator that owns the ladder and can restart it mid-stream.
+Whether restarting is SAFE depends on how the caller assembles the response, which is why the
+seam is passed in:
+
+* ``responses`` -- Harbor's ``_consume_responses_stream`` keeps only the terminal
+  ``response.completed`` event and discards everything before it. A refused stream never emits
+  one, so re-issuing is always safe: the events already yielded belong to a response that will
+  never complete, and the caller was going to drop them regardless. Observed refusals arrive
+  after 2-4 preamble events and no output text at all.
+* ``chat_completions`` -- ``stream_chunk_builder`` accumulates EVERY chunk into one response,
+  so replaying a second stream's chunks after the first's would splice two answers together.
+  Re-issuing is therefore allowed only while nothing has been yielded; after that the refusal
+  is raised, which is the same outcome as having no ladder and never a corrupted one.
 
 The ladder is the ordered list of models to try, primary first, each attempted once:
 
@@ -115,18 +134,118 @@ def _record(entry: dict[str, Any]) -> None:
             pass
 
 
+def _ladder_for(requested_model: Any, fallbacks: list[str]) -> list[Any]:
+    """The ordered models to try for one call.
+
+    When the caller's model is already the configured list's head -- the common case, the run's
+    primary model -- the list IS the full sequence. Otherwise the caller's model is tried first
+    and the list supplies the fallbacks after it.
+    """
+    if requested_model in fallbacks:
+        return fallbacks[fallbacks.index(requested_model) :]
+    return [requested_model, *fallbacks] if requested_model else list(fallbacks)
+
+
+def _may_reissue_mid_stream(api: str, yielded: int) -> bool:
+    """Whether a refusal partway through a stream can be retried on the next model.
+
+    See the module docstring: the Responses caller keeps only the terminal event, so restarting
+    is always safe there. The chat caller accumulates every chunk, so restarting after it has
+    seen one would splice two answers into a single response.
+    """
+    return api == "responses" or yielded == 0
+
+
+def _streaming_ladder(  # type: ignore[no-untyped-def]
+    original: Any, ladder: list[Any], api: str, requested_model: Any, args, kwargs
+):
+    """Consume a streamed request, climbing the ladder on a content-policy refusal."""
+
+    async def generate():  # type: ignore[no-untyped-def]
+        last_error: BaseException | None = None
+        yielded = 0
+        for index, model in enumerate(ladder):
+            attempt_kwargs = {**kwargs, "model": model}
+            entry = {
+                "api": api,
+                "requested_model": requested_model,
+                "attempted_model": model,
+                "ladder_index": index,
+                "streamed": True,
+            }
+            try:
+                stream = await original(*args, **attempt_kwargs)
+            except Exception as error:  # noqa: BLE001 -- re-raised unless it is a refusal
+                if not _is_content_policy_refusal(error):
+                    raise
+                last_error = error
+                _record({**entry, "outcome": "refused", "phase": "open", "error": str(error)[:300]})
+                continue
+
+            try:
+                async for event in stream:
+                    yielded += 1
+                    yield event
+            except Exception as error:  # noqa: BLE001 -- re-raised unless it is a refusal
+                if not _is_content_policy_refusal(error):
+                    raise
+                if not _may_reissue_mid_stream(api, yielded):
+                    # Raising is the same outcome as having no ladder at all, and strictly
+                    # better than handing back two answers spliced together.
+                    _record(
+                        {
+                            **entry,
+                            "outcome": "refused",
+                            "phase": "mid_stream",
+                            "events_before_refusal": yielded,
+                            "reissued": False,
+                            "error": str(error)[:300],
+                        }
+                    )
+                    raise
+                last_error = error
+                _record(
+                    {
+                        **entry,
+                        "outcome": "refused",
+                        "phase": "mid_stream",
+                        "events_before_refusal": yielded,
+                        "reissued": True,
+                        "error": str(error)[:300],
+                    }
+                )
+                yielded = 0
+                continue
+
+            _record({**entry, "outcome": "served", "served_by_fallback": index > 0})
+            return
+
+        _record(
+            {
+                "api": api,
+                "requested_model": requested_model,
+                "ladder": ladder,
+                "streamed": True,
+                "outcome": "provider_refusal",
+            }
+        )
+        assert last_error is not None  # only reached after at least one refusal
+        raise last_error
+
+    return generate()
+
+
 def _wrap(original: Any, fallbacks: list[str], api: str) -> Any:
     """Return ``original`` with the refusal ladder around it, for one LiteLLM entry point."""
 
     async def call_with_fallback(*args, **kwargs):  # type: ignore[no-untyped-def]
         requested_model = kwargs.get("model")
-        # The ladder is the configured list. When the caller's model is already its head (the
-        # common case -- the run's primary model), the list IS the full sequence. Otherwise the
-        # caller's model is tried first and the list supplies the fallbacks after it.
-        if requested_model in fallbacks:
-            ladder = fallbacks[fallbacks.index(requested_model) :]
-        else:
-            ladder = [requested_model, *fallbacks] if requested_model else list(fallbacks)
+        ladder = _ladder_for(requested_model, fallbacks)
+
+        if kwargs.get("stream"):
+            # Hand back a generator that owns the ladder. Awaiting the underlying call only
+            # opens the stream; the refusal arrives later, while it is being read.
+            return _streaming_ladder(original, ladder, api, requested_model, args, kwargs)
 
         last_error: BaseException | None = None
         for index, model in enumerate(ladder):
@@ -155,8 +274,6 @@ def _wrap(original: Any, fallbacks: list[str], api: str) -> Any:
                     "requested_model": requested_model,
                     "attempted_model": model,
                     "ladder_index": index,
-                    # A streamed request has yielded nothing yet, so there is no served model to
-                    # read off it. The attempted model is the honest answer, not a guess.
                     "served_model": _response_model(response) or model,
                     "outcome": "served",
                     "served_by_fallback": index > 0,
