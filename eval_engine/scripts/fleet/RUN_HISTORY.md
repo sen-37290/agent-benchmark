@@ -183,10 +183,46 @@ task, and the **$1,500 experiment cap is enforced**, not disabled, as the bound 
 Only sol carries the `cyber_policy` refusal ladder (sol -> sol -> terra -> luna). terra and luna
 let a refusal fail, so their scores are entirely their own snapshot's work.
 
-`verify_responses_effort` passed on all three before any run was created. Fifteen minutes in, the
-per-call audit read **377 of 377 calls** at `served_effort: max` on `api: responses`, streamed,
-zero non-`ok` outcomes and zero mismatches, with reasoning depth up to 15,812 tokens on a single
-call -- against the 22-30 median that characterised the cohort silently served `medium`.
+`verify_responses_effort` passed on all three before any run was created, and every call in every
+run was served at `max` -- `api: responses`, streamed, zero effort mismatches -- with reasoning
+depth reaching 15,812 tokens on a single call, against the 22-30 median that characterised the
+cohort silently served `medium`.
+
+### Results
+
+| model | resolved | accuracy | infra errors | cost | its xhigh run |
+|---|---|---|---|---|---|
+| gpt-5-6-sol | 73/89 | 82.02% | 3 | $97.09 | 87.64% |
+| gpt-5-6-terra | 75/89 | **84.27%** | 1 | $63.52 | 74.16% |
+| gpt-5-6-luna | 65/89 | 73.03% | 0 | $5.80 | 75.28% |
+
+Accuracy counts an errored trial as a failure, so these are the conservative numbers. Max effort
+moved terra by **+10.1 points** and reversed the ordering: terra now leads sol, where at xhigh sol
+led by 13.5. sol and luna both came in slightly below their xhigh runs. luna's $5.80 against
+terra's $63.52 on identical work is worth understanding before its 73.03% is read as comparable.
+
+### The four trials that did not produce a graded result
+
+| model | task | cause | re-runnable |
+|---|---|---|---|
+| sol | `break-filter-js-from-html` | `MidStreamFallbackError` (cyber_policy) | yes, needs the mid-stream fallback fix |
+| sol | `vulnerable-secret` | `MidStreamFallbackError` (cyber_policy) | yes, needs the mid-stream fallback fix |
+| sol | `reshard-c4-data` | `CostLimitExceeded` at $25.68 | only with a raised per-task cap |
+| terra | `build-pov-ray` | tmux server died mid-task (`no server running`) | yes, a plain retry |
+
+**None of these were retried automatically.** A task is only re-run when its last attempt is
+marked `retryable`, and `is_transient` classifies none of these as transient -- so all three runs
+finished on attempt-01 with the losses baked in. Worth knowing before assuming `error_retries: 3`
+covers this class of failure.
+
+The two cyber refusals were the ladder failing silently: it was configured on sol, logged 1,029
+served calls, and recorded **zero** refusals, because a streamed refusal surfaces while the
+iterator is consumed rather than from the call that opens it. Fixed separately.
+
+`reshard-c4-data` is not a harness fault -- it is the mandatory $20 per-task cap doing its job on
+a task that ran over three hours under `no_timeout`. Note the overshoot: the guard stops the trial
+once cumulative cost crosses the limit, but calls already in flight still land, so the recorded
+cost is $25.68 rather than $20.
 
 ## Reconstruction references
 
