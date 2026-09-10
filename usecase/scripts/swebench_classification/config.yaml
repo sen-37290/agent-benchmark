@@ -1,0 +1,26 @@
+# Scraped SWE-bench Verified workbook joined to the original GitHub PRs.
+# Point this at your own copy. A relative path resolves against the directory
+# you run run.py from.
+input_xlsx: swe_bench_verified__matched_to_original_pr.xlsx
+output_dir: outputs/solver_demand_v1
+dataset_id: princeton-nlp/SWE-bench_Verified
+dataset_split: test
+random_seed: 37290
+open_coding_sample_size: 30
+validation_sample_size: 20
+low_confidence_threshold: 0.70
+taxonomy_version: solver-demand-v1
+primary_class_min_cases: 3
+primary_class_min_count: 5
+primary_class_max_count: 12
+
+model:
+  name: gpt-5.6-terra
+  reasoning_effort: medium
+  max_retries: 3
+  concurrency: 3
+
+normalization:
+  header_aliases:
+    instance_id: case_id
+  remove_obvious_github_navigation: true

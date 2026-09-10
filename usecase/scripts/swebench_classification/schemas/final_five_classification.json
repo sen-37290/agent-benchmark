@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["quote", "reason", "classification"],
+  "properties": {
+    "quote": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "classification": {
+      "type": "string",
+      "enum": [
+        "DATA_FIDELITY_PROBLEMS",
+        "TRACING_AND_OBSERVABILITY_PROBLEMS",
+        "RENDERING_AND_VISUAL_PROBLEMS",
+        "COMPATIBILITY_PROBLEMS",
+        "PARSING_PROBLEMS"
+      ]
+    }
+  }
+}
