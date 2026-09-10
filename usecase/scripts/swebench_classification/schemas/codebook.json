@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "solver_demand_codebook",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["primary_classes"],
+  "properties": {
+    "primary_classes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "definition", "solver_actions", "inclusion_criteria", "exclusion_criteria", "neighbor_distinctions", "motivating_case_ids"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$"},
+          "definition": {"type": "string"},
+          "solver_actions": {"type": "array", "items": {"type": "string"}},
+          "inclusion_criteria": {"type": "array", "items": {"type": "string"}},
+          "exclusion_criteria": {"type": "array", "items": {"type": "string"}},
+          "neighbor_distinctions": {"type": "array", "items": {"type": "string"}},
+          "motivating_case_ids": {"type": "array", "minItems": 3, "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}
