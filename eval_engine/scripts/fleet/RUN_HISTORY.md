@@ -164,6 +164,66 @@ scope was trimmed to the effort audit alone; the code producing these fields is 
 the final commit `9f555fa9` was re-checked with real calls on both transports (`served_effort:
 max`, 516 and 493 reasoning tokens).
 
+## Full Terminal-Bench at max effort, on the Responses API
+
+The first full Terminal-Bench 2.1 runs at `reasoning_effort=max`. Earlier gpt-5.6 runs topped out
+at `xhigh` because chat completions rejects `max` outright; these go through `/v1/responses`.
+
+| label | model | key | VM |
+|---|---|---|---|
+| `sen-gpt-5-6-sol-terminal-bench-response-api-max` | `gpt-5-6-sol` | `SEN_GPT_5_6_SOL_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+| `sen-gpt-5-6-terra-terminal-bench-response-api-max` | `gpt-5-6-terra` | `SEN_GPT_5_6_TERRA_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+| `sen-gpt-5-6-luna-terminal-bench-response-api-max` | `gpt-5-6-luna` | `SEN_GPT_5_6_LUNA_TERMINAL_BENCH_RESPONSE_API_MAX` | same-named, n2-standard-32 |
+
+Launched 2026-09-09T23:38-23:40Z, 89 tasks each, 12 workers, harbor `9f555fa9`, LiteLLM 1.100.0.
+The agent deadline is disabled (`no_timeout`): a max-effort turn is long, and a task cut off at
+the deadline can score 0 with a passing verifier. The $20 per-task cap therefore bounds any one
+task, and the **$1,500 experiment cap is enforced**, not disabled, as the bound on the run.
+
+Only sol carries the `cyber_policy` refusal ladder (sol -> sol -> terra -> luna). terra and luna
+let a refusal fail, so their scores are entirely their own snapshot's work.
+
+`verify_responses_effort` passed on all three before any run was created, and every call in every
+run was served at `max` -- `api: responses`, streamed, zero effort mismatches -- with reasoning
+depth reaching 15,812 tokens on a single call, against the 22-30 median that characterised the
+cohort silently served `medium`.
+
+### Results
+
+| model | resolved | accuracy | infra errors | cost | its xhigh run |
+|---|---|---|---|---|---|
+| gpt-5-6-sol | 73/89 | 82.02% | 3 | $97.09 | 87.64% |
+| gpt-5-6-terra | 75/89 | **84.27%** | 1 | $63.52 | 74.16% |
+| gpt-5-6-luna | 65/89 | 73.03% | 0 | $5.80 | 75.28% |
+
+Accuracy counts an errored trial as a failure, so these are the conservative numbers. Max effort
+moved terra by **+10.1 points** and reversed the ordering: terra now leads sol, where at xhigh sol
+led by 13.5. sol and luna both came in slightly below their xhigh runs. luna's $5.80 against
+terra's $63.52 on identical work is worth understanding before its 73.03% is read as comparable.
+
+### The four trials that did not produce a graded result
+
+| model | task | cause | re-runnable |
+|---|---|---|---|
+| sol | `break-filter-js-from-html` | `MidStreamFallbackError` (cyber_policy) | yes, needs the mid-stream fallback fix |
+| sol | `vulnerable-secret` | `MidStreamFallbackError` (cyber_policy) | yes, needs the mid-stream fallback fix |
+| sol | `reshard-c4-data` | `CostLimitExceeded` at $25.68 | only with a raised per-task cap |
+| terra | `build-pov-ray` | tmux server died mid-task (`no server running`) | yes, a plain retry |
+
+**None of these were retried automatically.** A task is only re-run when its last attempt is
+marked `retryable`, and `is_transient` classifies none of these as transient -- so all three runs
+finished on attempt-01 with the losses baked in. Worth knowing before assuming `error_retries: 3`
+covers this class of failure.
+
+The two cyber refusals were the ladder failing silently: it was configured on sol, logged 1,029
+served calls, and recorded **zero** refusals, because a streamed refusal surfaces while the
+iterator is consumed rather than from the call that opens it. Fixed separately.
+
+`reshard-c4-data` is not a harness fault -- it is the mandatory $20 per-task cap doing its job on
+a task that ran over three hours under `no_timeout`. Note the overshoot: the guard stops the trial
+once cumulative cost crosses the limit, but calls already in flight still land, so the recorded
+cost is $25.68 rather than $20.
+
 ## Reconstruction references
 
 - Claude session `8c4fb3ce-1f11-4d65-93a8-fb0abeb0f0bb`: initial fleet creation and launch.
