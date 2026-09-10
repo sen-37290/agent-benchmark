@@ -121,3 +121,155 @@ def test_every_rung_refused_reraises_the_last_refusal(litellm_module, tmp_path) 
         "refused",
         "provider_refusal",
     ]
+
+
+# --- Streamed refusals ----------------------------------------------------------------------
+#
+# A streamed refusal does not come out of the await that opens the request. That call succeeds
+# and returns an iterator; litellm raises MidStreamFallbackError later, while the iterator is
+# being read. The first version of this wrap had already returned by then and never saw it --
+# on a real run it logged 1,029 served calls, zero refusals, and both cyber tasks died anyway.
+
+MID_STREAM_REFUSAL = (
+    "litellm.MidStreamFallbackError: litellm.APIError: This content was flagged for "
+    "possible cybersecurity risk."
+)
+
+
+def _streaming_provider(refuse_models: list[str], preamble: int = 3):
+    """A streamed call that emits `preamble` events, then refuses the named models."""
+
+    async def call(**kwargs):
+        model = kwargs["model"]
+
+        async def stream():
+            for i in range(preamble):
+                yield {"type": "response.created", "model": model, "seq": i}
+            if model in refuse_models:
+                raise RuntimeError(MID_STREAM_REFUSAL)
+            yield {"type": "response.completed", "model": model}
+
+        return stream()
+
+    return call
+
+
+async def _drain(gen):
+    return [event async for event in gen]
+
+
+def test_streamed_refusal_climbs_the_ladder_on_the_responses_seam(litellm_module, tmp_path):
+    """The failure this fixes: refusal after several events, on the Responses API."""
+    litellm_module.aresponses = _streaming_provider(["openai/gpt-5.6-sol"])
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.aresponses(model="openai/gpt-5.6-sol", input="x", stream=True)
+        return await _drain(gen)
+
+    events = asyncio.run(run())
+
+    # The terminal event -- the only one Harbor keeps -- comes from the fallback model.
+    terminal = [e for e in events if e["type"] == "response.completed"]
+    assert terminal == [{"type": "response.completed", "model": "openai/gpt-5.6-terra"}]
+
+    entries = _ledger(tmp_path)
+    assert [e["outcome"] for e in entries] == ["refused", "served"]
+    assert entries[0]["phase"] == "mid_stream"
+    assert entries[0]["events_before_refusal"] == 3
+    assert entries[0]["reissued"] is True
+    assert entries[1]["served_by_fallback"] is True
+
+
+def test_chat_streaming_does_not_splice_two_answers_together(litellm_module, tmp_path):
+    """stream_chunk_builder concatenates every chunk, so a mid-stream restart would corrupt it.
+
+    Raising is the same outcome as having no ladder; a spliced response would be worse than
+    either, because nothing downstream could detect it.
+    """
+    litellm_module.acompletion = _streaming_provider(["openai/gpt-5.6-sol"])
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.acompletion(model="openai/gpt-5.6-sol", messages=[], stream=True)
+        return await _drain(gen)
+
+    with pytest.raises(RuntimeError, match="cybersecurity"):
+        asyncio.run(run())
+
+    entry = _ledger(tmp_path)[-1]
+    assert entry["phase"] == "mid_stream"
+    assert entry["reissued"] is False
+
+
+def test_chat_streaming_still_climbs_when_nothing_was_yielded(litellm_module, tmp_path):
+    """With no chunk delivered yet there is nothing to corrupt, so the ladder applies."""
+    litellm_module.acompletion = _streaming_provider(["openai/gpt-5.6-sol"], preamble=0)
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.acompletion(model="openai/gpt-5.6-sol", messages=[], stream=True)
+        return await _drain(gen)
+
+    events = asyncio.run(run())
+
+    assert events == [{"type": "response.completed", "model": "openai/gpt-5.6-terra"}]
+    assert _ledger(tmp_path)[0]["reissued"] is True
+
+
+def test_every_rung_refused_mid_stream_reraises(litellm_module, tmp_path):
+    litellm_module.aresponses = _streaming_provider(LADDER)
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.aresponses(model="openai/gpt-5.6-sol", input="x", stream=True)
+        return await _drain(gen)
+
+    with pytest.raises(RuntimeError, match="cybersecurity"):
+        asyncio.run(run())
+
+    assert [e["outcome"] for e in _ledger(tmp_path)] == [
+        "refused",
+        "refused",
+        "refused",
+        "provider_refusal",
+    ]
+
+
+def test_a_non_refusal_mid_stream_is_raised_untouched(litellm_module, tmp_path):
+    """Only content-policy refusals climb; a real stream failure must surface unchanged."""
+
+    async def call(**kwargs):
+        async def stream():
+            yield {"type": "response.created"}
+            raise RuntimeError("connection reset by peer")
+
+        return stream()
+
+    litellm_module.aresponses = call
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.aresponses(model="openai/gpt-5.6-sol", input="x", stream=True)
+        return await _drain(gen)
+
+    with pytest.raises(RuntimeError, match="connection reset"):
+        asyncio.run(run())
+    assert _ledger(tmp_path) == []
+
+
+def test_an_unrefused_stream_passes_every_event_through(litellm_module, tmp_path):
+    """The wrap must be invisible when nothing is refused."""
+    litellm_module.aresponses = _streaming_provider([])
+    openai_fallback.install(LADDER)
+
+    async def run():
+        gen = await litellm_module.aresponses(model="openai/gpt-5.6-sol", input="x", stream=True)
+        return await _drain(gen)
+
+    events = asyncio.run(run())
+
+    assert len(events) == 4
+    assert all(e["model"] == "openai/gpt-5.6-sol" for e in events)
+    entry = _ledger(tmp_path)[-1]
+    assert entry["outcome"] == "served" and entry["served_by_fallback"] is False
